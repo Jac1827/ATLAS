@@ -1,0 +1,570 @@
+{
+  "kind": "Short isolated diagnostic, not performance acceptance",
+  "browser": "151.0.7922.34",
+  "device": "390x844 DPR3 touch 4xCPU",
+  "controlRevision": "d0d2bbc",
+  "candidateDescription": "d0d2bbc plus deletion of two unused YoY detail object properties",
+  "fixtureFingerprints": {
+    "bundle.json": {
+      "bytes": 17329988,
+      "sha256": "87fb55ca63da4b8855948ecb6a3664419d6ba25d16416ad0f72e132499f15ab4"
+    },
+    "history-record.json": {
+      "bytes": 177472817,
+      "sha256": "912e5edacdefbbe1311e7bf5e896ae35eb5fa59ce0ce61c2950b1fd5b91b0ce3"
+    },
+    "startup-projection.json": {
+      "bytes": 6999497,
+      "sha256": "02421105ec2ef9bdd005df38d98328f4ae98a1ffd171fbb855693d33958c8bbf"
+    },
+    "parent.json": {
+      "bytes": 20604,
+      "sha256": "d7e64fd071c068285196d21753aaa72efdd7f832005686570755c30329dbcc59"
+    },
+    "projection-summary.json": {
+      "bytes": 1192,
+      "sha256": "9f788c89b47a3d8835e22109069bdad024a039ea61a18e55ed963c23853b4f72"
+    }
+  },
+  "parity": {
+    "homeHistoryHash": true,
+    "homeValue": true,
+    "monthlyNormalizationMatchesBaseline": true,
+    "communityProgressHash": true,
+    "communityDocumentHash": true,
+    "operatingDataHash": true,
+    "reportAggregateHash": true,
+    "exportRowsHash": true,
+    "reportDetailCount": true,
+    "exportRowCount": true,
+    "period": true
+  },
+  "groups": [
+    {
+      "build": "control",
+      "reportNavigations": [
+        {
+          "stage": "first-loop",
+          "cycle": 0,
+          "tab": 8,
+          "ms": 908,
+          "apiRequests": 0,
+          "longestTask": 402,
+          "blockingTime": 504,
+          "renderDurations": [
+            1.9000000357627869,
+            401.9000000357628
+          ],
+          "renders": 2,
+          "heap": 39771443,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 1,
+          "tab": 8,
+          "ms": 544,
+          "apiRequests": 0,
+          "longestTask": 354,
+          "blockingTime": 304,
+          "renderDurations": [
+            328.4000000357628
+          ],
+          "renders": 1,
+          "heap": 113899896,
+          "renderIssue": false
+        }
+      ],
+      "counts": [
+        {
+          "normalizeSavedCommunityRecord": {
+            "calls": 857,
+            "inclusiveMs": 116.30000013113022,
+            "inRenderCalls": 768,
+            "uniqueRenderTuples": 768
+          },
+          "defaultSavedCommunityRecord": {
+            "calls": 117,
+            "inclusiveMs": 21.19999998807907,
+            "inRenderCalls": 28,
+            "uniqueRenderTuples": 28
+          },
+          "rebuildBonusRolesByQuarter": {
+            "calls": 302,
+            "inclusiveMs": 21.09999990463257,
+            "inRenderCalls": 124,
+            "uniqueRenderTuples": 124
+          },
+          "buildPropertyBonusRoles": {
+            "calls": 1208,
+            "inclusiveMs": 19.19999998807907,
+            "inRenderCalls": 496,
+            "uniqueRenderTuples": 412
+          },
+          "mergeMetricList": {
+            "calls": 3548,
+            "inclusiveMs": 9.49999988079071,
+            "inRenderCalls": 924,
+            "uniqueRenderTuples": 146
+          },
+          "normalizePropertyTeamConfig": {
+            "calls": 193,
+            "inclusiveMs": 0.10000002384185791,
+            "inRenderCalls": 98,
+            "uniqueRenderTuples": 98
+          },
+          "normalizeCommunityMonthlySources": {
+            "calls": 259,
+            "inclusiveMs": 44.49999988079071,
+            "inRenderCalls": 170,
+            "uniqueRenderTuples": 170
+          },
+          "buildCommunityDetailForMonth": {
+            "calls": 322,
+            "inclusiveMs": 158.60000002384186,
+            "inRenderCalls": 322,
+            "uniqueRenderTuples": 322
+          },
+          "getCommunitySummary": {
+            "calls": 322,
+            "inclusiveMs": 110.30000025033951,
+            "inRenderCalls": 322,
+            "uniqueRenderTuples": 322
+          },
+          "computeScheduleFromContext": {
+            "calls": 364,
+            "inclusiveMs": 13.29999977350235,
+            "inRenderCalls": 364,
+            "uniqueRenderTuples": 364
+          },
+          "buildRecommendationsForRecord": {
+            "calls": 28,
+            "inclusiveMs": 19.399999916553497,
+            "inRenderCalls": 28,
+            "uniqueRenderTuples": 28
+          },
+          "atlasExactPresentationInputString": {
+            "calls": 1,
+            "inclusiveMs": 40.89999997615814,
+            "inRenderCalls": 1,
+            "uniqueRenderTuples": 1
+          },
+          "buildCommunityProgressReportData": {
+            "calls": 1,
+            "inclusiveMs": 198.69999998807907,
+            "inRenderCalls": 1,
+            "uniqueRenderTuples": 1
+          },
+          "buildCommunityProgressSingleReportData": {
+            "calls": 14,
+            "inclusiveMs": 114.29999995231628,
+            "inRenderCalls": 14,
+            "uniqueRenderTuples": 14
+          },
+          "getCompCalculatorSurveySnapshot": {
+            "calls": 14,
+            "inclusiveMs": 0.10000002384185791,
+            "inRenderCalls": 14,
+            "uniqueRenderTuples": 14
+          },
+          "buildRegionalPricingWorksheetSnapshot": {
+            "calls": 280,
+            "inclusiveMs": 35.400000274181366,
+            "inRenderCalls": 280,
+            "uniqueRenderTuples": 252
+          },
+          "buildCommunityProgressTrendRows": {
+            "calls": 15,
+            "inclusiveMs": 113.79999995231628,
+            "inRenderCalls": 15,
+            "uniqueRenderTuples": 15
+          },
+          "buildCommunityProgressYoyApplicationsSummary": {
+            "calls": 15,
+            "inclusiveMs": 32.49999988079071,
+            "inRenderCalls": 15,
+            "uniqueRenderTuples": 15
+          }
+        },
+        {
+          "normalizeSavedCommunityRecord": {
+            "calls": 857,
+            "inclusiveMs": 122.29999953508377,
+            "inRenderCalls": 768,
+            "uniqueRenderTuples": 768
+          },
+          "defaultSavedCommunityRecord": {
+            "calls": 117,
+            "inclusiveMs": 11.199999868869781,
+            "inRenderCalls": 28,
+            "uniqueRenderTuples": 28
+          },
+          "rebuildBonusRolesByQuarter": {
+            "calls": 292,
+            "inclusiveMs": 14.300000011920929,
+            "inRenderCalls": 114,
+            "uniqueRenderTuples": 114
+          },
+          "buildPropertyBonusRoles": {
+            "calls": 1168,
+            "inclusiveMs": 11.899999916553497,
+            "inRenderCalls": 456,
+            "uniqueRenderTuples": 372
+          },
+          "mergeMetricList": {
+            "calls": 3548,
+            "inclusiveMs": 8.199999928474426,
+            "inRenderCalls": 924,
+            "uniqueRenderTuples": 146
+          },
+          "normalizePropertyTeamConfig": {
+            "calls": 181,
+            "inclusiveMs": 0.19999998807907104,
+            "inRenderCalls": 86,
+            "uniqueRenderTuples": 86
+          },
+          "normalizeCommunityMonthlySources": {
+            "calls": 259,
+            "inclusiveMs": 39.20000022649765,
+            "inRenderCalls": 170,
+            "uniqueRenderTuples": 170
+          },
+          "buildCommunityDetailForMonth": {
+            "calls": 322,
+            "inclusiveMs": 167.80000007152557,
+            "inRenderCalls": 322,
+            "uniqueRenderTuples": 322
+          },
+          "getCommunitySummary": {
+            "calls": 322,
+            "inclusiveMs": 118.40000009536743,
+            "inRenderCalls": 322,
+            "uniqueRenderTuples": 322
+          },
+          "computeScheduleFromContext": {
+            "calls": 364,
+            "inclusiveMs": 11.400000035762787,
+            "inRenderCalls": 364,
+            "uniqueRenderTuples": 364
+          },
+          "buildRecommendationsForRecord": {
+            "calls": 28,
+            "inclusiveMs": 16.499999940395355,
+            "inRenderCalls": 28,
+            "uniqueRenderTuples": 28
+          },
+          "atlasExactPresentationInputString": {
+            "calls": 1,
+            "inclusiveMs": 41.10000002384186,
+            "inRenderCalls": 1,
+            "uniqueRenderTuples": 1
+          },
+          "buildCommunityProgressReportData": {
+            "calls": 1,
+            "inclusiveMs": 194.39999997615814,
+            "inRenderCalls": 1,
+            "uniqueRenderTuples": 1
+          },
+          "buildCommunityProgressSingleReportData": {
+            "calls": 14,
+            "inclusiveMs": 115.10000002384186,
+            "inRenderCalls": 14,
+            "uniqueRenderTuples": 14
+          },
+          "getCompCalculatorSurveySnapshot": {
+            "calls": 14,
+            "inclusiveMs": 0.6000000834465027,
+            "inRenderCalls": 14,
+            "uniqueRenderTuples": 14
+          },
+          "buildRegionalPricingWorksheetSnapshot": {
+            "calls": 280,
+            "inclusiveMs": 31.600000083446503,
+            "inRenderCalls": 280,
+            "uniqueRenderTuples": 252
+          },
+          "buildCommunityProgressTrendRows": {
+            "calls": 15,
+            "inclusiveMs": 124.30000001192093,
+            "inRenderCalls": 15,
+            "uniqueRenderTuples": 15
+          },
+          "buildCommunityProgressYoyApplicationsSummary": {
+            "calls": 15,
+            "inclusiveMs": 30.599999964237213,
+            "inRenderCalls": 15,
+            "uniqueRenderTuples": 15
+          }
+        }
+      ],
+      "errors": [],
+      "externalResponses": 0
+    },
+    {
+      "build": "repaired",
+      "reportNavigations": [
+        {
+          "stage": "first-loop",
+          "cycle": 0,
+          "tab": 8,
+          "ms": 843,
+          "apiRequests": 0,
+          "longestTask": 375,
+          "blockingTime": 444,
+          "renderDurations": [
+            1.699999988079071,
+            375.4000000357628
+          ],
+          "renders": 2,
+          "heap": 39684153,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 1,
+          "tab": 8,
+          "ms": 517,
+          "apiRequests": 0,
+          "longestTask": 321,
+          "blockingTime": 271,
+          "renderDurations": [
+            294.80000001192093
+          ],
+          "renders": 1,
+          "heap": 112715881,
+          "renderIssue": false
+        }
+      ],
+      "counts": [
+        {
+          "normalizeSavedCommunityRecord": {
+            "calls": 801,
+            "inclusiveMs": 106.49999994039536,
+            "inRenderCalls": 712,
+            "uniqueRenderTuples": 712
+          },
+          "defaultSavedCommunityRecord": {
+            "calls": 117,
+            "inclusiveMs": 17.300000071525574,
+            "inRenderCalls": 28,
+            "uniqueRenderTuples": 28
+          },
+          "rebuildBonusRolesByQuarter": {
+            "calls": 302,
+            "inclusiveMs": 15.200000047683716,
+            "inRenderCalls": 124,
+            "uniqueRenderTuples": 124
+          },
+          "buildPropertyBonusRoles": {
+            "calls": 1208,
+            "inclusiveMs": 15.100000083446503,
+            "inRenderCalls": 496,
+            "uniqueRenderTuples": 412
+          },
+          "mergeMetricList": {
+            "calls": 3548,
+            "inclusiveMs": 9.599999904632568,
+            "inRenderCalls": 924,
+            "uniqueRenderTuples": 146
+          },
+          "normalizePropertyTeamConfig": {
+            "calls": 193,
+            "inclusiveMs": 0.7000000476837158,
+            "inRenderCalls": 98,
+            "uniqueRenderTuples": 98
+          },
+          "normalizeCommunityMonthlySources": {
+            "calls": 245,
+            "inclusiveMs": 42.799999833106995,
+            "inRenderCalls": 156,
+            "uniqueRenderTuples": 156
+          },
+          "buildCommunityDetailForMonth": {
+            "calls": 308,
+            "inclusiveMs": 144.50000005960464,
+            "inRenderCalls": 308,
+            "uniqueRenderTuples": 308
+          },
+          "getCommunitySummary": {
+            "calls": 308,
+            "inclusiveMs": 105.69999986886978,
+            "inRenderCalls": 308,
+            "uniqueRenderTuples": 308
+          },
+          "computeScheduleFromContext": {
+            "calls": 336,
+            "inclusiveMs": 11.699999988079071,
+            "inRenderCalls": 336,
+            "uniqueRenderTuples": 336
+          },
+          "buildRecommendationsForRecord": {
+            "calls": 14,
+            "inclusiveMs": 10.699999928474426,
+            "inRenderCalls": 14,
+            "uniqueRenderTuples": 14
+          },
+          "atlasExactPresentationInputString": {
+            "calls": 1,
+            "inclusiveMs": 38.5,
+            "inRenderCalls": 1,
+            "uniqueRenderTuples": 1
+          },
+          "buildCommunityProgressReportData": {
+            "calls": 1,
+            "inclusiveMs": 178.4000000357628,
+            "inRenderCalls": 1,
+            "uniqueRenderTuples": 1
+          },
+          "buildCommunityProgressSingleReportData": {
+            "calls": 14,
+            "inclusiveMs": 85,
+            "inRenderCalls": 14,
+            "uniqueRenderTuples": 14
+          },
+          "getCompCalculatorSurveySnapshot": {
+            "calls": 14,
+            "inclusiveMs": 0.5,
+            "inRenderCalls": 14,
+            "uniqueRenderTuples": 14
+          },
+          "buildRegionalPricingWorksheetSnapshot": {
+            "calls": 280,
+            "inclusiveMs": 29.500000178813934,
+            "inRenderCalls": 280,
+            "uniqueRenderTuples": 252
+          },
+          "buildCommunityProgressTrendRows": {
+            "calls": 15,
+            "inclusiveMs": 107.19999986886978,
+            "inRenderCalls": 15,
+            "uniqueRenderTuples": 15
+          },
+          "buildCommunityProgressYoyApplicationsSummary": {
+            "calls": 15,
+            "inclusiveMs": 4.799999952316284,
+            "inRenderCalls": 15,
+            "uniqueRenderTuples": 15
+          }
+        },
+        {
+          "normalizeSavedCommunityRecord": {
+            "calls": 801,
+            "inclusiveMs": 108.6999996304512,
+            "inRenderCalls": 712,
+            "uniqueRenderTuples": 712
+          },
+          "defaultSavedCommunityRecord": {
+            "calls": 117,
+            "inclusiveMs": 14.400000035762787,
+            "inRenderCalls": 28,
+            "uniqueRenderTuples": 28
+          },
+          "rebuildBonusRolesByQuarter": {
+            "calls": 292,
+            "inclusiveMs": 13.600000023841858,
+            "inRenderCalls": 114,
+            "uniqueRenderTuples": 114
+          },
+          "buildPropertyBonusRoles": {
+            "calls": 1168,
+            "inclusiveMs": 12.70000010728836,
+            "inRenderCalls": 456,
+            "uniqueRenderTuples": 372
+          },
+          "mergeMetricList": {
+            "calls": 3548,
+            "inclusiveMs": 10.200000166893005,
+            "inRenderCalls": 924,
+            "uniqueRenderTuples": 146
+          },
+          "normalizePropertyTeamConfig": {
+            "calls": 181,
+            "inclusiveMs": 0.19999992847442627,
+            "inRenderCalls": 86,
+            "uniqueRenderTuples": 86
+          },
+          "normalizeCommunityMonthlySources": {
+            "calls": 245,
+            "inclusiveMs": 45.30000013113022,
+            "inRenderCalls": 156,
+            "uniqueRenderTuples": 156
+          },
+          "buildCommunityDetailForMonth": {
+            "calls": 308,
+            "inclusiveMs": 150.90000009536743,
+            "inRenderCalls": 308,
+            "uniqueRenderTuples": 308
+          },
+          "getCommunitySummary": {
+            "calls": 308,
+            "inclusiveMs": 110.30000019073486,
+            "inRenderCalls": 308,
+            "uniqueRenderTuples": 308
+          },
+          "computeScheduleFromContext": {
+            "calls": 336,
+            "inclusiveMs": 14.500000357627869,
+            "inRenderCalls": 336,
+            "uniqueRenderTuples": 336
+          },
+          "buildRecommendationsForRecord": {
+            "calls": 14,
+            "inclusiveMs": 10.200000047683716,
+            "inRenderCalls": 14,
+            "uniqueRenderTuples": 14
+          },
+          "atlasExactPresentationInputString": {
+            "calls": 1,
+            "inclusiveMs": 33.5,
+            "inRenderCalls": 1,
+            "uniqueRenderTuples": 1
+          },
+          "buildCommunityProgressReportData": {
+            "calls": 1,
+            "inclusiveMs": 173.5,
+            "inRenderCalls": 1,
+            "uniqueRenderTuples": 1
+          },
+          "buildCommunityProgressSingleReportData": {
+            "calls": 14,
+            "inclusiveMs": 82.5,
+            "inRenderCalls": 14,
+            "uniqueRenderTuples": 14
+          },
+          "getCompCalculatorSurveySnapshot": {
+            "calls": 14,
+            "inclusiveMs": 0.30000007152557373,
+            "inRenderCalls": 14,
+            "uniqueRenderTuples": 14
+          },
+          "buildRegionalPricingWorksheetSnapshot": {
+            "calls": 280,
+            "inclusiveMs": 33.499999701976776,
+            "inRenderCalls": 280,
+            "uniqueRenderTuples": 252
+          },
+          "buildCommunityProgressTrendRows": {
+            "calls": 15,
+            "inclusiveMs": 118.89999985694885,
+            "inRenderCalls": 15,
+            "uniqueRenderTuples": 15
+          },
+          "buildCommunityProgressYoyApplicationsSummary": {
+            "calls": 15,
+            "inclusiveMs": 4.699999988079071,
+            "inRenderCalls": 15,
+            "uniqueRenderTuples": 15
+          }
+        }
+      ],
+      "errors": [],
+      "externalResponses": 0
+    }
+  ],
+  "limits": [
+    "Single instrumented mobile diagnostic; not acceptance timing.",
+    "Other task suites were reported finished before this run; no claim of pristine machine/process isolation.",
+    "Synthetic authenticated transport and canonical13-batch fixture, not live finance or independent authenticated-session acceptance.",
+    "All external API mutations blocked."
+  ]
+}

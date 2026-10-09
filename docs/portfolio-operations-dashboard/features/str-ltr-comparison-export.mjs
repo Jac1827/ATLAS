@@ -232,7 +232,12 @@ export function comparisonWorkbookBytes(retained,XLSX){
  for(let i=1;i<=book.SheetNames.length;i++){
   const p=`xl/worksheets/sheet${i}.xml`;let source=get(p);source=source.replace(/(<worksheet\b[^>]*>)/,'$1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');source=source.replace(/<sheetViews>[\s\S]*?<\/sheetViews>/,'<sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane xSplit="1" ySplit="7" topLeftCell="B8" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>');
   source=source.replace(/<c\b([^>]*\br="[A-Z]+([1-7])"[^>]*)>/g,(_,attrs,r)=>`<c${attrs.replace(/ s="[^"]*"/,'')} s="${Number(r)===1?xf:Number(r)===7?xf+1:xf+2}">`);
-  source=source.replace('</worksheet>','<pageMargins left="0.3" right="0.3" top="0.4" bottom="0.4" header="0.15" footer="0.15"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/><headerFooter><oddFooter>&amp;LRISE | STR vs. LTR&amp;RPage &amp;P of &amp;N</oddFooter></headerFooter>'+(i===1?'<drawing r:id="rIdRiseLogo"/>':'')+'</worksheet>');put(p,source);
+  // CT_Worksheet orders print settings before ignoredErrors and drawings.
+  // SheetJS emits ignoredErrors last; appending print settings after it creates
+  // schema-invalid workbooks even though permissive ZIP/XML readers load them.
+  const printSettings='<pageMargins left="0.3" right="0.3" top="0.4" bottom="0.4" header="0.15" footer="0.15"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/><headerFooter><oddFooter>&amp;LRISE | STR vs. LTR&amp;RPage &amp;P of &amp;N</oddFooter></headerFooter>';
+  source=source.replace(/<(?:rowBreaks|colBreaks|customProperties|cellWatches|ignoredErrors|smartTags|drawing|legacyDrawing|legacyDrawingHF|picture|oleObjects|controls|webPublishItems|tableParts|extLst)\b|<\/worksheet>/,match=>printSettings+match);
+  if(i===1)source=source.replace(/<(?:legacyDrawing|legacyDrawingHF|picture|oleObjects|controls|webPublishItems|tableParts|extLst)\b|<\/worksheet>/,match=>'<drawing r:id="rIdRiseLogo"/>'+match);put(p,source);
  }
  const rel=entries=>`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="${ns}/package/2006/relationships">${entries.map(([id,type,target])=>`<Relationship Id="${id}" Type="${office}/${type}" Target="${target}"/>`).join('')}</Relationships>`;
  put('xl/worksheets/_rels/sheet1.xml.rels',rel([['rIdRiseLogo','drawing','../drawings/riseLogo.xml']]));

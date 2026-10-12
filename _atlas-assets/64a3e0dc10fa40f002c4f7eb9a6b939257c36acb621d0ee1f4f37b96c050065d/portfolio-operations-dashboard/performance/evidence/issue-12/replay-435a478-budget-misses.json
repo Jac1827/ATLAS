@@ -1,0 +1,127 @@
+[
+  {
+    "path": "desktop.navigation.Reports.repeatedLongestTaskMs",
+    "limit": 100,
+    "median": 0.0,
+    "maximum": 103,
+    "samples": [
+      103,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "path": "desktop.navigation.Reports.firstLoopLongestTaskMs",
+    "limit": 100,
+    "median": 105,
+    "maximum": 105,
+    "samples": [
+      105
+    ]
+  },
+  {
+    "path": "mobile.startup.cold.longestTaskMs",
+    "limit": 200,
+    "median": 197,
+    "maximum": 210,
+    "samples": [
+      210,
+      202,
+      197,
+      186,
+      194
+    ]
+  },
+  {
+    "path": "mobile.startup.warm.longestTaskMs",
+    "limit": 200,
+    "median": 199,
+    "maximum": 214,
+    "samples": [
+      194,
+      214,
+      199,
+      193,
+      202
+    ]
+  },
+  {
+    "path": "mobile.navigation.Home.firstLoopMs",
+    "limit": 1000,
+    "median": 1064,
+    "maximum": 1064,
+    "samples": [
+      1064
+    ]
+  },
+  {
+    "path": "mobile.navigation.Home.firstLoopLongestTaskMs",
+    "limit": 200,
+    "median": 205,
+    "maximum": 205,
+    "samples": [
+      205
+    ]
+  },
+  {
+    "path": "mobile.navigation.Reports.repeatedMs",
+    "limit": 400,
+    "median": 283.0,
+    "maximum": 590,
+    "samples": [
+      590,
+      293,
+      283,
+      270,
+      269,
+      270,
+      269,
+      294,
+      288,
+      283
+    ]
+  },
+  {
+    "path": "mobile.navigation.Reports.repeatedLongestTaskMs",
+    "limit": 200,
+    "median": 118.0,
+    "maximum": 422,
+    "samples": [
+      422,
+      128,
+      116,
+      119,
+      115,
+      111,
+      115,
+      119,
+      117,
+      122
+    ]
+  },
+  {
+    "path": "mobile.navigation.Reports.firstLoopLongestTaskMs",
+    "limit": 200,
+    "median": 457,
+    "maximum": 457,
+    "samples": [
+      457
+    ]
+  },
+  {
+    "path": "mobile.navigation.Command.firstLoopLongestTaskMs",
+    "limit": 200,
+    "median": 210,
+    "maximum": 210,
+    "samples": [
+      210
+    ]
+  }
+]

@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {indexedDB} from 'fake-indexeddb';
+import {executeHistory,historyChanges} from '../docs/portfolio-operations-dashboard/features/import-history-store.mjs';
+globalThis.indexedDB=indexedDB;
+const source=fs.readFileSync('docs/portfolio-operations-dashboard/workspace-core.js','utf8');
+const ui=fs.readFileSync('docs/portfolio-operations-dashboard/features/import-workspace.js','utf8');
+const run=(operation,extra={})=>executeHistory({dbName:'routing-'+process.pid,storeName:'records',key:'imports',operation,...extra});
+const audit={id:'bartram-audit',fileName:'Bartram Park.xlsx',activeCommunities:['Bartram Park'],inactiveCommunities:['Nocatee'],questionItems:[{id:'inactive',kind:'inactive_history',prompt:'Nocatee is inactive'}],answers:[],status:'Needs Answers'};
+const batch={id:'bartram-batch',status:'Approved',downstreamAudit:[audit],summary:{held:5840,readyToImport:0},beforeSnapshot:{savedData:{'Bartram Park':{rent:1234}}}};
+const others=Array.from({length:30},(_,i)=>({id:'other-'+i,summary:{held:0}}));
+await run('save',{value:{batches:[...others,batch],sourceArchive:[{id:'source',fileName:'Bartram Park.xlsx',fileHash:'retained-hash'}],canonicalRecords:[],lineage:[],historyStorage:{view:'full'}}});
+const current=await run('current'), page=await run('page',{collection:'batches',offset:25,limit:25,detail:true,expectedRevision:current.historyStorage.revision});
+assert(!current.batches.some(b=>b.id===batch.id),'Fixture exercises a batch absent from compact memory');
+const alerts=[],calls=[];
+let workspace='admin-A',failWrite=false;
+const c={console,Date,Map,Set,structuredClone,window:{},dataImport2State:current,dataImportHistoryBase:structuredClone(current),dataImportHistoryRevision:current.historyStorage.revision,dataImportHistoryPages:{batches:page},getAtlasRenderContextKey:()=>workspace,historyChanges,normalizeDataImport2State:v=>v,serializeDataImport2State:()=>structuredClone(c.dataImport2State),queueAtlasStateWrite:async fn=>{try{await fn();}catch(e){calls.push(e.message);return null;}},dataImportHistoryOperation:async(op,args)=>{calls.push(op);if(failWrite&&op==='update')throw Error('write failed');return run(op,args);},loadDataImportHistoryPage:async(collection,offset)=>{c.dataImportHistoryPages.batches=await run('page',{collection,offset,limit:25,detail:true,expectedRevision:c.dataImportHistoryRevision});},renderTab:()=>{},alert:m=>alerts.push(m),atlasCurrentUserDisplayName:()=> 'Test admin',dataImportQuestionControlId:(_a,_q,suffix)=>suffix,document:{getElementById:id=>({value:({choice:'not_targeted',note:'Nocatee is an excluded competitor; retain Bartram survey.',scope:'Exact Source + Report'})[id]})},dataImportNormalizeText:s=>String(s).toLowerCase(),dataImportFilterActiveReportingCommunities:n=>n.filter(x=>x!=='Nocatee'),dataImportExpectedDownstreamModules:()=>['Market Survey'],dataImportBuildDestinationQuestion:()=>'',dataImportQuestionId:(kind,prompt)=>kind+prompt,dataImportHasSavedFallbackData:()=>true,dataImportAuditIdForPlan:()=> 'new-audit',dataImportReportLabel:()=> 'AptIQ Marketing Survey',dataImportGetHealthCommunityNames:()=>['Bartram Park'],escapeHtml:s=>String(s)};
+vm.createContext(c);
+for(const name of ['persistDataImport2State','dataImportFindQuestionAudit','dataImportAuditQuestionItems','dataImportQuestionValueLabel','dataImportQuestionDraftKey','dataImportStoreQuestionAnswer','persistDataImportQuestionReview','saveDataImportAuditQuestion','dataImportBuildPlanQuestionItems','dataImportBuildDownstreamAuditForPlan']){
+ let code=source.match(new RegExp('^(?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'))?.[0];assert(code,name);
+ code=code.replace(/const \{historyChanges\}=await import\([^;]+;/,'const {historyChanges}=testHistoryModule;');
+ c.testHistoryModule={historyChanges};vm.runInContext(code,c);
+}
+vm.runInContext(ui.match(/^function renderDataImportQuestionChoiceOptions\([^\n]*\) \{[\s\S]*?^\}/m)[0],c);
+assert.match(c.renderDataImportQuestionChoiceOptions(audit.questionItems[0],'','history',audit),/not_targeted/);
+assert.doesNotMatch(c.renderDataImportQuestionChoiceOptions(audit.questionItems[0],'','pending',audit),/not_targeted/);
+assert.match(c.renderDataImportQuestionChoiceOptions({kind:'community'},'','history',{activeCommunities:[],inactiveCommunities:['Nocatee']}),/inactive_not_required/);
+assert.doesNotMatch(c.renderDataImportQuestionChoiceOptions({kind:'community'},'','pending',{activeCommunities:[],inactiveCommunities:['Nocatee']}),/inactive_not_required/);
+await c.saveDataImportAuditQuestion('history',audit.id,batch.id,'inactive');
+assert.deepEqual(alerts,[]);
+const saved=await run('load'), savedBatch=saved.batches.find(b=>b.id===batch.id);
+assert.equal(savedBatch.downstreamAudit[0].answers[0].value,'not_targeted');
+assert.equal(c.dataImportHistoryPages.batches.rows.find(b=>b.id===batch.id).downstreamAudit[0].status,'Answered');
+assert.equal(saved.batches.length,31);assert.equal(saved.sourceArchive[0].fileHash,'retained-hash');
+assert.deepEqual(savedBatch.summary,batch.summary,'Answer must not rewrite held/written outcomes');
+assert.deepEqual(await run('snapshot',{batch:savedBatch}),batch.beforeSnapshot,'Rollback evidence remains intact');
+assert(!calls.includes('load'),'Review save does not hydrate the entire archive');
+// Storage failure must not optimistically alter the displayed answer.
+failWrite=true;c.document.getElementById=id=>({value:id==='choice'?'history_only':''});
+await c.saveDataImportAuditQuestion('history',audit.id,batch.id,'inactive');
+assert.match(alerts.pop(),/could not be saved/);
+assert.equal(c.dataImportHistoryPages.batches.rows.find(b=>b.id===batch.id).downstreamAudit[0].answers[0].value,'not_targeted');
+failWrite=false;
+// A stale page cannot edit another revision, even if compact summaries exist.
+c.dataImportHistoryPages.batches.revision--;
+assert.equal(c.dataImportFindQuestionAudit('history',audit.id,batch.id),null);
+const plan={name:'Bartram Park.xlsx',reportType:'marketing_iq',communities:['Bartram Park','Nocatee'],selectedCommunities:['Bartram Park']};
+assert.equal(c.dataImportBuildPlanQuestionItems(plan).length,0);
+assert.deepEqual(Array.from(c.dataImportBuildDownstreamAuditForPlan(plan).activeCommunities),['Bartram Park']);
+assert.equal(c.dataImportBuildDownstreamAuditForPlan(plan).inactiveCommunities.length,0);
+const inactive=c.dataImportBuildPlanQuestionItems({...plan,selectedCommunities:['Nocatee']});
+assert(inactive.some(q=>q.kind==='inactive_history'));assert(!inactive.some(q=>q.kind==='community'),'Never require reassignment of an inactive-only source');
+assert(c.dataImportBuildPlanQuestionItems({...plan,selectedCommunities:[]}).some(q=>q.kind==='community'),'Empty selection cannot silently restore detected competitors');
+console.log('PASS persisted routing review, retained evidence, failure/stale guards, Bartram-only routing and inactive-community handling');

@@ -45878,12 +45878,20 @@ async function loadDataImportHistoryPage(collection,offset=0) {
   }catch(error){if(controller.signal.aborted||context!==getAtlasRenderContextKey()||requestId!==page.requestId)return;Object.assign(page,{loading:false,error:error.message});}
   renderTab();
 }
-function persistDataImport2State() {
+function persistDataImport2State(options = {}) {
   if(window.AtlasReplayWriteFence)return false;
   dataImport2State=normalizeDataImport2State(dataImport2State);
   const value=structuredClone(serializeDataImport2State()),base=dataImportHistoryBase?structuredClone(dataImportHistoryBase):null,pendingBatch=dataImport2State.pendingBatch,context=getAtlasRenderContextKey();
+  // History pages contain detailed batches omitted from the compact dashboard.
+  // Submit only the edited batch, retaining every other stored batch and snapshot.
+  if (options.reviewBatch) {
+    const index = (value.batches || []).findIndex(batch => batch.id === options.reviewBatch.id);
+    if (index < 0) value.batches = [...(value.batches || []), structuredClone(options.reviewBatch)];
+    else value.batches[index] = structuredClone(options.reviewBatch);
+  }
   return queueAtlasStateWrite(async()=>{
     if(context!==getAtlasRenderContextKey())throw new Error('Workspace changed before import history could be saved.');
+    if(options.reviewBatch && options.reviewRevision !== dataImportHistoryRevision) throw new Error('Import history changed. Refresh the review before saving your answer.');
     if(!base)throw new Error('Load verified import history before saving changes.');
     const {historyChanges}=await import('./features/import-history-store.mjs?v=0ca84d5c090aa001');
     const changes=historyChanges(value,base);
@@ -45891,6 +45899,7 @@ function persistDataImport2State() {
       const receipt=await dataImportHistoryOperation('save',{value,expectedRevision:dataImportHistoryRevision});
       if(context!==getAtlasRenderContextKey())return;
       dataImportHistoryRevision=receipt.revision;dataImport2State.historyStorage={...dataImport2State.historyStorage,revision:receipt.revision};
+      if (options.reviewBatch) dataImport2State.batches = value.batches;
     }else if(Object.keys(changes.set).length||Object.keys(changes.upsert).length){
       if(dataImport2State.historyStorage?.view==='remote')await dataImportHistoryOperation('current');
       const receipt=await dataImportHistoryOperation('update',{set:changes.set,upsert:changes.upsert,expectedRevision:dataImportHistoryRevision});
@@ -48647,6 +48656,7 @@ async function approveDataImportBatch() {
         reportTypeLabel: plan.reportTypeLabel,
         sourceSystem: plan.sourceSystem,
         communities: plan.communities || [],
+        selectedCommunities: plan.selectedCommunities || plan.communities || [],
         rowsReviewed: Number(plan.importResult?.rowsReviewed ?? plan.rowCount ?? 0),
         rowsInserted: Number(plan.importResult?.rowsInserted || 0),
         rowsUpdated: Number(plan.importResult?.rowsUpdated || 0),
@@ -49743,8 +49753,9 @@ function dataImportAuditIdForPlan(plan = {}) {
 
 function dataImportBuildPlanQuestionItems(plan = {}, options = {}) {
   const items = [];
-  const activeCommunities = dataImportFilterActiveReportingCommunities(plan.communities || []);
-  const inactiveCommunities = (plan.communities || []).filter(name => !activeCommunities.some(activeName => dataImportNormalizeText(activeName) === dataImportNormalizeText(name)));
+  const targetCommunities = plan.selectedCommunities || plan.communities || [];
+  const activeCommunities = dataImportFilterActiveReportingCommunities(targetCommunities);
+  const inactiveCommunities = targetCommunities.filter(name => !activeCommunities.some(activeName => dataImportNormalizeText(activeName) === dataImportNormalizeText(name)));
   const modules = dataImportExpectedDownstreamModules(plan.reportType, plan.downstreamUses);
   const add = (kind, prompt, details = {}) => {
     if (!prompt) return;
@@ -49760,7 +49771,7 @@ function dataImportBuildPlanQuestionItems(plan = {}, options = {}) {
   if (!plan.reportType || plan.reportType === "unknown") {
     add("report_type", `${plan.name}: Which report type should ATLAS use for this file?`, { value: plan.reportType || "unknown" });
   }
-  if (!activeCommunities.length) {
+  if (!activeCommunities.length && !inactiveCommunities.length) {
     add("community", `${plan.name}: Which active community should receive this data?`);
   }
   if (inactiveCommunities.length) {
@@ -49825,8 +49836,9 @@ function dataImportBuildBatchQuestions(batch = {}) {
 }
 
 function dataImportBuildDownstreamAuditForPlan(plan = {}, routeMessage = "") {
-  const activeCommunities = dataImportFilterActiveReportingCommunities(plan.communities || []);
-  const inactiveCommunities = (plan.communities || []).filter(name => !activeCommunities.some(activeName => dataImportNormalizeText(activeName) === dataImportNormalizeText(name)));
+  const targetCommunities = plan.selectedCommunities || plan.communities || [];
+  const activeCommunities = dataImportFilterActiveReportingCommunities(targetCommunities);
+  const inactiveCommunities = targetCommunities.filter(name => !activeCommunities.some(activeName => dataImportNormalizeText(activeName) === dataImportNormalizeText(name)));
   const modules = dataImportExpectedDownstreamModules(plan.reportType, plan.downstreamUses);
   const hasRoutedData = activeCommunities.length > 0 && activeCommunities.some(name => dataImportHasSavedFallbackData(name, plan.reportType));
   const questionItems = dataImportBuildPlanQuestionItems(plan, { includeDestinationCheck: !hasRoutedData });
@@ -50140,9 +50152,15 @@ function dataImportFindQuestionAudit(context = "pending", auditId = "", batchId 
     const plan = batch?.files?.find(file => dataImportAuditIdForPlan(file) === auditId);
     return plan ? { batch, owner: plan, audit: dataImportBuildDownstreamAuditForPlan(plan) } : null;
   }
-  const batch = (dataImport2State.batches || []).find(item => item.id === batchId);
+  const page = dataImportHistoryPages.batches;
+  const revision = dataImport2State.historyStorage?.revision ?? null;
+  const displayed = page.revision === revision ? page.rows.find(item => item.id === batchId) : null;
+  const stored = displayed || (dataImport2State.historyStorage?.view === "full" || !dataImport2State.historyStorage
+    ? (dataImport2State.batches || []).find(item => item.id === batchId) : null);
+  // Editing a clone keeps the visible audit unchanged until storage confirms it.
+  const batch = stored ? structuredClone(stored) : null;
   const audit = batch?.downstreamAudit?.find(item => item.id === auditId);
-  return audit ? { batch, owner: audit, audit } : null;
+  return audit ? { batch, owner: audit, audit, revision } : null;
 }
 
 function toggleDataImportQuestionReview(context, auditId, batchId = "", questionId = "") {
@@ -50179,9 +50197,10 @@ function dataImportQuestionOutcomeText(question = {}, answer = {}, audit = {}) {
 function dataImportQuestionValueLabel(question = {}, value = "") {
   if (question.kind === "mapping") return dataImportMappingDestinationLabel(value);
   if (question.kind === "report_type") return dataImportReportLabel(value);
-  if (question.kind === "community") return value;
+  if (question.kind === "community") return value === "inactive_not_required" ? "No active destination required — inactive community" : value;
   const labels = {
     history_only: "Retain for history only",
+    not_targeted: "Inactive community is a competitor, not an upload target",
     exclude_file: "Exclude this file from approval",
     authoritative_source: "Use authoritative source hierarchy",
     keep_existing: "Keep current ATLAS value",
@@ -50533,7 +50552,21 @@ function dataImportStoreQuestionAnswer(match, context, question, value, note = "
   return true;
 }
 
-function saveDataImportAuditQuestion(context, auditId, batchId, questionId) {
+async function persistDataImportQuestionReview(match, context) {
+  const workspace = getAtlasRenderContextKey();
+  try {
+    const result = await persistDataImport2State(context === "history" ? { reviewBatch: match.batch, reviewRevision: match.revision } : {});
+    if (result === false || result === null) throw new Error("The import review could not be saved. Refresh the review and retry.");
+    if (workspace !== getAtlasRenderContextKey()) return;
+    if (context === "history") await loadDataImportHistoryPage("batches", dataImportHistoryPages.batches.offset || 0);
+  } catch (error) {
+    if (workspace !== getAtlasRenderContextKey()) return;
+    alert(error?.message || "The import review could not be saved. Refresh the review and retry.");
+  }
+  renderTab();
+}
+
+async function saveDataImportAuditQuestion(context, auditId, batchId, questionId) {
   const match = dataImportFindQuestionAudit(context, auditId, batchId);
   if (!match) {
     alert("ATLAS could not find this source review. Reopen the import and try again.");
@@ -50554,8 +50587,7 @@ function saveDataImportAuditQuestion(context, auditId, batchId, questionId) {
   const nextAnswers = context === "pending" ? (match.owner.questionAnswers || []) : (match.owner.answers || []);
   const remaining = dataImportAuditQuestionItems(updatedAudit).filter(item => !nextAnswers.some(answerItem => answerItem.questionId === item.id)).length;
   if (!remaining) dataImport2State.activeQuestionReviewKey = "";
-  persistDataImport2State();
-  renderTab();
+  await persistDataImportQuestionReview(match, context);
 }
 
 function requestIgnoreAllDataImportQuestions(key = "") {
@@ -50563,7 +50595,7 @@ function requestIgnoreAllDataImportQuestions(key = "") {
   renderTab();
 }
 
-function bulkResolveDataImportQuestions(context, auditId, batchId, mode) {
+async function bulkResolveDataImportQuestions(context, auditId, batchId, mode) {
   const match = dataImportFindQuestionAudit(context, auditId, batchId);
   if (!match) return;
   const selected = new Set(dataImport2State.selectedQuestionIds || []);
@@ -50591,8 +50623,7 @@ function bulkResolveDataImportQuestions(context, auditId, batchId, mode) {
   const updatedAudit = context === "pending" ? dataImportBuildDownstreamAuditForPlan(match.owner) : match.owner;
   const nextAnswers = context === "pending" ? (match.owner.questionAnswers || []) : (match.owner.answers || []);
   if (!dataImportAuditQuestionItems(updatedAudit).some(question => !nextAnswers.some(answer => answer.questionId === question.id))) dataImport2State.activeQuestionReviewKey = "";
-  persistDataImport2State();
-  renderTab();
+  await persistDataImportQuestionReview(match, context);
 }
 
 

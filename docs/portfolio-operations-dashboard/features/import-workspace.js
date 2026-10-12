@@ -192,17 +192,18 @@ function renderDataImportFileIssues(plan) {
   ).join("")}${issues.length > 4 ? `<span class="data-import2-chip">${issues.length - 4} more</span>` : ""}</div>`;
 }
 
-function renderDataImportQuestionChoiceOptions(question = {}, selectedValue = "") {
+function renderDataImportQuestionChoiceOptions(question = {}, selectedValue = "", context = "pending", audit = {}) {
   const selected = selectedValue || (question.kind === "mapping" ? "" : question.value || "");
   if (question.kind === "mapping") return renderDataImportDestinationOptions(selected, question.suggestedField);
   if (question.kind === "report_type") {
     return `<option value="">Choose report type</option>${DATA_IMPORT_REPORT_ORDER.map(type => `<option value="${escapeHtml(type)}"${selected === type ? " selected" : ""}>${escapeHtml(dataImportReportLabel(type))}</option>`).join("")}`;
   }
   if (question.kind === "community") {
-    return `<option value="">Choose active community</option>${dataImportGetHealthCommunityNames().map(name => `<option value="${escapeHtml(name)}"${selected === name ? " selected" : ""}>${escapeHtml(name)}</option>`).join("")}`;
+    const inactiveOnly = context === "history" && !(audit.activeCommunities || []).length && (audit.inactiveCommunities || []).length;
+    return `<option value="">Choose active community</option>${inactiveOnly ? `<option value="inactive_not_required"${selected === "inactive_not_required" ? " selected" : ""}>No active destination required — inactive community</option>` : ""}${dataImportGetHealthCommunityNames().map(name => `<option value="${escapeHtml(name)}"${selected === name ? " selected" : ""}>${escapeHtml(name)}</option>`).join("")}`;
   }
   const choices = question.kind === "inactive_history"
-    ? [["history_only", "Retain for history only"], ["exclude_file", "Exclude this file from approval"]]
+    ? [["history_only", "Retain for history only"], ...(context === "history" && (audit.activeCommunities || []).length ? [["not_targeted", "Inactive community is a competitor, not an upload target"]] : []), ["exclude_file", "Exclude this file from approval"]]
     : question.kind === "conflict"
       ? [["authoritative_source", "Use authoritative source hierarchy"], ["keep_existing", "Keep current ATLAS value"], ["hold_review", "Hold for manual review"]]
       : question.kind === "destination"
@@ -312,7 +313,7 @@ function renderDataImportQuestionReview(audit = {}, context = "pending", batchId
           ${answer ? `<div class="data-import2-question-answer"><i class="ph ph-check-circle"></i> ${escapeHtml(answer.valueLabel || dataImportQuestionValueLabel(question, answer.value))} · ${escapeHtml(dataImportFormatTimestamp(answer.answeredAt))} by ${escapeHtml(answer.answeredBy || "Admin")}</div>` : ""}
         </div>
         <div class="data-import2-question-controls">
-          <label class="data-import2-field"><div class="data-import2-small-label">${question.kind === "mapping" ? "Map To" : "Answer"}</div><select id="${escapeHtml(choiceId)}" onchange='handleDataImportQuestionChoiceChange(${JSON.stringify(context)}, ${JSON.stringify(audit.id)}, ${JSON.stringify(batchId)}, ${JSON.stringify(question.id)}, this.value)'>${renderDataImportQuestionChoiceOptions(question, draftValue)}</select></label>
+          <label class="data-import2-field"><div class="data-import2-small-label">${question.kind === "mapping" ? "Map To" : "Answer"}</div><select id="${escapeHtml(choiceId)}" onchange='handleDataImportQuestionChoiceChange(${JSON.stringify(context)}, ${JSON.stringify(audit.id)}, ${JSON.stringify(batchId)}, ${JSON.stringify(question.id)}, this.value)'>${renderDataImportQuestionChoiceOptions(question, draftValue, context, audit)}</select></label>
           <label class="data-import2-field"><div class="data-import2-small-label">Note</div><input id="${escapeHtml(noteId)}" value="${escapeHtml(answer?.note || "")}" placeholder="Optional review note"></label>
           ${question.kind === "mapping" ? `<label class="data-import2-field"><div class="data-import2-small-label">Learning Scope</div><select id="${escapeHtml(scopeId)}"><option${(answer?.scope || "Exact Source + Report") === "Exact Source + Report" ? " selected" : ""}>Exact Source + Report</option><option${answer?.scope === "This File Format Only" ? " selected" : ""}>This File Format Only</option><option${answer?.scope === "This Data Source" ? " selected" : ""}>This Data Source</option><option${answer?.scope === "This Property" ? " selected" : ""}>This Property</option><option${answer?.scope === "This Region" ? " selected" : ""}>This Region</option><option${answer?.scope === "Portfolio-Wide" ? " selected" : ""}>Portfolio-Wide</option></select></label>` : ""}
         </div>

@@ -8119,13 +8119,17 @@ function syncAbsorptionMetricsFromMonthlyData() {
   });
 }
 
+function deriveAtlasReputationBonusRole(role, actual = null) {
+  return { ...role, metrics: role.metrics.map(metric => ({ ...metric,
+    ...((metric.syncKey === "oraScore" || /^ora(?: score)?$/i.test(String(metric.cat || ""))) ? { actual } : {})
+  })) };
+}
+
 function syncPropertyOraMetrics() {
-  Object.entries(bonusRolesByQ).forEach(([quarter, roles]) => {
-    const currentOra = getAtlasQuarterOra(getProp().name, quarter);
-    roles.forEach(role => role.metrics.forEach(metric => {
-      if (metric.cat.toLowerCase() === "ora") metric.actual = currentOra;
-    }));
-  });
+  // Derive display/scoring inputs; never backdate or erase retained bonus actuals.
+  return Object.fromEntries(Object.entries(bonusRolesByQ).map(([quarter, roles]) => [quarter,
+    roles.map(role => deriveAtlasReputationBonusRole(role, getAtlasQuarterOra(getProp().name, quarter)))
+  ]));
 }
 
 function syncPropertyMsoeMetrics() {
@@ -29048,11 +29052,10 @@ function roundJacMetricValue(value, format) {
 function syncJacsTeamMetricsFromDashboard() {
   jacsTeamBonus.forEach(role => {
     const auto = getJacsAutoMetrics(role);
-    const oraValues = getJacRoleScope(role).savedNames.map(name => getAtlasQuarterOra(name)).filter(value => typeof value === "number" && Number.isFinite(value));
-    auto.oraScore = oraValues.length ? oraValues.reduce((sum, value) => sum + value, 0) / oraValues.length : null;
     role.metrics.forEach(metric => {
-      if (metric.syncKey && Object.prototype.hasOwnProperty.call(auto, metric.syncKey)) {
-        metric.actual = metric.syncKey === "oraScore" && auto.oraScore === null ? null : roundJacMetricValue(auto[metric.syncKey], metric.format);
+      // Saved ORA actuals are legacy history. The view uses a derived period input.
+      if (metric.syncKey !== "oraScore" && metric.syncKey && Object.prototype.hasOwnProperty.call(auto, metric.syncKey)) {
+        metric.actual = roundJacMetricValue(auto[metric.syncKey], metric.format);
       }
       if (metric.secondarySyncKey && Object.prototype.hasOwnProperty.call(auto, metric.secondarySyncKey)) {
         metric.secondaryActual = roundJacMetricValue(auto[metric.secondarySyncKey], "pct");
@@ -29060,6 +29063,7 @@ function syncJacsTeamMetricsFromDashboard() {
     });
   });
   persistOpsGlobalData();
+  return jacsTeamBonus.map(role => deriveAtlasReputationBonusRole(role));
 }
 
 function getMetricOutcome(m) {
@@ -29221,15 +29225,16 @@ function getMetricStatus(m) {
 function calcRolePayout(role, scopeOverride = null) {
   const annualBonus = role.salary * (role.bonusRate / 100);
   const quarterlyPotential = annualBonus / 4;
-  let earned = 0;
+  let earned = 0, pending = 0, pendingMetricCount = 0;
   const scope = scopeOverride ?? getJacRoleScope(role);
   role.metrics.forEach(m => {
     const metricPayout = quarterlyPotential * (m.weight / 100);
     m.payout = metricPayout;
     const scoring = getJacMetricScoring(role, m, scope, metricPayout);
     earned += scoring.earned;
+    if (scoring.outcome.status === "pending") { pending += metricPayout; pendingMetricCount++; }
   });
-  return { potential: quarterlyPotential, earned, missed: Math.max(0, quarterlyPotential - earned) };
+  return { potential: quarterlyPotential, earned, pending, incomplete: pendingMetricCount > 0, missed: Math.max(0, quarterlyPotential - earned - pending) };
 }
 
 function isMetricHit(m) {
@@ -29316,8 +29321,8 @@ function getBonusExportData() {
   syncSharedPeopleAssignments({ persist: true });
   syncPropertyBonusStructureFromSharedAssignments(getProp().name);
   syncAbsorptionMetricsFromMonthlyData();
-  syncPropertyOraMetrics();
   syncPropertyMsoeMetrics();
+  const scoringRolesByQuarter = syncPropertyOraMetrics();
   const agents = getCommissionAgents();
   const commission = calcCommissionPayout();
   const quarterTotals = getQuarterlyAbsorptionTotals();
@@ -29350,7 +29355,7 @@ function getBonusExportData() {
   });
 
   const roleEmployees = [];
-  Object.entries(bonusRolesByQ).forEach(([quarter, roles]) => {
+  Object.entries(scoringRolesByQuarter).forEach(([quarter, roles]) => {
     const assignmentMap = getBonusRoleAssignmentBySlot(roles, getProp().name, quarter);
     roles.forEach(role => {
       const payout = calcRolePayout(role);
@@ -29366,6 +29371,7 @@ function getBonusExportData() {
         assignmentId: display.assignmentId,
         quarter,
         quarterlyPayout: payout.earned,
+        pendingPotential: payout.pending, incomplete: payout.incomplete,
         absorptionActual: quarterTotals[quarter] ?? 0,
         earnedMetrics
       });
@@ -29374,8 +29380,10 @@ function getBonusExportData() {
 
   const roleTotals = roleEmployees.reduce((acc, role) => {
     const key = `${role.quarter}::${role.role}`;
-    if (!acc[key]) acc[key] = { quarter: role.quarter, role: role.role, total: 0 };
+    if (!acc[key]) acc[key] = { quarter: role.quarter, role: role.role, total: 0, pendingPotential: 0, incomplete: false };
     acc[key].total += role.quarterlyPayout;
+    acc[key].pendingPotential += role.pendingPotential;
+    acc[key].incomplete ||= role.incomplete;
     return acc;
   }, {});
 
@@ -29384,14 +29392,14 @@ function getBonusExportData() {
 
 function exportBonusPayoutCSV() {
   const data = getBonusExportData();
-  const lines = [["category","name","community","role_or_period","period_type","payout","assignment_source"]];
+  const lines = [["category","name","community","role_or_period","period_type","earned_subtotal","assignment_source","calculation_status","pending_metric_potential"]];
   data.leasingAgents.forEach(agent => {
-    agent.monthly.forEach(item => lines.push(["Leasing Agent", agent.name, agent.community, item.month, "Monthly", Number(item.payout.toFixed(2)), agent.assignmentSource]));
-    agent.quarterly.forEach(item => lines.push(["Leasing Agent", agent.name, agent.community, item.quarter, "Quarterly", Number(item.payout.toFixed(2)), agent.assignmentSource]));
-    lines.push(["Leasing Agent", agent.name, agent.community, data.currentMonth, "Current Month Projection", Number(agent.currentMonthProjected.toFixed(2)), agent.assignmentSource]);
+    agent.monthly.forEach(item => lines.push(["Leasing Agent", agent.name, agent.community, item.month, "Monthly", Number(item.payout.toFixed(2)), agent.assignmentSource, "Calculated", 0]));
+    agent.quarterly.forEach(item => lines.push(["Leasing Agent", agent.name, agent.community, item.quarter, "Quarterly", Number(item.payout.toFixed(2)), agent.assignmentSource, "Calculated", 0]));
+    lines.push(["Leasing Agent", agent.name, agent.community, data.currentMonth, "Current Month Projection", Number(agent.currentMonthProjected.toFixed(2)), agent.assignmentSource, "Calculated", 0]);
   });
   data.roleEmployees.forEach(role => {
-    lines.push(["Bonus Role", role.name, role.community, `${role.quarter} (${role.role})`, "Quarterly", Number(role.quarterlyPayout.toFixed(2)), role.assignmentSource]);
+    lines.push(["Bonus Role", role.name, role.community, `${role.quarter} (${role.role})`, "Quarterly", Number(role.quarterlyPayout.toFixed(2)), role.assignmentSource, role.incomplete ? "Incomplete - reputation pending" : "Calculated", role.pendingPotential]);
   });
   const csv = lines.map(row => row.map(val => `"${String(atlasBonusSafeSpreadsheetCell(val) ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
@@ -29404,7 +29412,7 @@ function exportBonusPayoutCSV() {
 function buildBonusPayoutReportDocument() {
   const data = getBonusExportData();
   const roleTotalRows = data.roleTotals.map(row =>
-    `<tr><td>${row.quarter}</td><td>${row.role}</td><td>$${row.total.toLocaleString(undefined,{maximumFractionDigits:2})}</td></tr>`
+    `<tr><td>${row.quarter}</td><td>${row.role}</td><td>$${row.total.toLocaleString(undefined,{maximumFractionDigits:2})}${row.incomplete ? ` · Incomplete; $${row.pendingPotential.toFixed(2)} potential pending` : ""}</td></tr>`
   ).join("");
   const employeeCards = [
     ...data.roleEmployees.map(role => {
@@ -29419,7 +29427,7 @@ function buildBonusPayoutReportDocument() {
         <div class="meta-row"><span>Quarter</span><strong>${escapeHtml(role.quarter)}</strong></div>
         <div class="meta-row"><span>Assignment Source</span><strong>${escapeHtml(role.assignmentSource)}</strong></div>
         <div class="meta-row"><span>Absorption</span><strong>${role.absorptionActual > 0 ? "+" : ""}${role.absorptionActual}</strong></div>
-        <div class="total">Total Payout Due: $${role.quarterlyPayout.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+        <div class="total">${role.incomplete ? "Earned subtotal (incomplete)" : "Earned subtotal"}: $${role.quarterlyPayout.toLocaleString(undefined,{maximumFractionDigits:2})}${role.incomplete ? `<br>Reputation pending: $${role.pendingPotential.toFixed(2)} potential remains unscored.` : ""}</div>
         <div class="detail-title">Earned Metrics</div>
         ${metrics}
       </div>`;
@@ -29445,9 +29453,9 @@ function buildBonusPayoutReportDocument() {
     body{font-family:'DM Sans',Arial,sans-serif;padding:28px;color:#1b3a4b;background:#fff} h1,h2,h3{margin:0 0 12px} h1{font-size:26px;color:#1b3a4b} h2{font-size:18px;color:#1b3a4b;margin-top:18px} table{width:100%;border-collapse:collapse;margin:16px 0} th,td{border:1px solid #dfdfda;padding:8px;text-align:left;font-size:12px} th{background:#f3f2ee;color:#1b3a4b;text-transform:uppercase;letter-spacing:.05em}
     .brand{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid #89bdd7}.brand img{height:38px;width:auto;object-fit:contain}.meta{color:#666;font-size:12px;margin-bottom:16px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:16px}.card{border:1px solid #dfdfda;border-radius:10px;padding:16px;break-inside:avoid-page;background:#fff}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:6px}.meta-row{display:flex;justify-content:space-between;gap:12px;margin-bottom:6px;font-size:12px}.total{margin:12px 0;padding:10px;border-radius:8px;background:#eef5f7;color:#1b3a4b;font-weight:700}.detail-title{font-size:12px;font-weight:700;margin-bottom:6px} ul{margin:0;padding-left:18px} li,p{font-size:12px;line-height:1.45}
   </style></head><body>
-  <div class="brand"><div><h1>Bonus Payout Report</h1><div class="meta">Current month: ${data.currentMonth} · Employee payout snapshot for HR payroll processing across the portfolio.</div></div><img src="${resolveExportBrandLogoSrc()}" alt="ATLAS RISE logo"></div>
+  <div class="brand"><div><h1>Bonus Payout Report</h1><div class="meta">Current month: ${data.currentMonth} · Draft bonus subtotals. Rows with pending metrics are incomplete.</div></div><img src="${resolveExportBrandLogoSrc()}" alt="ATLAS RISE logo"></div>
   <h2>Role Totals</h2>
-  <table><thead><tr><th>Quarter</th><th>Role</th><th>Total Payout Due</th></tr></thead><tbody>${roleTotalRows}</tbody></table>
+  <table><thead><tr><th>Quarter</th><th>Role</th><th>Earned subtotal / pending status</th></tr></thead><tbody>${roleTotalRows}</tbody></table>
   <h2>Employee Payroll Snapshots</h2>
   <div class="cards">${employeeCards}</div>
   </body></html>`;
@@ -29498,10 +29506,9 @@ function renderPropertyBonusTab() {
   syncSharedPeopleAssignments({ persist: true });
   syncPropertyBonusStructureFromSharedAssignments(getProp().name);
   syncAbsorptionMetricsFromMonthlyData();
-  syncPropertyOraMetrics();
   syncPropertyMsoeMetrics();
   const qLabel = bonusQuarter;
-  const roles = getBonusRoles();
+  const roles = syncPropertyOraMetrics()[qLabel];
   const agents = getCommissionAgents();
   const roleAssignmentMap = getBonusRoleAssignmentBySlot(roles, getProp().name, qLabel);
   const hasSharedCommissionAgents = agents.some(agent => agent.sharedAssignmentId);
@@ -29511,13 +29518,15 @@ function renderPropertyBonusTab() {
   const sharedDataPanel = renderBonusSharedDataPanel(getProp().name);
 
   // ── Quarterly Summary ──
-  let totalPotential = 0, totalEarned = 0;
+  let totalPotential = 0, totalEarned = 0, totalPending = 0, totalIncomplete = false;
   roles.forEach(r => {
     const p = calcRolePayout(r);
     totalPotential += p.potential;
     totalEarned += p.earned;
+    totalPending += p.pending;
+    totalIncomplete ||= p.incomplete;
   });
-  const totalMissed = totalPotential - totalEarned;
+  const totalMissed = totalPotential - totalEarned - totalPending;
   const earnedPct = totalPotential > 0 ? (totalEarned / totalPotential * 100) : 0;
 
   const quarterSelector = `<div style="display:flex;gap:6px;margin-bottom:12px">
@@ -29543,18 +29552,18 @@ function renderPropertyBonusTab() {
         <div class="bonus-q-val" style="color:#a371f7">$${totalPotential.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
       </div>
       <div class="bonus-q-cell">
-        <div class="bonus-q-label">Current ${qLabel} Earned</div>
+        <div class="bonus-q-label">${totalIncomplete ? "Incomplete" : "Current"} ${qLabel} Earned Subtotal</div>
         <div class="bonus-q-val" style="color:#3fb950">$${totalEarned.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
       </div>
       <div class="bonus-q-cell">
-        <div class="bonus-q-label">Missed Potential</div>
+        <div class="bonus-q-label">Known Missed Potential${totalPending > 0 ? ` · $${totalPending.toFixed(0)} pending` : ""}</div>
         <div class="bonus-q-val" style="color:#f85149">$${totalMissed.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
       </div>
       <div class="bonus-q-cell">
         <div class="bonus-q-label">Earned %</div>
-        <div class="bonus-q-val" style="color:${earnedPct>=75?"#3fb950":earnedPct>=50?"#d29922":"#f85149"}">${earnedPct.toFixed(0)}%</div>
+        <div class="bonus-q-val" style="color:${earnedPct>=75?"#3fb950":earnedPct>=50?"#d29922":"#f85149"}">${totalIncomplete ? "Pending" : `${earnedPct.toFixed(0)}%`}</div>
         <div style="margin-top:6px">
-          <div class="pct-bar-wrap"><div class="pct-bar" style="width:${Math.min(earnedPct,100)}%;background:${earnedPct>=75?"#3fb950":earnedPct>=50?"#d29922":"#f85149"}"></div></div>
+          ${totalIncomplete ? "Pending metrics remain unscored." : `<div class="pct-bar-wrap"><div class="pct-bar" style="width:${Math.min(earnedPct,100)}%;background:${earnedPct>=75?"#3fb950":earnedPct>=50?"#d29922":"#f85149"}"></div></div>`}
         </div>
       </div>
     </div>
@@ -29655,7 +29664,7 @@ function renderPropertyBonusTab() {
               </span>`}
         </div>
         <div class="bonus-role-summary">
-          <span class="earned">Earned: $${p.earned.toFixed(0)}</span>
+          <span class="earned">${p.incomplete ? "Incomplete subtotal" : "Earned"}: $${p.earned.toFixed(0)}</span>${p.pending > 0 ? `<span>Pending: $${p.pending.toFixed(0)}</span>` : ""}
           <span class="potential">Potential: $${p.potential.toFixed(0)}</span>
           <span class="missed">Missed: $${p.missed.toFixed(0)}</span>
           <span class="bonus-chevron ${isCollapsed?"":"open"}" id="bonus-chev-${role.id}">▼</span>
@@ -29940,8 +29949,7 @@ function renderRegionalAssignmentMatrix(scopedRoles, roleScopeMap) {
 }
 
 function renderJacsTeamBonusTab() {
-  syncJacsTeamMetricsFromDashboard();
-  const roles = getJacsTeamRoles().filter(role => !isMarketingManagedJacRole(role));
+  const roles = syncJacsTeamMetricsFromDashboard().filter(role => !isMarketingManagedJacRole(role));
   const salaryAccessAllowed = isSalaryAccessAllowed();
   const roleScopeMap = Object.fromEntries(roles.map(role => [role.id, getJacRoleScope(role)]));
   const rolePayoutMap = Object.fromEntries(roles.map(role => [role.id, calcRolePayout(role)]));
@@ -29953,7 +29961,9 @@ function renderJacsTeamBonusTab() {
   </div>`;
   const totalPotential = roles.reduce((sum, role) => sum + rolePayoutMap[role.id].potential, 0);
   const totalEarned = roles.reduce((sum, role) => sum + rolePayoutMap[role.id].earned, 0);
-  const totalMissed = totalPotential - totalEarned;
+  const totalPending = roles.reduce((sum, role) => sum + rolePayoutMap[role.id].pending, 0);
+  const totalIncomplete = roles.some(role => rolePayoutMap[role.id].incomplete);
+  const totalMissed = totalPotential - totalEarned - totalPending;
   const autoMetricCount = roles.reduce((sum, role) => sum + role.metrics.filter(metric => !!metric.syncKey).length, 0);
   const configuredAssignedScopes = assignedScopeRoles.filter(role => (regionalAssignments[role.id] ?? []).length > 0).length;
   const totalAssignedSelections = assignedScopeRoles.reduce((sum, role) => sum + (regionalAssignments[role.id] ?? []).length, 0);
@@ -29967,7 +29977,7 @@ function renderJacsTeamBonusTab() {
     { label: "Roles In Framework", value: roles.length, sub: `${autoMetricCount} auto-synced metrics across Jac's team` },
     { label: "Saved Communities", value: portfolioScope.savedNames.length, sub: portfolioScope.savedNames.length > 0 ? `${portfolioScope.metrics.totalUnits.toLocaleString()} units powering portfolio-wide roles` : "Save community data to activate portfolio rollups" },
     { label: "Assigned Scope Coverage", value: `${configuredAssignedScopes}/${assignedScopeRoles.length}`, sub: `${totalAssignedSelections} community selections mapped to VP and Regional scopes` },
-    { label: `${bonusQuarter} Earned`, value: `$${totalEarned.toLocaleString(undefined,{maximumFractionDigits:0})}`, sub: `Potential $${totalPotential.toLocaleString(undefined,{maximumFractionDigits:0})} · Open $${totalMissed.toLocaleString(undefined,{maximumFractionDigits:0})}` }
+    { label: `${bonusQuarter} ${totalIncomplete ? "Incomplete Subtotal" : "Earned"}`, value: `$${totalEarned.toLocaleString(undefined,{maximumFractionDigits:0})}`, sub: `Potential $${totalPotential.toLocaleString(undefined,{maximumFractionDigits:0})} · Known open $${totalMissed.toLocaleString(undefined,{maximumFractionDigits:0})} · Pending $${totalPending.toLocaleString(undefined,{maximumFractionDigits:0})}` }
   ].map(stat => `<div class="bonus-framework-stat"><div class="k">${stat.label}</div><div class="v">${stat.value}</div><div style="font-size:0.68rem;color:var(--muted);margin-top:4px">${stat.sub}</div></div>`).join("");
 
   const summaryCard = `<div class="bonus-quarterly-summary">
@@ -30127,7 +30137,7 @@ function renderJacsTeamBonusTab() {
               </span>
             </div>
             <div class="bonus-role-summary">
-              <span class="earned">Earned: $${payout.earned.toFixed(0)}</span>
+              <span class="earned">${payout.incomplete ? "Incomplete subtotal" : "Earned"}: $${payout.earned.toFixed(0)}</span>${payout.pending > 0 ? `<span>Pending: $${payout.pending.toFixed(0)}</span>` : ""}
               <span class="potential">Potential: $${payout.potential.toFixed(0)}</span>
               <span class="missed">Open: $${payout.missed.toFixed(0)}</span>
               <span class="bonus-chevron ${isCollapsed?"":"open"}" id="bonus-chev-${role.id}">▼</span>

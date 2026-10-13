@@ -125,7 +125,7 @@ function historyInputs(snapshot, start, end) {
   try {
     const access = historyAccessKey();
     if (access !== historyCacheAccess) { historyCache = []; historyCacheAccess = access; }
-    const control={version:"home-history-v2",access,start,end,budgetRevision:window.AtlasOccupancyBudgets?.revision,
+    const control={version:"home-history-v2",access,start,end,budgetRevision:window.AtlasOccupancyBudgets?.revision,reputationRevision:window.AtlasReputation?.revision,
       today:getAtlasTodayISODate(),properties:PROPERTIES,currentProperty:getProp().name,
       goals:[...atlasCommunityGoalStore.scopes],goalActor:atlasCommunityGoalStore.actor,
       command:communityCommandState,quarter:bonusQuarter,
@@ -253,11 +253,11 @@ function visual(instance,snapshot,definition={}) {
   const unit=/Occupancy|Conversion|Retention|->/.test(metric)?'%':'';
   const rows=details.slice(0,10).map(d=>({name:esc(d.name),v:metricValue({...instance,metric},d.summary)}));
   if(!details.length) return '<p class="card-sub">No data in this scope yet.</p>';
-  // Reputation is a current snapshot, not a monthly series. Never repeat the
-  // current score across past months or turn a missing score into a zero trend.
+  // Reputation compares canonical scores in the selected month. Preserve null
+  // gaps and measured zero; never substitute an undated legacy score.
   if(instance.widgetKey==='reputation_pulse') {
-    const available=rows.filter(r=>r.v>0);
-    return (available.length?bars(available,color(instance.widgetKey),''):'<p class="card-sub">No reputation scores loaded.</p>')+safeTable(['Community',metric],details.slice(0,10).map((d,i)=>[d.name,rows[i].v>0?rows[i].v:'—']));
+    const available=rows.filter(r=>typeof r.v==='number'&&Number.isFinite(r.v));
+    return (available.length?bars(available,color(instance.widgetKey),''):'<p class="card-sub">No reputation scores loaded.</p>')+safeTable(['Community',metric],details.slice(0,10).map((d,i)=>[d.name,typeof rows[i].v==='number'&&Number.isFinite(rows[i].v)?rows[i].v:'—']));
   }
   if(/Variance/.test(metric)) {
     const signed=details.map(d=>({name:esc(d.name),rawName:d.name,v:round(metric==='Occupancy Variance'? d.summary.occPct-d.summary.budgetOccPct : d.summary.currentNer-d.summary.proformaNer)}));

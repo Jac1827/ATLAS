@@ -4454,6 +4454,69 @@ function normalizeReputationData(data) {
   };
 }
 
+function getAtlasReputationPeriod(record = {}, month = record.currentMonth, year = record.reportYear) {
+  return buildPeriodKey(Number.isInteger(month) ? month : getSelectedDashboardMonthIndex(), Number(year) || new Date().getFullYear());
+}
+
+function getAtlasMonthlyReputation(propName, record = {}, month = record.currentMonth, year = record.reportYear) {
+  const period = getAtlasReputationPeriod(record, month, year);
+  const saved = window.AtlasReputation?.get(propName, period);
+  return { oraScore: saved?.oraScore ?? null, googleReviewScore: saved?.googleReviewScore ?? null, period, reputationReceipt: saved || null };
+}
+
+function getAtlasQuarterOra(propName, quarter = bonusQuarter, year = new Date().getFullYear()) {
+  // A quarterly monthly-score aggregation needs an owner-approved rule.
+  // Do not copy an undated score or infer an average/final-month policy.
+  return null;
+}
+
+function atlasReputationDisplay(value, digits = 1) {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '—';
+}
+
+function atlasReputationEdit(propName, period, field, value) {
+  try { window.AtlasReputation.edit(propName, period, field, value); }
+  catch (_) { /* The draft retains validation errors and entered text. */ }
+  const status = document.getElementById(`atlas-reputation-status-${encodeURIComponent(propName+'|'+period)}`);
+  if (status) status.textContent = atlasReputationDraftStatus(window.AtlasReputation.draft(propName, period));
+}
+
+function atlasReputationDraftStatus(saved) {
+  if (saved.saving) return 'Saving monthly scores and verifying readback…';
+  if (Object.keys(saved.errors || {}).length) return Object.values(saved.errors).join(' ');
+  if (saved.error) return `Save not verified: ${saved.error} Your entered values are retained.`;
+  if (saved.dirty) return 'Unsaved monthly changes. Choose Save month to share them.';
+  return saved.version ? `Saved version ${saved.version} · ${saved.updatedAt || ''}` : 'No saved monthly scores';
+}
+
+async function atlasSaveMonthlyReputation(propName, period, reload = false) {
+  if (window.AtlasReplayWriteFence) return alert('Saving is paused during source replay.');
+  const context = getAtlasRenderContextKey();
+  try {
+    const saving = reload ? window.AtlasReputation.reload(propName, period) : window.AtlasReputation.save(propName, period);
+    renderTab();
+    await saving;
+    if (context !== getAtlasRenderContextKey()) return;
+    renderPropGrid(); renderTab();
+  } catch (error) {
+    if (context === getAtlasRenderContextKey()) { renderTab(); alert(error.message); }
+  }
+}
+
+function renderMonthlyReputationEditor(propName, period) {
+  const saved = window.AtlasReputation?.draft(propName, period);
+  if (!saved || saved.status === 'unmapped') return '<p>Monthly reputation requires an authorized community mapping.</p>';
+  const disabled = saved.canEdit && !saved.saving && !saved.requestId ? '' : ' disabled';
+  const saveDisabled = saved.canEdit && !saved.saving ? '' : ' disabled';
+  const args = escapeHtml(`${JSON.stringify(propName)},${JSON.stringify(period)}`);
+  return `<div><label>Google Review Score <input aria-label="Monthly Google Review Score" type="number" min="0" max="5" step="0.01" value="${escapeHtml(saved.inputs?.googleReviewScore ?? saved.googleReviewScore ?? '')}"${disabled} oninput='atlasReputationEdit(${args},"googleReviewScore",this.value)'></label>
+    <label>ORA Score <input aria-label="Monthly ORA Score" type="number" min="0" max="100" step="0.01" value="${escapeHtml(saved.inputs?.oraScore ?? saved.oraScore ?? '')}"${disabled} oninput='atlasReputationEdit(${args},"oraScore",this.value)'></label>
+    <button class="btn btn-blue btn-sm"${saveDisabled} onclick='atlasSaveMonthlyReputation(${args})'>${saved.requestId ? 'Retry save' : 'Save month'}</button>
+    <button class="btn btn-gray btn-sm"${saved.saving ? ' disabled' : ''} onclick='atlasSaveMonthlyReputation(${args},true)'>Reload saved values</button>
+    <p id="atlas-reputation-status-${encodeURIComponent(propName+'|'+period)}" role="status">${escapeHtml(atlasReputationDraftStatus(saved))}</p>
+    <p>${escapeHtml(period)}. Blank is unavailable; measured zero is included.</p></div>`;
+}
+
 function normalizeMarketSurveyData(data) {
   const input = data ?? {};
   const defaults = defaultMarketSurveyData();
@@ -8057,15 +8120,11 @@ function syncAbsorptionMetricsFromMonthlyData() {
 }
 
 function syncPropertyOraMetrics() {
-  const currentOra = Number(reputationData.oraScore) || 0;
-  Object.values(bonusRolesByQ).forEach(roles => {
-    roles.forEach(role => {
-      role.metrics.forEach(metric => {
-        if (metric.cat.toLowerCase() === "ora") {
-          metric.actual = currentOra;
-        }
-      });
-    });
+  Object.entries(bonusRolesByQ).forEach(([quarter, roles]) => {
+    const currentOra = getAtlasQuarterOra(getProp().name, quarter);
+    roles.forEach(role => role.metrics.forEach(metric => {
+      if (metric.cat.toLowerCase() === "ora") metric.actual = currentOra;
+    }));
   });
 }
 
@@ -10902,7 +10961,7 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
   if (!sourceData) return null;
   const record = normalizeSavedCommunityRecord(propName, sourceData);
   const prop = getPropertyByName(propName);
-  const scopeReputation = normalizeReputationData(record.reputationData);
+  const scopeReputation = getAtlasMonthlyReputation(propName, record, record.currentMonth, sourceData.reportYear);
   const scopeMonthlyData = Array.isArray(record.monthlyData) && record.monthlyData.length === 12 ? record.monthlyData : defaultMonthly();
   const scopeSeasonal = Array.isArray(record.seasonal) && record.seasonal.length === 12 ? record.seasonal : [...DEFAULT_SEASONAL];
   const scopeTeamConfig = normalizePropertyTeamConfig(record.propertyTeamConfig);
@@ -11086,8 +11145,9 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
     currentNer,
     proformaNer,
     oraScore: scopeReputation.oraScore,
-    googleQuarterlyRating: scopeReputation.googleQuarterlyRating,
-    googleLifetimeRating: scopeReputation.googleLifetimeRating
+    googleReviewScore: scopeReputation.googleReviewScore,
+    reputationPeriod: scopeReputation.period,
+    reputationReceipt: scopeReputation.reputationReceipt
   };
 }
 
@@ -11199,18 +11259,15 @@ function aggregateCommunitySummaries(summaries) {
       acc.previousRenewalRetentionRateTotal += summary.previousRenewalRetentionRate;
       acc.previousRenewalRetentionRateCount += 1;
     }
-    if (summary.oraScore > 0) {
+    if (typeof summary.oraScore === "number" && Number.isFinite(summary.oraScore)) {
       acc.oraTotal += summary.oraScore;
       acc.oraCount += 1;
     }
-    if (summary.googleQuarterlyRating > 0) {
-      acc.googleQuarterlyTotal += summary.googleQuarterlyRating;
-      acc.googleQuarterlyCount += 1;
+    if (typeof summary.googleReviewScore === "number" && Number.isFinite(summary.googleReviewScore)) {
+      acc.googleReviewTotal += summary.googleReviewScore;
+      acc.googleReviewCount += 1;
     }
-    if (summary.googleLifetimeRating > 0) {
-      acc.googleLifetimeTotal += summary.googleLifetimeRating;
-      acc.googleLifetimeCount += 1;
-    }
+
     if (summary.currentNer > 0 && summary.proformaNer > 0 && summary.occupied > 0) {
       acc.nerActualWeight += summary.currentNer * summary.occupied;
       acc.nerBudgetWeight += summary.proformaNer * summary.occupied;
@@ -11277,10 +11334,8 @@ function aggregateCommunitySummaries(summaries) {
     previousRenewalRetentionRateCount: 0,
     oraTotal: 0,
     oraCount: 0,
-    googleQuarterlyTotal: 0,
-    googleQuarterlyCount: 0,
-    googleLifetimeTotal: 0,
-    googleLifetimeCount: 0,
+    googleReviewTotal: 0,
+    googleReviewCount: 0,
     nerActualWeight: 0,
     nerBudgetWeight: 0,
     nerWeightUnits: 0
@@ -11373,9 +11428,8 @@ function aggregateCommunitySummaries(summaries) {
     previousRenewalExpirations: totals.previousRenewalExpirations,
     previousRenewalsSigned: totals.previousRenewalsSigned,
     previousRenewalRetentionRate: totals.previousRenewalExpirations > 0 ? (totals.previousRenewalsSigned / totals.previousRenewalExpirations) * 100 : (totals.previousRenewalRetentionRateCount > 0 ? totals.previousRenewalRetentionRateTotal / totals.previousRenewalRetentionRateCount : 0),
-    oraScore: totals.oraCount > 0 ? totals.oraTotal / totals.oraCount : 0,
-    googleQuarterlyRating: totals.googleQuarterlyCount > 0 ? totals.googleQuarterlyTotal / totals.googleQuarterlyCount : 0,
-    googleLifetimeRating: totals.googleLifetimeCount > 0 ? totals.googleLifetimeTotal / totals.googleLifetimeCount : 0
+    oraScore: totals.oraCount > 0 ? totals.oraTotal / totals.oraCount : null,
+    googleReviewScore: totals.googleReviewCount > 0 ? totals.googleReviewTotal / totals.googleReviewCount : null
   };
 }
 
@@ -11707,7 +11761,7 @@ function getCommunityQuarterlyBonusRoles(propName, sourceData, quarter = bonusQu
     }
     role.metrics.forEach(metric => {
       if (String(metric.cat ?? "").toLowerCase() === "ora") {
-        metric.actual = Number(record.reputationData?.oraScore) || 0;
+        metric.actual = getAtlasQuarterOra(propName, quarter, Number(sourceData?.reportYear) || new Date().getFullYear());
       } else if (String(metric.cat ?? "").toLowerCase().includes("msoe completion")) {
         const quarterMsoe = normalizeMsoeByQuarter(record.msoeByQuarter)?.[quarter];
         metric.actual = Number.isFinite(quarterMsoe) ? quarterMsoe : 0;
@@ -11732,7 +11786,7 @@ function getLeasingLeaderboardEntries(quarter = bonusQuarter) {
         const appActual = Number(currentMonthData.applications) || 0;
         const leaseActual = Number(currentMonthData.leasesSignedActual) || 0;
         const convActual = Number(scoped.summary?.tourToLeasePct || 0);
-        const oraActual = Number(scoped.record.reputationData?.oraScore || 0);
+        const oraActual = getAtlasMonthlyReputation(name, scoped.record, scoped.record.currentMonth, record.reportYear).oraScore;
         const appGoal = Number(role.metrics.find(metric => metric.cat === "Application Goal")?.goal || 0);
         const leaseGoal = Number(role.metrics.find(metric => metric.cat === "Lease Goal")?.goal || 0);
         const convGoal = Number(role.metrics.find(metric => metric.cat === "Conv. Rate Goal")?.goal || 0);
@@ -11740,7 +11794,7 @@ function getLeasingLeaderboardEntries(quarter = bonusQuarter) {
         if (appGoal > 0) monthlyScores.push(Math.min((appActual / appGoal) * 100, 150));
         if (leaseGoal > 0) monthlyScores.push(Math.min((leaseActual / leaseGoal) * 100, 150));
         if (convGoal > 0) monthlyScores.push(Math.min((convActual / convGoal) * 100, 150));
-        if (oraActual > 0) monthlyScores.push(Math.min((oraActual / 62) * 100, 150));
+        if (typeof oraActual === "number" && Number.isFinite(oraActual)) monthlyScores.push(Math.min((oraActual / 62) * 100, 150));
         const monthlyScore = monthlyScores.length > 0
           ? monthlyScores.reduce((sum, value) => sum + value, 0) / monthlyScores.length
           : 0;
@@ -11837,7 +11891,7 @@ function renderRegionalPointSystemSection(regionalRoles, roleScopeMap) {
         </div>`
       : `<div style="margin-top:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;font-size:0.68rem;color:var(--muted)">
           <div><strong style="color:#58a6ff">${scope.metrics.avgBudgetOccAttainmentPct.toFixed(1)}%</strong><br>Avg budget attainment</div>
-          <div><strong style="color:#3fb950">${scope.metrics.oraScore > 0 ? scope.metrics.oraScore.toFixed(1) : "—"}</strong><br>Avg ORA</div>
+          <div><strong style="color:#3fb950">${typeof scope.metrics.oraScore === "number" ? scope.metrics.oraScore.toFixed(1) : "—"}</strong><br>Avg ORA</div>
           <div><strong style="color:#a371f7">${scope.metrics.guestCardGoalPct.toFixed(1)}%</strong><br>Traffic goal attainment</div>
           <div><strong style="color:${scope.metrics.employeeTurnoverPct <= 40 ? "#3fb950" : "#d29922"}">${scope.metrics.employeeHeadcount > 0 ? scope.metrics.employeeTurnoverPct.toFixed(1) + "%" : "—"}</strong><br>${bonusQuarter} turnover · ${turnoverLabel}</div>
         </div>`;
@@ -13977,6 +14031,36 @@ function prepareAtlasHomeRender(panel) {
   }).finally(() => { if (atlasHomeRenderPreparation === request) atlasHomeRenderPreparation = null; });
 }
 
+function prepareAtlasReputationView() {
+  if (![0,2,6,8,9,11].includes(activeTab) || !getAtlasCentralStatus().configured) return true;
+  const entries=getAtlasDashboardAuthorizedCommunityOptions().flatMap(row=>{
+    const access=getAtlasCommunityAccessRecord(row.name),record=savedData[row.name]||{};
+    return [...new Set([new Date().getFullYear(),Number(record.reportYear)||new Date().getFullYear(),getReportHubYear(),Number(atlasBonusPeriodFromQuarter().start.slice(0,4))])].map(year=>({name:row.name,recordId:record.communityId,communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,year}));
+  });
+  if(window.AtlasReputation?.ready(entries))return true;
+  const panel=document.getElementById(`tab-panel-${activeTab}`);
+  if(panel)panel.innerHTML='<div class="card" role="status">Reading monthly reputation scores…</div>';
+  if(!prepareAtlasReputationView.pending){
+    const request={context:getAtlasRenderContextKey(),epoch:atlasWorkspaceAccess.epoch};
+    prepareAtlasReputationView.pending=request;
+    const current=()=>prepareAtlasReputationView.pending===request && request.context===getAtlasRenderContextKey() && request.epoch===atlasWorkspaceAccess.epoch;
+    request.task=import('./features/reputation-store.mjs').then(async module=>{
+      if(!current())return;
+      if(!window.AtlasReputation)window.AtlasReputation=module.createReputationStore(window.ATLAS_CENTRAL);
+      await window.AtlasReputation.hydrate(entries);
+    }).then(()=>{
+      if(prepareAtlasReputationView.pending!==request)return;
+      prepareAtlasReputationView.pending=null;scheduleAtlasSharedRender();
+    }).catch(error=>{
+      if(prepareAtlasReputationView.pending!==request)return;
+      const active=current();prepareAtlasReputationView.pending=null;
+      if(!active){scheduleAtlasSharedRender();return;}
+      if(panel)panel.innerHTML=`<div class="card" role="alert">Monthly reputation could not be verified. ${escapeHtml(error.message)} <button class="btn" onclick="renderTab()">Retry</button></div>`;
+    });
+  }
+  return false;
+}
+
 function prepareAtlasOccupancyBudgetView() {
   if (![0,2,8].includes(activeTab) || !getAtlasCentralStatus().configured) return true;
   const central = window.ATLAS_CENTRAL;
@@ -14045,6 +14129,7 @@ function renderTab() {
     }
     return;
   }
+  if (decision.ok && !shouldBlockAtlasSensitiveAccess() && !prepareAtlasReputationView()) return;
   if (decision.ok && !shouldBlockAtlasSensitiveAccess() && !prepareAtlasOccupancyBudgetView()) return;
   if ([1,2,9].includes(activeTab) && decision.ok && typeof atlasCommunityGoalStore !== "undefined") hydrateCommunityCommandGoals().catch(() => {});
   const retainedBonusWorkflow = atlasBonusPreservedSharedWorkflowHost();
@@ -14536,7 +14621,7 @@ const ATLAS_CUSTOM_DASHBOARD_WIDGETS = [
     accent: "var(--series-3)",
     phase: 1,
     defaultMetric: "ORA Score",
-    metrics: ["ORA Score", "Google Rating", "Review Volume", "Resident Sentiment"],
+    metrics: ["ORA Score", "Google Rating"],
     visualizations: ["KPI Card", "Trend Card", "Ranking"],
     description: "Resident sentiment, ORA, review quality, and reputation movement."
   },
@@ -16123,12 +16208,12 @@ function buildAtlasDashboardWidgetSnapshot(instance = {}) {
     return { value: typeof rawValue === "string" ? rawValue : atlasDashboardFormatNumber(rawValue), sub, detail: atlasDashboardComparisonLine(instance, aggregate, scopedDetails), scopedDetails };
   }
   if (instance.widgetKey === "reputation_pulse") {
-    const reputationValue = value => Number(value) > 0 ? atlasDashboardFormatPct(value, 1).replace("%", "") : "—";
+    const reputationValue = value => atlasReputationDisplay(value);
     const metricMap = {
-      "ORA Score": [reputationValue(aggregate.oraScore), `${reputationValue(aggregate.googleQuarterlyRating)} Google quarterly rating`],
-      "Google Rating": [reputationValue(aggregate.googleQuarterlyRating), `${scopeSuffix}`],
+      "ORA Score": [reputationValue(aggregate.oraScore), `${reputationValue(aggregate.googleReviewScore)} monthly Google Review Score`],
+      "Google Rating": [reputationValue(aggregate.googleReviewScore), `${scopeSuffix}`],
       "Review Volume": ["—", "Review count source required"],
-      "Resident Sentiment": [reputationValue(aggregate.googleLifetimeRating), "Lifetime Google rating proxy"]
+      "Resident Sentiment": ["—", "Legacy lifetime proxy retired"]
     };
     const [value, sub] = metricMap[metric] || metricMap["ORA Score"];
     return { value, sub, detail: `${scopeSuffix}`, scopedDetails };
@@ -20164,13 +20249,14 @@ function atlasDashboardMetricChartValues(instance = {}, snapshot = {}) {
       return renewalMap[metric] || 0;
     }
     if (instance.widgetKey === "reputation_pulse") {
-      if (metric === "Google Rating") return summary.googleQuarterlyRating || 0;
-      if (metric === "Resident Sentiment") return summary.googleLifetimeRating || 0;
-      return summary.oraScore || 0;
+      if (metric === "Google Rating") return summary.googleReviewScore ?? null;
+      if (metric === "Resident Sentiment" || metric === "Review Volume") return null;
+      return summary.oraScore ?? null;
     }
     return 1;
-  }).filter(value => Number.isFinite(Number(value))).slice(0, 10);
-  return values.length ? values : [Number(String(snapshot.value || "").replace(/[^0-9.-]+/g, "")) || 0];
+  }).map(value => instance.widgetKey === "reputation_pulse" && (value === null || value === undefined) ? null : Number.isFinite(Number(value)) ? Number(value) : null).slice(0, 10);
+  if (instance.widgetKey === "reputation_pulse") return values;
+  return values.filter(value => value !== null).length ? values : [Number(String(snapshot.value || "").replace(/[^0-9.-]+/g, "")) || 0];
 }
 
 
@@ -21341,26 +21427,10 @@ function renderPortfolioScopedRenewalsTab() {
 
 function renderPortfolioScopedReputationTab() {
   const { details, aggregate } = getWorkspaceScopedAggregate(getSelectedDashboardMonthIndex());
-  const cardsHtml = `<div class="grid-4">
-    ${statBox("ORA Average", (aggregate.oraScore ?? 0) > 0 ? (aggregate.oraScore ?? 0).toFixed(1) : "—", "Portfolio average reputation score", "#4493f8")}
-    ${statBox("Quarterly Google", (aggregate.googleQuarterlyRating ?? 0) > 0 ? (aggregate.googleQuarterlyRating ?? 0).toFixed(2) : "—", "Blended quarterly rating", "#a371f7")}
-    ${statBox("Lifetime Google", (aggregate.googleLifetimeRating ?? 0) > 0 ? (aggregate.googleLifetimeRating ?? 0).toFixed(2) : "—", "Blended lifetime rating", "#3fb950")}
-    ${statBox("Communities with ORA", details.filter(detail => Number(detail.summary?.oraScore ?? 0) > 0).length, "Saved reputation data currently in scope", "#d29922")}
-  </div>`;
-  const bodyHtml = `<div class="tbl-wrap">
-    <div class="tbl-header"><h2>Community reputation rollup</h2><p>Reputation fields are editable directly in portfolio mode.</p></div>
-    <table>
-      <thead><tr><th class="l">Community</th><th>ORA</th><th>Quarterly Google</th><th>Lifetime Google</th><th>Action</th></tr></thead>
-      <tbody>${details.map(detail => `<tr>
-        <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
-        <td><input type="number" min="0" max="100" step="0.1" value="${escapeHtml(String(detail.record?.reputationData?.oraScore || ""))}" onchange='updatePortfolioCommunityReputationField(${JSON.stringify(detail.name)}, "oraScore", this.value)' style="width:88px"></td>
-        <td><input type="number" min="0" max="5" step="0.1" value="${escapeHtml(String(detail.record?.reputationData?.googleQuarterlyRating || ""))}" onchange='updatePortfolioCommunityReputationField(${JSON.stringify(detail.name)}, "googleQuarterlyRating", this.value)' style="width:88px"></td>
-        <td><input type="number" min="0" max="5" step="0.1" value="${escapeHtml(String(detail.record?.reputationData?.googleLifetimeRating || ""))}" onchange='updatePortfolioCommunityReputationField(${JSON.stringify(detail.name)}, "googleLifetimeRating", this.value)' style="width:88px"></td>
-        <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 6)'>Open Full Reputation</button></td>
-      </tr>`).join("")}</tbody>
-    </table>
-  </div>`;
-  return renderPortfolioScopePanel("Portfolio Reputation", "Resident sentiment and review performance across the selected portfolio month.", cardsHtml, bodyHtml);
+  const period = getAtlasReputationPeriod({}, getSelectedDashboardMonthIndex());
+  const cardsHtml = `<div class="grid-4">${statBox('ORA Average',atlasReputationDisplay(aggregate.oraScore),'Available monthly scores, including measured zero','#4493f8')}${statBox('Google Review Score',atlasReputationDisplay(aggregate.googleReviewScore,2),'Available monthly scores','#a371f7')}${statBox('Communities with ORA',details.filter(detail=>typeof detail.summary?.oraScore==='number').length,'Saved scores for this month','#d29922')}</div>`;
+  const bodyHtml = `<div class="tbl-wrap"><table><thead><tr><th>Community</th><th>Manual scores · ${escapeHtml(period)}</th></tr></thead><tbody>${details.map(detail=>`<tr><td>${escapeHtml(detail.name)}</td><td>${renderMonthlyReputationEditor(detail.name,period)}</td></tr>`).join('')}</tbody></table></div>`;
+  return renderPortfolioScopePanel('Portfolio Reputation','Manual scores for the selected month. Legacy ratings are retained separately and never assigned to a month automatically.',cardsHtml,bodyHtml);
 }
 
 function renderDashboardDataMigrationPanel() {
@@ -22262,8 +22332,7 @@ function renderSetupTab() {
 }
 
 function updateReputationField(field, val) {
-  reputationData[field] = Number(val) || 0;
-  renderTab();
+  atlasReputationEdit(getProp().name, getAtlasReputationPeriod({}, getSelectedDashboardMonthIndex()), field === 'googleQuarterlyRating' ? 'googleReviewScore' : field, val);
 }
 
 function updateMarketSurveyField(field, val) {
@@ -22411,72 +22480,17 @@ function updateMsoeQuarter(quarter, val) {
 
 function renderReputationTab() {
   if (isPortfolioWorkspaceSelected()) return renderPortfolioScopedReputationTab();
-  const portfolioScope = getJacRoleScope({ id: "portfolio" });
-  const regionalRoles = getJacsTeamRoles().filter(role => role.id.startsWith("regional_"));
-  const regionalCards = regionalRoles.map(role => {
-    const scope = getJacRoleScope(role);
-    return `<div class="season-cell">
-      <div class="season-cell-label">${getRoleDisplayTitle(role)}</div>
-      <div style="font-size:1.3rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:${scope.metrics.oraScore > 0 ? "#3fb950" : "#7d8590"}">${scope.metrics.oraScore > 0 ? scope.metrics.oraScore.toFixed(2) : "—"}</div>
-      <div style="font-size:0.68rem;color:var(--muted);margin-top:4px">${scope.savedNames.length > 0 ? `${scope.savedNames.length} saved assigned communities` : "Assign and save communities to average ORA"}</div>
-    </div>`;
-  }).join("");
-
-  const scoreEntrySection = `<div class="grid-4 mb4">
-    ${statBox("Quarterly Google Rating", reputationData.googleQuarterlyRating > 0 ? reputationData.googleQuarterlyRating.toFixed(2) : "—", "Current quarter rating for this community", "#4493f8")}
-    ${statBox("Lifetime Google Rating", reputationData.googleLifetimeRating > 0 ? reputationData.googleLifetimeRating.toFixed(2) : "—", "All-time rating for this community", "#a371f7")}
-    ${statBox("Community ORA Score", reputationData.oraScore > 0 ? reputationData.oraScore.toFixed(1) : "—", "This feeds directly into the community team bonus metrics", "#3fb950")}
-    ${statBox("Portfolio Avg ORA", portfolioScope.metrics.oraScore > 0 ? portfolioScope.metrics.oraScore.toFixed(2) : "—", `${portfolioScope.savedNames.length} saved communities included for VP rollup`, "#d29922")}
-  </div>
-  <div class="card mb4">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
-      <div>
-        <div class="card-title" style="margin-bottom:6px">⭐ Current Quarterly Google Rating</div>
-        <input type="number" min="0" max="5" step="0.1" value="${reputationData.googleQuarterlyRating || ""}" onchange="updateReputationField('googleQuarterlyRating',this.value)">
-        <div style="font-size:0.68rem;color:var(--muted);margin-top:4px">Use the current quarter's Google star rating for ${getProp().name}.</div>
-      </div>
-      <div>
-        <div class="card-title" style="margin-bottom:6px">🏅 Lifetime Google Rating</div>
-        <input type="number" min="0" max="5" step="0.1" value="${reputationData.googleLifetimeRating || ""}" onchange="updateReputationField('googleLifetimeRating',this.value)">
-        <div style="font-size:0.68rem;color:var(--muted);margin-top:4px">Use the full historical Google rating currently published.</div>
-      </div>
-      <div>
-        <div class="card-title" style="margin-bottom:6px">📣 ORA Score</div>
-        <input type="number" min="0" max="100" step="0.1" value="${reputationData.oraScore || ""}" onchange="updateReputationField('oraScore',this.value)">
-        <div style="font-size:0.68rem;color:var(--muted);margin-top:4px">This community ORA score auto-syncs into the property team bonus metrics.</div>
-      </div>
-    </div>
-  </div>`;
-  const rollupSection = `<div class="card">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-      <div>
-        <h2 style="font-size:0.9rem;font-weight:600">Bonus Rollup Preview</h2>
-        <p style="font-size:0.72rem;color:var(--muted);margin-top:2px">Site staff use only their own community ORA. VP uses the portfolio average across saved communities. Each Regional uses the average ORA across only the communities assigned to that Regional.</p>
-      </div>
-    </div>
-    <div class="season-grid">
-      ${regionalCards || `<div class="season-cell"><div class="season-cell-label">Regional Managers</div><div style="font-size:0.72rem;color:var(--muted)">No Regional roles configured.</div></div>`}
-    </div>
-  </div>`;
-
-  return [
-    renderWindowshadeCard({
-      key: "reputation_scores",
-      title: "Reputation Scores",
-      subtitle: "Community-level Google and ORA entry that powers staff bonus metrics.",
-      countLabel: getProp().name,
-      bodyHtml: scoreEntrySection,
-      collapsedPreview: `ORA ${reputationData.oraScore > 0 ? reputationData.oraScore.toFixed(1) : "—"} · Google ${reputationData.googleQuarterlyRating > 0 ? reputationData.googleQuarterlyRating.toFixed(2) : "—"}`
-    }),
-    renderWindowshadeCard({
-      key: "reputation_rollup",
-      title: "Bonus Rollup Preview",
-      subtitle: "Portfolio and Regional ORA averages used in the bonus framework.",
-      countLabel: `${regionalRoles.length} Regional role${regionalRoles.length === 1 ? "" : "s"}`,
-      bodyHtml: rollupSection,
-      collapsedPreview: `Portfolio ORA ${portfolioScope.metrics.oraScore > 0 ? portfolioScope.metrics.oraScore.toFixed(2) : "—"} across ${portfolioScope.savedNames.length} saved communit${portfolioScope.savedNames.length === 1 ? "y" : "ies"}`
-    })
-  ].join("");
+  const name=getProp().name,period=getAtlasReputationPeriod({},getSelectedDashboardMonthIndex());
+  const scores=getAtlasMonthlyReputation(name,{},getSelectedDashboardMonthIndex());
+  const {aggregate}=getWorkspaceScopedAggregate(getSelectedDashboardMonthIndex());
+  const legacy=normalizeReputationData(reputationData);
+  const legacyText=`ORA ${atlasReputationDisplay(legacy.oraScore)} · Quarterly Google ${atlasReputationDisplay(legacy.googleQuarterlyRating,2)} · Lifetime Google ${atlasReputationDisplay(legacy.googleLifetimeRating,2)}`;
+  return renderWindowshadeCard({key:'reputation_scores',title:'Monthly Reputation Scores',subtitle:'Authorized manual Google and ORA scores. No source-report upload is required.',countLabel:`${name} · ${period}`,
+    bodyHtml:`<div class="grid-4 mb4">${statBox('Google Review Score',atlasReputationDisplay(scores.googleReviewScore,2),period,'#4493f8')}${statBox('ORA Score',atlasReputationDisplay(scores.oraScore),period,'#3fb950')}${statBox('Portfolio ORA',atlasReputationDisplay(aggregate.oraScore),'Selected-month available scores','#d29922')}</div>
+      <div class="card mb4">${renderMonthlyReputationEditor(name,period)}</div>
+      <details class="card"><summary>Legacy ratings · undated, not used in monthly calculations</summary><p>${escapeHtml(legacyText)}</p><p>Retained for reference. Enter an approved monthly score explicitly; these values are not backdated.</p></details>
+      <p>Monthly reports use this selected month. Quarterly bonus reputation remains pending until an approved rule specifies how monthly scores enter the quarter. Existing payout rules and weights are unchanged.</p>`,
+    collapsedPreview:`ORA ${atlasReputationDisplay(scores.oraScore)} · Google ${atlasReputationDisplay(scores.googleReviewScore,2)}`});
 }
 
 function buildRecommendationsForRecord(propName, sourceData) {
@@ -23852,7 +23866,7 @@ function renderCommunityCommandSupportingMetrics(model) {
     ["Traffic & Funnel", `${Math.round(model.traffic.guestCards)} leads`, `${Math.round(model.traffic.tours)} tours · ${communityCommandFormatPct(model.summary.tourToLeasePct || 0)} tour-to-lease`, 3],
     ["Applications", `${Math.round(model.appMetrics.applications)} MTD`, `${Math.round(model.appMetrics.approvals)} approved · ${Math.round(model.appMetrics.denials)} denied · ${Math.round(model.appMetrics.cancelled)} cancelled`, 3],
     ["Renewals", `${Math.round(model.renewal.signed)} signed`, `${Math.round(model.renewal.expirations)} expirations · ${model.renewal.retentionRate === null ? "Missing retention" : communityCommandFormatPct(model.renewal.retentionRate, 0)}`, 5],
-    ["Reputation", `${model.summary.oraScore ? Number(model.summary.oraScore).toFixed(1) : "Missing"}`, `Google ${model.summary.googleQuarterlyRating ? Number(model.summary.googleQuarterlyRating).toFixed(2) : "Missing"}`, 6],
+    ["Reputation", `${typeof model.summary.oraScore === "number" ? Number(model.summary.oraScore).toFixed(1) : "Missing"}`, `Google ${typeof model.summary.googleReviewScore === "number" ? Number(model.summary.googleReviewScore).toFixed(2) : "Missing"}`, 6],
     ["Financial Position", financial.hasData ? formatSignedFinancialCurrency(financial.noiVariance ?? financial.noiActual) : "Missing", financial.hasData ? (financial.noiVariance === null ? "Closed NOI actual · approved comparison budget missing" : "NOI variance from closed actuals") : "Closed financial actuals unavailable for this month", 12],
     ["Budget Source", model.budgetOccPct ? communityCommandFormatPct(model.budgetOccPct) : "Missing", "Locked budget/reforecast consumed read-only here", 12]
   ];
@@ -29034,9 +29048,11 @@ function roundJacMetricValue(value, format) {
 function syncJacsTeamMetricsFromDashboard() {
   jacsTeamBonus.forEach(role => {
     const auto = getJacsAutoMetrics(role);
+    const oraValues = getJacRoleScope(role).savedNames.map(name => getAtlasQuarterOra(name)).filter(value => typeof value === "number" && Number.isFinite(value));
+    auto.oraScore = oraValues.length ? oraValues.reduce((sum, value) => sum + value, 0) / oraValues.length : null;
     role.metrics.forEach(metric => {
       if (metric.syncKey && Object.prototype.hasOwnProperty.call(auto, metric.syncKey)) {
-        metric.actual = roundJacMetricValue(auto[metric.syncKey], metric.format);
+        metric.actual = metric.syncKey === "oraScore" && auto.oraScore === null ? null : roundJacMetricValue(auto[metric.syncKey], metric.format);
       }
       if (metric.secondarySyncKey && Object.prototype.hasOwnProperty.call(auto, metric.secondarySyncKey)) {
         metric.secondaryActual = roundJacMetricValue(auto[metric.secondarySyncKey], "pct");
@@ -29049,8 +29065,8 @@ function syncJacsTeamMetricsFromDashboard() {
 function getMetricOutcome(m) {
   const tiers = Array.isArray(m?.tiers) ? [...m.tiers].sort((a, b) => Number(b.threshold) - Number(a.threshold)) : [];
   const rawActual = m?.actual;
-  if ((m?.syncKey === "oraScore" || /^ora(?: score)?$/i.test(String(m?.cat || ""))) && !(Number(rawActual) > 0)) {
-    return { status: "pending", multiplier: 0, label: "Source Required", tier: null };
+  if ((m?.syncKey === "oraScore" || /^ora(?: score)?$/i.test(String(m?.cat || ""))) && (rawActual === null || rawActual === undefined || rawActual === "" || !Number.isFinite(Number(rawActual)))) {
+    return { status: "pending", multiplier: 0, label: "Monthly Entry Required", tier: null };
   }
   if (m?.requiresManualEntry && (rawActual === null || rawActual === undefined || rawActual === "")) {
     return { status: "miss", multiplier: 0, label: "Entry Required", tier: null };
@@ -29576,7 +29592,7 @@ function renderPropertyBonusTab() {
       const statusColor = status === "hit" ? "#3fb950" : status === "partial" ? "#d29922" : status === "kicker" ? "#2dd4bf" : "var(--muted)";
       const cellClass = status === "hit" ? "hit" : status === "partial" ? "partial" : status === "miss" ? "miss" : "";
       const earnedAmt = m.payout * outcome.multiplier;
-      const statusText = outcome.label === "Source Required" ? "Source required — ORA has not been reported" : isCombined
+      const statusText = outcome.label === "Monthly Entry Required" ? "Monthly entry or approved period aggregation required" : isCombined
         ? (status === "hit"
             ? `✅ HIT — absorption and renewal goals met · $${earnedAmt.toFixed(0)}`
             : status === "partial"
@@ -29816,7 +29832,7 @@ function renderPropertyBonusTab() {
 }
 
 function formatJacMetricDisplay(metric, value) {
-  if ((metric?.syncKey === "oraScore" || /^ora(?: score)?$/i.test(String(metric?.cat || ""))) && !(Number(value) > 0)) return "—";
+  if ((metric?.syncKey === "oraScore" || /^ora(?: score)?$/i.test(String(metric?.cat || ""))) && (value === null || value === undefined || value === "" || !Number.isFinite(Number(value)))) return "—";
   const val = Number(value) || 0;
   if (isCombinedAbsorptionMetric(metric)) {
     return `Absorption ${val.toFixed(1).replace(/\.0$/, "")} · ${metric.secondaryLabel} ${Number(metric.secondaryActual || 0).toFixed(1)}%`;
@@ -30006,7 +30022,7 @@ function renderJacsTeamBonusTab() {
                              : status === "partial" ? "#d29922"
                              : "#f85149";
           const earnedAmt = scoring.earned;
-          const statusLabel  = outcome.label === "Source Required" ? "Source required — ORA has not been reported" : isCombined
+          const statusLabel  = outcome.label === "Monthly Entry Required" ? "Monthly entry or approved period aggregation required" : isCombined
                              ? (status === "hit"
                                 ? `✅ HIT — absorption and renewal goals met · $${earnedAmt.toFixed(0)}`
                                 : status === "partial"
@@ -31005,6 +31021,13 @@ function atlasBonusMetricActual(employee = {}, metric = {}, period = atlasBonusP
   if (["budget_attainment","revenue","expenses","noi","cash_flow"].includes(metric.metricKey)) return atlasBonusFinancialEvidence(employee,metric,period)?.attainment ?? null;
   const communityName = employee.communityName || employee.assignedCommunity;
   const summary = atlasBonusCommunitySummary(communityName);
+  if (metric.metricKey === "reputation_score") {
+    const first=String(period?.start||''),last=String(period?.end||''),month=first.slice(0,7);
+    if (!/^20\d{2}-(0[1-9]|1[0-2])-01$/.test(first) || last.slice(0,7)!==month) return null;
+    const year=Number(month.slice(0,4)),monthNumber=Number(month.slice(5,7));
+    if(last!==`${month}-${new Date(year,monthNumber,0).getDate()}`)return null;
+    return window.AtlasReputation?.get(communityName,month)?.oraScore ?? null;
+  }
   if (!summary && !["central_productivity", "sla_achievement", "workflow_completion", "special_project", "leadership_score", "audit_compliance", "training_completion", "safety_compliance"].includes(metric.metricKey)) return null;
   const selectedMonthIdx = getSelectedDashboardMonthIndex();
   const approvedGoal = communityName ? getCommunityCommandApprovedGoal(communityName, selectedMonthIdx, new Date().getFullYear()) : null;
@@ -31025,9 +31048,9 @@ function atlasBonusMetricActual(employee = {}, metric = {}, period = atlasBonusP
     rent_growth: summary?.currentNer && summary?.proformaNer ? ((summary.currentNer - summary.proformaNer) / summary.proformaNer) * 100 : null,
     delinquency: null,
     collections: null,
-    resident_satisfaction: summary?.googleLifetimeRating ? summary.googleLifetimeRating * 20 : null,
+    resident_satisfaction: null, // A Google rating is not a resident-satisfaction measurement.
     reputation_score: summary?.oraScore,
-    review_volume: summary?.googleQuarterlyRating ? 1 : null,
+    review_volume: null, // A rating does not establish a review count.
     work_order_completion: summary?.msoeCompletionPct,
     completion_time: null,
     preventive_maintenance: summary?.msoeCompletionPct,
@@ -31215,7 +31238,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
     const actual = governed ? governed.actual : atlasBonusMetricActual(employee, metric, period);
     if (governed?.reason) exceptions.push({ severity: "critical", code: "governed_goal_pending", message: governed.reason, metricId: metric.id });
     if (actual === null && !governed?.reason) {
-      exceptions.push({ severity: metric.inputType === "automatic" ? "critical" : "warning", code: "missing_metric", message: `Missing ${metric.name} data from ${metric.dataSource}.`, metricId: metric.id });
+      exceptions.push({ severity: metric.inputType === "automatic" ? "critical" : "warning", code: "missing_metric", message: metric.metricKey === "reputation_score" ? "Monthly ORA is unavailable for this period, or a rule for combining months has not been approved." : `Missing ${metric.name} data from ${metric.dataSource}.`, metricId: metric.id });
     }
     const potential = atlasBonusMetricPotential(employee, plan, metric);
     const metricPending = actual === null || governed?.reason || exceptions.some(item => item.code === "missing_salary");
@@ -34129,7 +34152,7 @@ function renderPortfolioHomeTab() {
       },
       {
         label: "ORA Average",
-        value: (aggregate.oraScore ?? 0) > 0 ? (aggregate.oraScore ?? 0).toFixed(1) : "—",
+        value: typeof aggregate.oraScore === "number" ? (aggregate.oraScore ?? 0).toFixed(1) : "—",
         sub: "Portfolio average reputation score"
       }
     ];
@@ -34626,14 +34649,7 @@ function updatePortfolioCommunityMonthField(propName, monthIdx, targetKey, value
 }
 
 function updatePortfolioCommunityReputationField(propName, field, value) {
-  const record = getPropertyRecordForApply(propName);
-  if (!record) return;
-  const numericValue = Number(value) || 0;
-  record.reputationData = normalizeReputationData({
-    ...record.reputationData,
-    [field]: numericValue
-  });
-  persistPortfolioCommunityRecord(propName, record);
+  atlasReputationEdit(propName, getAtlasReputationPeriod({}, getSelectedDashboardMonthIndex()), field === 'googleQuarterlyRating' ? 'googleReviewScore' : field, value);
 }
 
 function getForcedImportTarget(options = {}) {
@@ -35845,7 +35861,7 @@ function buildWeeklyExecutiveNarrative(report) {
   const approvalNarrative = approvalCohort.comparable
     ? `${(aggregate.applicationsApproved ?? 0).toFixed(0)} have been approved for a ${approvalCohort.value} approval rate`
     : `${(aggregate.applicationsApproved ?? 0).toFixed(0)} approvals include prior-period pipeline and are not a comparable rate against this month's applications`;
-  const firstParagraph = `${report.scopeLabel} is sitting at ${occPct.toFixed(1)}% physical occupancy and ${leasedPct.toFixed(1)}% leased occupancy for ${report.currentMonthLabel}. Applications received are at ${(aggregate.applications ?? 0).toFixed(0)} month to date; ${approvalNarrative}. Net absorption is ${formatSignedDisplay(aggregate.monthAbsorption)} units, renewal retention is ${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%, and ORA is ${aggregate.oraScore > 0 ? aggregate.oraScore.toFixed(1) : "not yet reported"} across ${communityCount} communit${communityCount === 1 ? "y" : "ies"}.`;
+  const firstParagraph = `${report.scopeLabel} is sitting at ${occPct.toFixed(1)}% physical occupancy and ${leasedPct.toFixed(1)}% leased occupancy for ${report.currentMonthLabel}. Applications received are at ${(aggregate.applications ?? 0).toFixed(0)} month to date; ${approvalNarrative}. Net absorption is ${formatSignedDisplay(aggregate.monthAbsorption)} units, renewal retention is ${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%, and ORA is ${typeof aggregate.oraScore === "number" ? aggregate.oraScore.toFixed(1) : "not yet reported"} across ${communityCount} communit${communityCount === 1 ? "y" : "ies"}.`;
   let secondParagraph = `Saved-budget tracking shows ${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities currently on track to occupancy budget, with ${Math.max(aggregate.occGapUnits ?? 0, 0)} units still below current physical occupancy targets.`;
   if (previousAggregate) {
     const occDelta = occPct - getSummaryOccPct(previousAggregate);
@@ -35916,7 +35932,7 @@ function buildWeeklyExecutiveMetricCards(report) {
     },
     {
       label: "ORA Average",
-      value: (aggregate.oraScore ?? 0) > 0 ? (aggregate.oraScore ?? 0).toFixed(1) : "—",
+      value: typeof aggregate.oraScore === "number" ? (aggregate.oraScore ?? 0).toFixed(1) : "—",
       sub: `${report.investorGroups.length} investment portfolio${report.investorGroups.length === 1 ? "" : "s"} represented`
     }
   ];
@@ -36028,9 +36044,8 @@ function buildPortfolioSectionMetrics(sectionKey, summary) {
   }
   if (sectionKey === "reputation") {
     return [
-      { metric: "ORA Score", value: summary.oraScore > 0 ? formatPortfolioReportValue(summary.oraScore, "rating") : "—" },
-      { metric: "Quarterly Google Rating", value: summary.googleQuarterlyRating > 0 ? formatPortfolioReportValue(summary.googleQuarterlyRating, "rating") : "—" },
-      { metric: "Lifetime Google Rating", value: summary.googleLifetimeRating > 0 ? formatPortfolioReportValue(summary.googleLifetimeRating, "rating") : "—" }
+      { metric: "ORA Score", value: typeof summary.oraScore === "number" ? formatPortfolioReportValue(summary.oraScore, "rating") : "—" },
+      { metric: "Google Review Score", value: typeof summary.googleReviewScore === "number" ? formatPortfolioReportValue(summary.googleReviewScore, "rating") : "—" }
     ];
   }
   if (sectionKey === "finances") {
@@ -36518,7 +36533,7 @@ function buildDeckHorizontalCompareChart(title, items, options = {}) {
   const cleaned = (Array.isArray(items) ? items : []).filter(item => {
     const value = Number(item?.value ?? 0);
     const target = Number(item?.target ?? 0);
-    return value > 0 || target > 0;
+    return options.preserveMissing || value > 0 || target > 0;
   });
   if (cleaned.length === 0) {
     return `<div class="deck-panel deck-panel-soft">
@@ -36535,7 +36550,7 @@ function buildDeckHorizontalCompareChart(title, items, options = {}) {
   const targetFormatter = options.targetFormatter ?? valueFormatter;
   const rows = cleaned.map(item => {
     const label = String(item.label ?? "Metric");
-    const value = Number(item.value ?? 0) || 0;
+    const value = options.preserveMissing ? (typeof item.value === 'number' && Number.isFinite(item.value) ? item.value : null) : Number(item.value ?? 0) || 0;
     const target = Number(item.target ?? 0) || 0;
     const valueWidth = value > 0 ? Math.max(8, Math.min((value / maxValue) * 100, 100)) : 0;
     const targetLeft = target > 0 ? Math.min((target / maxValue) * 100, 100) : 0;
@@ -36544,7 +36559,7 @@ function buildDeckHorizontalCompareChart(title, items, options = {}) {
     return `<div class="deck-chart-row">
       <div class="deck-chart-row-head">
         <strong>${escapeHtml(label)}</strong>
-        <span>${escapeHtml(valueFormatter(value))}${target > 0 ? ` · Goal ${escapeHtml(targetFormatter(target))}` : ""}</span>
+        <span>${escapeHtml(value === null ? "—" : valueFormatter(value))}${target > 0 ? ` · Goal ${escapeHtml(targetFormatter(target))}` : ""}</span>
       </div>
       <div class="deck-chart-track">
         ${target > 0 ? `<span class="deck-chart-target" style="left:${targetLeft}%"></span>` : ""}
@@ -36814,7 +36829,7 @@ function buildMonthlyInvestorPresentationMetricCards(report) {
     },
     {
       label: "ORA Average",
-      value: (aggregate.oraScore ?? 0) > 0 ? (aggregate.oraScore ?? 0).toFixed(1) : "—",
+      value: typeof aggregate.oraScore === "number" ? (aggregate.oraScore ?? 0).toFixed(1) : "—",
       sub: `${report.investorGroups.length} investment portfolio${report.investorGroups.length === 1 ? "" : "s"} represented`
     }
   ];
@@ -36991,7 +37006,7 @@ function buildMonthlyInvestorPresentationSlidePlan(report) {
         `Renewals signed: ${Math.round(report.aggregate.renewalsSigned ?? 0)}`,
         `Retention rate: ${(report.aggregate.renewalRetentionRate ?? 0).toFixed(1)}%`,
         `Projected attrition: ${Math.round(report.aggregate.renewalProjectedAttrition ?? 0)} units`,
-        `ORA average: ${(report.aggregate.oraScore ?? 0) > 0 ? (report.aggregate.oraScore ?? 0).toFixed(1) : "—"}`
+        `ORA average: ${typeof report.aggregate.oraScore === "number" ? (report.aggregate.oraScore ?? 0).toFixed(1) : "—"}`
       ]
     });
   }
@@ -37002,7 +37017,7 @@ function buildMonthlyInvestorPresentationSlidePlan(report) {
       ribbon: "Community spotlight + pricing action",
       image: describeMonthlyPresentationImage(report, getDetailPresentationPhoto(detail, report), `No saved ${detail.name} photo`),
       bullets: [
-        `KPI stack: ${getSummaryOccPct(detail.summary).toFixed(1)}% physical occ · ${getSummaryLeasedPct(detail.summary).toFixed(1)}% leased · ${Math.round(detail.summary.applicationsApproved ?? 0)} approved apps MTD · ${formatSignedDisplay(detail.summary.monthAbsorption ?? 0)} absorption · ${(detail.summary.renewalRetentionRate ?? 0).toFixed(1)}% retention · ORA ${(detail.summary.oraScore ?? 0) > 0 ? (detail.summary.oraScore ?? 0).toFixed(1) : "—"}`,
+        `KPI stack: ${getSummaryOccPct(detail.summary).toFixed(1)}% physical occ · ${getSummaryLeasedPct(detail.summary).toFixed(1)}% leased · ${Math.round(detail.summary.applicationsApproved ?? 0)} approved apps MTD · ${formatSignedDisplay(detail.summary.monthAbsorption ?? 0)} absorption · ${(detail.summary.renewalRetentionRate ?? 0).toFixed(1)}% retention · ORA ${typeof detail.summary.oraScore === "number" ? (detail.summary.oraScore ?? 0).toFixed(1) : "—"}`,
         `Charts: Rates & Effective Rent plus Market Survey Rents and Last 30 Days Leases vs Applications`,
         `Pricing action: ${getRegionalPricingActionLabel(market)}`,
         `Recommended specials: ${market.specialsRecommendation || "Pending Regional input"}`,
@@ -37301,12 +37316,13 @@ function addPptxBarPanel(slide, pptx, config = {}) {
     subtitle = "",
     items = [],
     max = 0,
+    preserveMissing = false,
     valueFormatter = value => `${Number(value || 0).toFixed(1)}`,
     targetFormatter = value => `${Number(value || 0).toFixed(1)}`
   } = config;
   addPptxPanel(slide, pptx, { x, y, w, h, title, fillColor: "17324A" });
   const rows = (Array.isArray(items) ? items : [])
-    .filter(item => Number(item?.value ?? 0) > 0 || Number(item?.target ?? 0) > 0)
+    .filter(item => preserveMissing || Number(item?.value ?? 0) > 0 || Number(item?.target ?? 0) > 0)
     .slice(0, subtitle ? 4 : 5);
   if (subtitle) {
     slide.addText(String(subtitle), {
@@ -37341,7 +37357,7 @@ function addPptxBarPanel(slide, pptx, config = {}) {
   const rowGap = Math.max(notesEnabled ? 0.42 : 0.28, (h - (startY - y) - 0.14) / rows.length);
   rows.forEach((item, idx) => {
     const label = String(item?.label ?? "Metric");
-    const value = Number(item?.value ?? 0) || 0;
+    const value = preserveMissing ? (typeof item?.value === 'number' && Number.isFinite(item.value) ? item.value : null) : Number(item?.value ?? 0) || 0;
     const target = Number(item?.target ?? 0) || 0;
     const note = String(item?.note ?? "").trim();
     const rowY = startY + idx * rowGap;
@@ -37363,7 +37379,7 @@ function addPptxBarPanel(slide, pptx, config = {}) {
       fit: "shrink"
     });
     slide.addText(
-      `${valueFormatter(value)}${target > 0 ? ` · Goal ${targetFormatter(target)}` : ""}`,
+      `${value === null ? "—" : valueFormatter(value)}${target > 0 ? ` · Goal ${targetFormatter(target)}` : ""}`,
       {
         x: x + w * 0.54,
         y: rowY,
@@ -54262,16 +54278,8 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
         if (Number.isFinite(totalUnitsVal) && totalUnitsVal > 0) {
           targetRecord.customUnits = Math.round(totalUnitsVal);
         }
-        const avgRating = Number(String(getCell(row, "avg_review_rating") ?? "").replace(/[,]/g, ""));
-        if (Number.isFinite(avgRating) && avgRating > 0) {
-          targetRecord.reputationData = normalizeReputationData({
-            ...targetRecord.reputationData,
-            googleQuarterlyRating: avgRating,
-            googleLifetimeRating: targetRecord.reputationData?.googleLifetimeRating > 0
-              ? targetRecord.reputationData.googleLifetimeRating
-              : avgRating
-          });
-        }
+        // Review ratings in an operational upload are source evidence only.
+        // Monthly manual reputation and undated legacy references are never replaced by an import.
         savedData[mappedName] = normalizeSavedCommunityRecord(mappedName, targetRecord);
       }
       matched += Object.values(mappedRow).filter(value => value !== "" && value !== null && value !== undefined).length;
@@ -54904,6 +54912,7 @@ window.addEventListener("atlas-central-auth-change", () => {
   atlasWorkspaceAccess.controller?.abort(); atlasWorkspaceAccess.validated=false; atlasWorkspaceAccess.hasData=false; atlasWorkspaceAccess.epoch++;
   atlasFinanceRequestController?.abort(); atlasFinanceScopeQueue.clear();
   window.AtlasClosedFinancialCache?.clear(); window.AtlasCommandPlanSummaries = {};
+  window.AtlasReputation?.clear(); prepareAtlasReputationView.pending=null;
   atlasCommunityPlanModule?.close(); atlasCommunityFinanceModule?.cancel();
   clearAtlasSharedApplications();
   document.querySelectorAll(".tab-panel").forEach(panel=>{panel.replaceChildren();delete panel.dataset.atlasStableMountMounted;});

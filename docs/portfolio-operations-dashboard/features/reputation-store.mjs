@@ -48,13 +48,13 @@ export function createReputationStore(central,{uuid=()=>crypto.randomUUID()}={})
    updatedAt:row?.updated_at||null,updatedBy:row?.updated_by||null,status:!cid?'unmapped':!loaded.has(key(cid,period.slice(0,4)))?'loading':row?'saved':'absent',canEdit:!!cid&&editable.has(cid)};
  }
  function draft(record,period){guard();const current=get(record,period);return drafts.get(key(current.communityId,period))||current;}
- function edit(record,period,field,value){
+ function edit(record,period,field,value,{badInput=false}={}){
   const current=get(record,period);if(!current.canEdit||!['saved','absent'].includes(current.status))throw Error('Monthly reputation is not ready for editing.');
   if(!['oraScore','googleReviewScore'].includes(field))throw Error('Unknown monthly reputation field.');
   const id=key(current.communityId,period),existing=drafts.get(id);
   if(existing?.requestId)throw Error('Retry the pending save or reload its saved values before making another edit.');
   const next={...(existing||current),errors:{...existing?.errors},inputs:{...existing?.inputs,[field]:value},dirty:true};
-  try{next[field]=score(value,field==='oraScore'?100:5);delete next.errors[field];}
+  try{if(badInput)throw Error('Enter a complete valid number, or clear the field.');next[field]=score(value,field==='oraScore'?100:5);delete next.errors[field];}
   catch(error){next.errors[field]=error.message;drafts.set(id,next);throw error;}
   drafts.set(id,next);return next;
  }

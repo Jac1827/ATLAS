@@ -4474,8 +4474,8 @@ function atlasReputationDisplay(value, digits = 1) {
   return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '—';
 }
 
-function atlasReputationEdit(propName, period, field, value) {
-  try { window.AtlasReputation.edit(propName, period, field, value); }
+function atlasReputationEdit(propName, period, field, value, badInput = false) {
+  try { window.AtlasReputation.edit(propName, period, field, value, { badInput }); }
   catch (_) { /* The draft retains validation errors and entered text. */ }
   const status = document.getElementById(`atlas-reputation-status-${encodeURIComponent(propName+'|'+period)}`);
   if (status) status.textContent = atlasReputationDraftStatus(window.AtlasReputation.draft(propName, period));
@@ -4509,8 +4509,8 @@ function renderMonthlyReputationEditor(propName, period) {
   const disabled = saved.canEdit && !saved.saving && !saved.requestId ? '' : ' disabled';
   const saveDisabled = saved.canEdit && !saved.saving ? '' : ' disabled';
   const args = escapeHtml(`${JSON.stringify(propName)},${JSON.stringify(period)}`);
-  return `<div><label>Google Review Score <input aria-label="Monthly Google Review Score" type="number" min="0" max="5" step="0.01" value="${escapeHtml(saved.inputs?.googleReviewScore ?? saved.googleReviewScore ?? '')}"${disabled} oninput='atlasReputationEdit(${args},"googleReviewScore",this.value)'></label>
-    <label>ORA Score <input aria-label="Monthly ORA Score" type="number" min="0" max="100" step="0.01" value="${escapeHtml(saved.inputs?.oraScore ?? saved.oraScore ?? '')}"${disabled} oninput='atlasReputationEdit(${args},"oraScore",this.value)'></label>
+  return `<div><label>Google Review Score <input aria-label="Monthly Google Review Score" type="number" min="0" max="5" step="0.01" value="${escapeHtml(saved.inputs?.googleReviewScore ?? saved.googleReviewScore ?? '')}"${disabled} oninput='atlasReputationEdit(${args},"googleReviewScore",this.value,this.validity.badInput)'></label>
+    <label>ORA Score <input aria-label="Monthly ORA Score" type="number" min="0" max="100" step="0.01" value="${escapeHtml(saved.inputs?.oraScore ?? saved.oraScore ?? '')}"${disabled} oninput='atlasReputationEdit(${args},"oraScore",this.value,this.validity.badInput)'></label>
     <button class="btn btn-blue btn-sm"${saveDisabled} onclick='atlasSaveMonthlyReputation(${args})'>${saved.requestId ? 'Retry save' : 'Save month'}</button>
     <button class="btn btn-gray btn-sm"${saved.saving ? ' disabled' : ''} onclick='atlasSaveMonthlyReputation(${args},true)'>Reload saved values</button>
     <p id="atlas-reputation-status-${encodeURIComponent(propName+'|'+period)}" role="status">${escapeHtml(atlasReputationDraftStatus(saved))}</p>

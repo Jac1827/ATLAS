@@ -37,6 +37,12 @@ store.edit('B','2026-10','oraScore','20');assert.throws(()=>store.edit('B','2026
 assert.equal(store.draft('B','2026-10').inputs.oraScore,'wrong');const beforeInvalid=calls.length;
 await assert.rejects(store.save('B','2026-10'),/Correct the invalid/);assert.equal(calls.length,beforeInvalid);
 store.edit('B','2026-10','oraScore','0');await store.save('B','2026-10');assert.equal(store.get('B','2026-10').oraScore,0);
+// Native numeric inputs expose an empty value for incomplete numbers such as 1e.
+// Their badInput flag must block save rather than treating that empty string as clearing.
+assert.throws(()=>store.edit('B','2026-10','oraScore','',{badInput:true}),/complete valid number/);
+const beforeIncomplete=calls.length;await assert.rejects(store.save('B','2026-10'),/Correct the invalid/);
+assert.equal(calls.length,beforeIncomplete);assert.equal(store.get('B','2026-10').oraScore,0);
+store.edit('B','2026-10','oraScore','',{badInput:false});await store.save('B','2026-10');assert.equal(store.get('B','2026-10').oraScore,null,'Intentional clear still persists null');
 // A pending save cannot be reloaded or replaced by a new draft.
 let resumeSave;pauseSave=new Promise(resolve=>resumeSave=resolve);store.edit('A','2026-10','oraScore','30');
 const delayedSave=store.save('A','2026-10');assert.equal(store.draft('A','2026-10').saving,true);

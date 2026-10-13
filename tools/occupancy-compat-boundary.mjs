@@ -30,7 +30,7 @@ function changes(currentCore,currentImportWorkspace) {
   };
   const edits=[
     reader('  const sheets = [];','  (workbook.SheetNames || []).forEach(sheetName => {'),
-    reader('    const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });','    if (plan.reportType === "renewal_tracker" && window.atlasCsPreviewRenewalSheetRows) {'),
+    {name:'dataImportReadStructuredRows',before:'    const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });\n    if (plan.reportType === "renewal_tracker" && window.atlasCsPreviewRenewalSheetRows) {',after:block(read,'    // Preserve leading blank rows so every downstream locator remains an absolute worksheet row.','    if (plan.reportType === "renewal_tracker" && window.atlasCsPreviewRenewalSheetRows) {')},
     router('  const grouped = new Map();','  for (const sheet of sheets) {'),
     router('        originalValues: sourceRow.values,','        leadSourceEvidence: sourceRow.leadComponents || [],'),
     router('      if (["held", "older", "duplicate"].includes(upsert.disposition)) continue;','      result.communities.add(communityName);'),
@@ -39,12 +39,14 @@ function changes(currentCore,currentImportWorkspace) {
     allowlist(currentCore,'reprocessDataImportBoxScore'),
     allowlist(currentImportWorkspace,'renderDataImportArchiveView'),
     {name:'reprocessDataImportBoxScore',prefix:true,before:replayAnchor,after:correction+'\n\n'+replayAnchor},
-    {name:'reprocessDataImportBoxScore',before:'    dataImportFinishApprovalRuntime();\n    entry.reprocessedAt = new Date().toISOString();',after:block(replay,'    dataImportFinishApprovalRuntime();\n    if (entry.reportType === "rent_roll") result.periodCorrection = dataImportSupersedeRentRollPeriods(plan, entry, result);','    entry.reprocessedAt = new Date().toISOString();')}
+    {name:'reprocessDataImportBoxScore',before:'    dataImportFinishApprovalRuntime();\n    entry.reprocessedAt = new Date().toISOString();',after:block(replay,'    dataImportFinishApprovalRuntime();\n    if (entry.reportType === "rent_roll") result.periodCorrection = dataImportSupersedeRentRollPeriods(plan, entry, result);','    entry.reprocessedAt = new Date().toISOString();')},
+    {name:'dataImportReadStructuredRows',before:'  });\n  return sheets;',after:block(read,'  });\n  sheets.forEach(sheet => {','  return sheets;')}
   ];
   if(edits.some(edit=>edit.before===edit.after))throw new Error('Current occupancy evidence boundary is incomplete.');
   if(!edits[0].after.includes('parseOccupancySheet')||!edits[1].after.includes('raw:true')||!edits[3].after.includes('occupancyEvidence:'))throw new Error('Current occupancy evidence boundary no longer matches the reviewed aggregate contract.');
   if(!edits[5].after.includes('return {monthIdx:null, year:null, periodKey:""};')||!edits[6].after.includes('Rent roll reporting period is missing'))throw new Error('Current rent roll period boundary is incomplete.');
   if(!edits[10].after.includes('result.periodCorrection = dataImportSupersedeRentRollPeriods(plan, entry, result)'))throw new Error('Current rent roll correction call is incomplete.');
+  if(!edits[1].after.includes('blankrows: true, range: 0')||!edits[1].after.includes('matches.size !== 1')||!edits[11].after.includes('community_name:evidence.resolvedCommunityName'))throw new Error('Current source identity or absolute locator boundary is incomplete.');
   return edits;
 }
 function apply(source,edit,reverse=false) {

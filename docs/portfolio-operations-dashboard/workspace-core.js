@@ -47354,12 +47354,27 @@ async function dataImportReadStructuredRows(file, plan = {}) {
     ? XLSX.utils.sheet_to_json(workbook.Sheets[occupancyParameterSheet], {header:1,defval:null,raw:true,range:0}) : [];
   (workbook.SheetNames || []).forEach(sheetName => {
     if (dataImportIsMetadataSheetName(sheetName)) return;
-    const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });
+    // Preserve leading blank rows so every downstream locator remains an absolute worksheet row.
+    const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true, range: 0 });
     if (occupancySourceParser) {
       // Keep cached source precision for aggregate evidence; formatted display values may round cents.
       const evidenceRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1,defval:null,raw:true,blankrows:true,range:0});
       const evidence = occupancySourceParser({rows:evidenceRows,reportType:plan.reportType,sourceSheet:sheetName,
         metadata:plan.metadata || {},fileHash:plan.fileHash || "",sourceFile:plan.name || file.name,reportParameters:occupancyReportParameters});
+      if (evidence?.identityBasis === "report_title") {
+        // A chosen destination cannot establish a generic worksheet's source identity.
+        // Resolve only exact canonical names or configured aliases, without fuzzy matching.
+        const known = getAllCommunityNames(), matches = new Set();
+        const sourceName = normalizeCommunityLookupName(evidence.propertySource);
+        const consider = (alias, name) => {
+          if (known.includes(name) && sourceName && normalizeCommunityLookupName(alias) === sourceName) matches.add(name);
+        };
+        known.forEach(name => consider(name, name));
+        (dataImport2State.propertyAliases || []).forEach(alias => consider(alias.alias, alias.communityName));
+        Object.entries(typeof SHARED_COMMUNITY_ALIASES === "undefined" ? {} : SHARED_COMMUNITY_ALIASES).forEach(([alias, name]) => consider(alias, name));
+        if (evidence.status !== "valid" || matches.size !== 1) throw new Error(`${sheetName}: the printed source community requires a verified, unambiguous canonical identity before import.`);
+        evidence.resolvedCommunityName = [...matches][0];
+      }
       if (evidence) plan.occupancyEvidenceBySheet[sheetName] = evidence;
     }
     if (plan.reportType === "renewal_tracker" && window.atlasCsPreviewRenewalSheetRows) {
@@ -47426,6 +47441,13 @@ async function dataImportReadStructuredRows(file, plan = {}) {
       return populated.length && !(plan.reportType === "rent_roll" && populated.every(value => /^selected report filters returned no data$/i.test(value)));
     });
     if (rows.length) sheets.push({ sheetName, headerIndex, headers: headers.map(item => item.name), rows });
+  });
+  sheets.forEach(sheet => {
+    const evidence = plan.occupancyEvidenceBySheet[sheet.sheetName];
+    if (evidence?.identityBasis === "report_title" && evidence.resolvedCommunityName) {
+      // Keep the existing selected-community check tied to the source's resolved property.
+      sheet.rows = sheet.rows.map(row => ({...row, values:{...row.values, community_name:evidence.resolvedCommunityName}}));
+    }
   });
   return sheets;
 }

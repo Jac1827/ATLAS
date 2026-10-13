@@ -9,6 +9,40 @@ function box(){return [[],['Box Score'],['Test Community'],['09/01/2026 - 09/30/
 function aging(){return [[],['Resident Aged Receivables'],['Test Community'],['Sep 2026'],[],['Bldg-Unit','Resident','Lease Status','0-30 Days','31-60 Days','61-90 Days','90+ Days','Pre-payments','Balance'],['PII-1','Private Resident','Current',999,100,20,5,500,624],['','','Test Community Total:',999,100,20,5,500,624]];}
 function rent(){return [[],['Rent Roll'],['Test Community'],['Sep 2026'],[],['Unit Details'],['Bldg-Unit','Resident','Unit Status','Move-In','Lease Start','Expected Move-Out'],['A','Private A','Occupied No Notice','01/01/2026','01/01/2026',''],['B','Private B','Vacant Rented Ready','','',''],['C','Private C','Vacant Rented Ready','','',''],['','Test Community Total:'],[],['Future Resident Details'],['Bldg-Unit','Resident','Unit Status','Move-In','Lease Start'],['B','Private B','Vacant Rented Ready','10/20/2026','10/20/2026'],['A','Private A','Occupied No Notice','10/10/2026','10/10/2026'],['','Test Community Total:']];}
 const parse=(rows,type,fileHash='hash')=>parseOccupancySheet({rows,reportType:type,sourceSheet:'Test Community',sourceFile:type+'.xlsx',fileHash,metadata});
+function structuredReader({known=['Test Community','Other Community'],aliases=[],shared={}}={}) {
+ const source=fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/workspace-core.js',import.meta.url),'utf8');
+ const functionSource=source.match(/^async function dataImportReadStructuredRows\([^\n]*\) \{[\s\S]*?^\}/m)[0].replace(/import\((["'])\.\/features\/occupancy-source-evidence\.mjs(?:\?[^"']*)?\1\)/g,'import('+JSON.stringify(new URL('../docs/portfolio-operations-dashboard/features/occupancy-source-evidence.mjs',import.meta.url).href)+')');
+ return Function('XLSX','window','dataImportGetFileExtension','dataImportIsMetadataSheetName','getAllCommunityNames','normalizeCommunityLookupName','dataImport2State','SHARED_COMMUNITY_ALIASES',`${functionSource};return dataImportReadStructuredRows;`)(XLSX,{AtlasApplicationSources:require('../docs/portfolio-operations-dashboard/application-source-bridge.js')},()=>'.xlsx',()=>false,()=>known,s=>String(s).toLowerCase().replace(/^rise\s+/,'').trim(),{propertyAliases:aliases},shared);
+}
+function genericSource(community='Test Community') {
+ const name='02 - RISE - Box Score',rows=box();rows[1]=[name];rows[2]=[community];rows.unshift([]);
+ const book=XLSX.utils.book_new(),sheet=XLSX.utils.aoa_to_sheet(rows);XLSX.utils.book_append_sheet(book,sheet,name);
+ const buffer=XLSX.write(book,{type:'buffer',bookType:'xlsx'});
+ return {rows,name,file:{name:'Synthetic.xlsx',arrayBuffer:async()=>buffer},plan:{reportType:'box_score',name:'Synthetic.xlsx',fileHash:'synthetic',metadata}};
+}
+test('report-title worksheets require positive printed identity and retain community-named mismatch guards',()=>{
+ const fixture=genericSource(),parseSheet=(rows=fixture.rows,sourceSheet=fixture.name)=>parseOccupancySheet({rows,reportType:'box_score',sourceSheet,metadata});
+ assert.equal(parseSheet().status,'valid');assert.equal(parseSheet().identityBasis,'report_title');assert.equal(parseSheet().propertySource,'Test Community');
+ assert.equal(parseSheet(fixture.rows,'Other Community').status,'unavailable');
+ const blank=structuredClone(fixture.rows);blank[3]=[''];assert.equal(parseSheet(blank).status,'unavailable');
+ const conflict=structuredClone(fixture.rows);conflict.splice(8,0,['Property: Other Community']);assert.equal(parseSheet(conflict).status,'unavailable');
+ const misleading=structuredClone(fixture.rows);misleading[2]=['Other-Box Score'];assert.equal(parseSheet(misleading,'Other-Box Score').status,'unavailable');
+});
+test('structured reader binds generic sheets to exact known identities and preserves absolute source rows',async()=>{
+ const fixture=genericSource(),read=structuredReader(),plan={...fixture.plan,selectedCommunities:['Other Community']};
+ const [sheet]=await read(fixture.file,plan),row=sheet.rows[0],evidence=plan.occupancyEvidenceBySheet[fixture.name];
+ assert.equal(evidence.status,'valid');assert.equal(evidence.resolvedCommunityName,'Test Community');
+ assert.equal(row.values.community_name,'Test Community','The selected destination cannot replace the printed source identity');
+ assert.equal(row.sourceRow,10,'Two leading blank rows remain part of the source coordinate');
+ assert.equal(row.locators.occupied_units.row,10);assert.equal(evidence.snapshot.controls.occupiedUnits.row,10);
+ for(const field of ['total_units','rentable_units','occupied_units','source_leased_units']) assert.equal(row.locators[field].row,10,field);
+ const unknown=genericSource('Unknown Property');await assert.rejects(read(unknown.file,{...unknown.plan,selectedCommunities:['Test Community']}),/verified, unambiguous canonical identity/);
+ const alias=genericSource('Approved Source Alias'),withAlias=structuredReader({aliases:[{alias:'Approved Source Alias',communityName:'Test Community'}]});
+ assert.equal((await withAlias(alias.file,alias.plan))[0].rows[0].values.community_name,'Test Community');
+ const ambiguous=structuredReader({aliases:[{alias:'Test Community',communityName:'Other Community'}]});
+ await assert.rejects(ambiguous(fixture.file,fixture.plan),/verified, unambiguous canonical identity/);
+ const changed=genericSource('RISE Test Community');assert.equal((await read(changed.file,changed.plan))[0].rows[0].values.community_name,'Test Community');
+});
 test('empty future resident details do not hide reconciled current rent-roll GPR',()=>{
  const rows=[[],['Rent Roll'],['Test Community'],['Sep 2026'],[],['Unit Details'],
   ['Bldg-Unit','Unit Status','Expected Move-Out','Market Rent (Budgeted)','Actual Charges','In-Place Rents (Scheduled)'],
@@ -107,6 +141,15 @@ test('existing scoped approval route attaches aggregate evidence once only after
  const row=(i,name,period)=>({sourceRow:i,sourceSheet:'Test Community',values:{community_name:name,period}});c.planRows=[row(1,'Other','2026-09'),row(2,'Test Community','2026-08'),row(3,'Test Community','2026-09'),row(4,'Test Community','2026-09')];
  const evidence=parse(box(),'box_score'),plan={reportType:'box_score',name:'Test.xlsx',fileHash:'hash',metadata,selectedCommunities:['Test Community'],periodSelection:{requested:{periodKey:'2026-09'}},occupancyEvidenceBySheet:{'Test Community':evidence}};
  const result=await c.dataImportRouteStructuredFile({},plan,'batch');assert.equal(result.rowsHeld,2);assert.equal(stored.length,2);assert.equal(stored[0].occupancyEvidence,evidence);assert.equal(stored[1].occupancyEvidence,undefined);assert.equal(stored[0].periodKey,'2026-09');
+ // A generic worksheet's printed identity still controls the existing target hold.
+ const generic=genericSource(),genericPlan={...generic.plan,selectedCommunities:['Other Community'],periodSelection:{requested:{periodKey:'2026-09'}}};
+ const genericSheets=await structuredReader()(generic.file,genericPlan);
+ c.dataImportReadStructuredRows=async()=>genericSheets;
+ c.dataImportRowPeriod=(_mapped,row)=>({periodKey:row.period.asOf.slice(0,7),monthIdx:8,year:2026});
+ stored.length=0;
+ const held=await c.dataImportRouteStructuredFile({},genericPlan,'batch');assert.equal(held.rowsHeld,1);assert.equal(stored.length,0,'Wrong selected community never receives the generic-sheet source');
+ genericPlan.selectedCommunities=['Test Community'];
+ const accepted=await c.dataImportRouteStructuredFile({},genericPlan,'batch');assert.equal(accepted.rowsHeld,0);assert.equal(stored.length,1);assert.equal(stored[0].communityName,'Test Community');assert.equal(stored[0].sourceRow,10);
 });
 
 

@@ -133,7 +133,13 @@ export function parseOccupancySheet({rows=[],reportType,sourceSheet='',metadata=
   const title=rows.findIndex((row,i)=>i<6 && titles[reportType].test(text(row?.[0])));
   if(title<0)return null;
   const embeddedCommunity=text(rows[title+1]?.[0]);
-  const identityMatches=!!embeddedCommunity && norm(embeddedCommunity)===norm(sourceSheet);
+  // Single-property Entrata exports use the report title as the worksheet name.
+  // Only that exact, neutral report title may defer identity to the printed property.
+  const neutralTitle=text(sourceSheet).replace(/^\d+\s*-\s*/, '').replace(/^RISE\s*-\s*/i, '');
+  const reportTitleSheet=norm(sourceSheet)===norm(rows[title]?.[0]) && titles[reportType].test(neutralTitle) && !neutralTitle.includes('-');
+  const printedProperties=rows.flatMap(row=>/^property\s*:/i.test(text(row?.[0]))?[text(row[0]).replace(/^property\s*:\s*/i,'')]:[]);
+  const positiveIdentity=!!embeddedCommunity && /[a-z]/i.test(embeddedCommunity) && !titles[reportType].test(embeddedCommunity) && !/^(?:total|all properties|all communities|portfolio)\s*:?$/i.test(embeddedCommunity);
+  const identityMatches=positiveIdentity && (norm(embeddedCommunity)===norm(sourceSheet) || reportTitleSheet) && printedProperties.every(name=>norm(name)===norm(embeddedCommunity));
   // An empty future-resident section does not invalidate populated current units.
   // Keep the empty-source guard through the current unit total so genuinely
   // empty current inventory still cannot become measured zero or valid GPR.
@@ -141,7 +147,7 @@ export function parseOccupancySheet({rows=[],reportType,sourceSheet='',metadata=
   const sourcePeriod=periodFromRows(rows), empty=(currentUnits ? rows.slice(0,currentUnits.end+1) : rows).some(row=>row.some(v=>/selected report filters returned no data/i.test(text(v))));
   const parameterKeys=new Set(['calculate delinquency using','period','lease statuses','minimum unpaid balance','inter-company','unpaid deposits','lease occupancy types','lease terms (student)','unit status','future resident details includes','future residents not assigned a unit','consider proration for scheduled charges']);
   const reportScope=reportParameters.filter(row=>parameterKeys.has(norm(row?.[0]))).map(row=>({label:text(row[0]),value:text(row[1])}));
-  const base={schemaVersion:1,reportType,reportScope,propertySource:embeddedCommunity,sourceSheet,period:sourcePeriod,sourceFile,sourceFingerprint:fileHash,sourceEffectiveAt:text(metadata.dataAsOf||metadata.generatedAt),status:identityMatches&&sourcePeriod&&!empty?'valid':'unavailable',reason:!identityMatches?'Embedded community and source sheet disagree.':!sourcePeriod?'Source period is unavailable.':empty?'Source reports no data; this is not zero.':null};
+  const base={schemaVersion:1,reportType,reportScope,propertySource:embeddedCommunity,sourceSheet,identityBasis:reportTitleSheet?'report_title':'community_sheet',period:sourcePeriod,sourceFile,sourceFingerprint:fileHash,sourceEffectiveAt:text(metadata.dataAsOf||metadata.generatedAt),status:identityMatches&&sourcePeriod&&!empty?'valid':'unavailable',reason:!identityMatches?'Embedded community and source sheet disagree.':!sourcePeriod?'Source period is unavailable.':empty?'Source reports no data; this is not zero.':null};
   if(base.status!=='valid')return base;
   return {...base,...(reportType==='box_score'?{snapshot:boxEvidence(rows)}:reportType==='rent_roll'?{pipeline:rentEvidence(rows),financials:rentRollFinancialEvidence(rows)}:{aging:agingEvidence(rows)})};
 }

@@ -7,7 +7,9 @@ const key=source.match(/supabaseAnonKey:\s*"([^"]+)"/)?.[1];
 if(!url||!key)throw Error('Public backend configuration is missing');
 const probes=await Promise.allSettled([
   ['atlas_read_workspace_projection',{}],
-  ['atlas_publish_workspace_projection',{p_projection:null}]
+  ['atlas_publish_workspace_projection',{p_projection:null}],
+  ['atlas_read_reputation_months',{p_community_ids:[],p_periods:[]}],
+  ['atlas_save_reputation_month',{p_community_id:null,p_period:null,p_expected_version:null,p_request_id:null,p_google_review_score:null,p_ora_score:null}]
 ].map(async ([name,args])=>{
   const result=await fetch(url+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:key,'Content-Type':'application/json'},body:JSON.stringify(args),signal:AbortSignal.timeout(20000)});
   const body=await result.json();
@@ -15,4 +17,4 @@ const probes=await Promise.allSettled([
 }));
 const failed=probes.find(result=>result.status==='rejected');
 if(failed)throw failed.reason;
-console.log('PASS scoped workspace reader and publisher are deployed and deny anonymous access; authenticated production acceptance remains required.');
+console.log('PASS scoped workspace and monthly reputation functions are deployed and deny anonymous access; authenticated production acceptance remains required.');

@@ -4508,6 +4508,11 @@ function normalizeMarketSurveyData(data) {
         leasesLast30: window.AtlasPropertyIntelligence.num(item?.leasesLast30),
         cancelPctLast7: window.AtlasPropertyIntelligence.num(item?.cancelPctLast7),
         cancelPctLast30: window.AtlasPropertyIntelligence.num(item?.cancelPctLast30),
+        ...(item?.cancellationSource && typeof item.cancellationSource === "object" ? {
+          cancellationSource: Object.fromEntries(["cancelPctLast7", "cancelPctLast30"]
+            .filter(key => item.cancellationSource[key] && typeof item.cancellationSource[key] === "object")
+            .map(key => [key, { ...item.cancellationSource[key] }]))
+        } : {}),
         concessionDetails: String(item?.concessionDetails ?? "").trim()
       }))
       .filter(item => item.name),
@@ -27114,7 +27119,24 @@ function buildMarketSurveyConcessionSummary(row, subjectIdx, compAverageIdx) {
   return [...new Set(values)].slice(0, 4).join("; ");
 }
 
-function extractMarketSurveyCompRows(rows, headerRow, subjectIdx, compAverageIdx) {
+function normalizeMarketSurveyCancellationPercent(value, sourceUnit = "", cellType = "") {
+  if (cellType === "e" || value === null || value === undefined || typeof value === "boolean") return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  const percentText = text.endsWith("%");
+  const numericText = percentText ? text.slice(0, -1).trim() : text;
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(numericText)) return null;
+  const numeric = Number(numericText);
+  if (!Number.isFinite(numeric)) return null;
+  // Explicit percentage text already uses percentage points. An Excel percent
+  // number format declares a fraction; an unlabelled numeric magnitude does not.
+  if (percentText || sourceUnit === "percentage_points" || numeric === 0) return numeric;
+  if (sourceUnit !== "fraction") return null;
+  const points = numeric * 100;
+  return Number.isFinite(points) ? points : null;
+}
+
+function extractMarketSurveyCompRows(rows, headerRow, subjectIdx, compAverageIdx, source = {}) {
   const rentRow = findWorksheetRow(rows, /^Rent$/i) ?? [];
   const nerRow = findWorksheetRow(rows, /^NER$/i) ?? [];
   const leasedRow = findWorksheetRow(rows, /Leased %/i) ?? [];
@@ -27123,13 +27145,53 @@ function extractMarketSurveyCompRows(rows, headerRow, subjectIdx, compAverageIdx
   const leases7Row = findWorksheetRow(rows, /Leases \(Last 7 days\)/i) ?? [];
   const cancel7Row = findWorksheetRow(rows, /Cancel % \(Last 7 days\)/i) ?? [];
   const cancel30Row = findWorksheetRow(rows, /Cancel % \(Last 30 days\)/i) ?? [];
-  const optional = (row,idx,percent=false) => String(row[idx] ?? '').trim()==='' ? null : percent ? normalizeWorkbookPercent(row[idx]) : normalizeWorkbookNumber(row[idx]);
+  const optional = (row,idx) => String(row[idx] ?? '').trim()==='' ? null : normalizeWorkbookNumber(row[idx]);
+  const cancellation = (row, idx) => {
+    let sourceCell = "";
+    let cell;
+    if (source.sheet && rows.includes(row) && typeof XLSX !== "undefined") {
+      const start = XLSX.utils.decode_range(source.sheet["!ref"] || "A1").s;
+      sourceCell = XLSX.utils.encode_cell({ r: start.r + rows.indexOf(row), c: start.c + idx });
+      cell = source.sheet[sourceCell];
+    }
+    const rawValue = cell ? cell.v : row[idx];
+    const numberFormat = String(cell?.z || "");
+    // Quoted/escaped percent signs are display literals, not Excel scaling.
+    const scalingFormat = numberFormat.replace(/"[^"]*"|\\.|\[[^\]]*\]/g, "");
+    const formatSections = scalingFormat.split(";").slice(0, 3);
+    const chosenSection = rawValue < 0 && formatSections.length > 1 ? 1 : rawValue === 0 && formatSections.length > 2 ? 2 : 0;
+    // Conditional formats can choose another section. Accept them only when
+    // every numeric section explicitly has the same fractional-percent unit.
+    const percentFormatted = /\[(?:[<>]=?|=)/.test(numberFormat)
+      ? formatSections.every(section => /%/.test(section))
+      : /%/.test(formatSections[chosenSection]);
+    const sourceUnit = typeof rawValue === "number" && percentFormatted ? "fraction" : source.cancellationUnit || "";
+    const value = normalizeMarketSurveyCancellationPercent(rawValue, sourceUnit, cell?.t);
+    const percentText = typeof rawValue === "string" && rawValue.trim().endsWith("%");
+    const missing = rawValue === null || rawValue === undefined || String(rawValue).trim() === "";
+    const availabilityReason = value === 0 && !sourceUnit && !percentText ? "measured_zero_unit_invariant"
+      : value !== null ? "source_units_verified"
+      : cell?.t === "e" || /^(?:ERROR:)?#/.test(String(rawValue)) ? "source_error"
+      : missing ? "source_blank"
+      : !sourceUnit && !percentText && /^(?:[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)$/i.test(String(rawValue).trim()) ? "source_unit_unverified"
+      : "source_invalid";
+    return { value, evidence: {
+      rawValue: rawValue === undefined ? null : typeof rawValue === "number" && !Number.isFinite(rawValue) ? String(rawValue) : rawValue,
+      cellType: String(cell?.t || ""), numberFormat,
+      sourceSheet: String(source.sheetName || ""), sourceCell,
+      formula: String(cell?.f || ""), displayedValue: String(cell?.w ?? row[idx] ?? ""),
+      sourceUnit: percentText ? "percentage_points" : sourceUnit,
+      availability: value === null ? "unavailable" : "available", availabilityReason
+    } };
+  };
   const apps30Row = findWorksheetRow(rows, /Applications \(Last 30 days\)/i) ?? [];
   const leases30Row = findWorksheetRow(rows, /Leases \(Last 30 days\)/i) ?? [];
   const concessionRow = findWorksheetRow(rows, /^Concession Details$/i) ?? [];
   return (headerRow ?? []).map((cell, idx) => {
     const name = String(cell ?? "").trim();
     if (!name || idx === 0 || idx === compAverageIdx) return null;
+    const cancel7 = cancellation(cancel7Row, idx);
+    const cancel30 = cancellation(cancel30Row, idx);
     return {
       name: idx === subjectIdx ? (matchPropertyName(name, {fallbackToCurrent:false}) || name) : name,
       isSubject: idx === subjectIdx,
@@ -27139,7 +27201,8 @@ function extractMarketSurveyCompRows(rows, headerRow, subjectIdx, compAverageIdx
       exposurePct: normalizeWorkbookPercent(exposureRow[idx]),
       applicationsLast7: optional(apps7Row,idx), applicationsLast30: optional(apps30Row,idx),
       leasesLast7: optional(leases7Row,idx), leasesLast30: optional(leases30Row,idx),
-      cancelPctLast7: optional(cancel7Row,idx,true), cancelPctLast30: optional(cancel30Row,idx,true),
+      cancelPctLast7: cancel7.value, cancelPctLast30: cancel30.value,
+      cancellationSource: { cancelPctLast7: cancel7.evidence, cancelPctLast30: cancel30.evidence },
       concessionDetails: String(concessionRow[idx] ?? "").trim()
     };
   }).filter(item => item && item.name);
@@ -27524,7 +27587,10 @@ function extractMarketSurveyWorkbookData(workbook, fileName = "") {
   const compAverageLeasedPct = getMarketValue(/Leased %/i, compAverageIdx, "percent");
   const compAverageExposurePct = getMarketValue(/Exposure %/i, compAverageIdx, "percent");
   const concessionRow = findWorksheetRow(marketRows, /^Concession Details$/i);
-  const surveyComps = extractMarketSurveyCompRows(marketRows, marketHeaderRow, subjectIdx, compAverageIdx);
+  const marketSheetName = workbook.SheetNames.find(name => /^Market Survey$/i.test(name));
+  const surveyComps = extractMarketSurveyCompRows(marketRows, marketHeaderRow, subjectIdx, compAverageIdx, {
+    sheet: workbook.Sheets[marketSheetName], sheetName: marketSheetName
+  });
   const floorPlanRates = extractMarketSurveyFloorPlanRates(workbook, matchedCommunity);
   const primaryCompSet = buildMarketSurveyCompSet(marketHeaderRow, subjectIdx, compAverageIdx);
   const marketConcessions = buildMarketSurveyConcessionSummary(concessionRow, subjectIdx, compAverageIdx);
@@ -28230,7 +28296,7 @@ async function handleMarketSurveyWorkbook(file, isCurrent = captureAtlasSaveCont
   }
   const buffer = await file.arrayBuffer();
   if (!isCurrent()) return null;
-  const workbook = XLSX.read(buffer, { type: "array" });
+  const workbook = XLSX.read(buffer, { type: "array", cellNF: true });
   const parsed = extractMarketSurveyWorkbookData(workbook, file.name);
   if (!isCurrent()) return null;
   if (!parsed.communityName) {
@@ -28247,6 +28313,16 @@ async function handleMarketSurveyWorkbook(file, isCurrent = captureAtlasSaveCont
     return null;
   }
   marketSurveyImportLog.push(`✅ ${file.name} → ${applied.matchedName} market survey mapped${parsed.updatedOn ? ` · updated ${parsed.updatedOn}` : ""}${parsed.compAverageRent ? ` · comp avg rent $${Math.round(parsed.compAverageRent).toLocaleString()}` : ""}${parsed.floorPlanRates?.length ? ` · ${parsed.floorPlanRates.length} floor plan rate${parsed.floorPlanRates.length === 1 ? "" : "s"} imported` : ""}.`);
+  const cancellationEvidence = (parsed.surveyComps || []).flatMap(comp => Object.values(comp.cancellationSource || {}));
+  const cancellationHolds = [
+    ["source_unit_unverified", "unverified percentage units"],
+    ["source_error", "spreadsheet errors"],
+    ["source_invalid", "invalid values"]
+  ].map(([reason, label]) => ({ count: cancellationEvidence.filter(cell => cell.availabilityReason === reason).length, label }))
+    .filter(item => item.count > 0);
+  if (cancellationHolds.length) {
+    marketSurveyImportLog.push(`⚠️ ${file.name}: cancellation cells remain unavailable (${cancellationHolds.map(item => `${item.count} ${item.label}`).join("; ")}). Raw cells and source units are retained for review.`);
+  }
   return applied.matchedName;
 }
 

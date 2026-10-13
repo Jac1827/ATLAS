@@ -23,7 +23,7 @@ assert.equal(P.packageCoverage([{start:'2026-08-01',end:'2026-10-01',components:
 const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 for(const script of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi))if(script[1].trim())new vm.Script(script[1]);
 const extract=n=>html.match(new RegExp('^(?:async )?function '+n+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'))[0];
-const context={window:{AtlasPropertyIntelligence:P},findWorksheetRow:(rows,re)=>rows.find(r=>re.test(String(r[0]))),normalizeWorkbookNumber:v=>Number(v)||0,normalizeWorkbookPercent:v=>Number(v)||0,matchPropertyName:n=>n};vm.createContext(context);vm.runInContext(extract('extractMarketSurveyCompRows'),context);
+const context={window:{AtlasPropertyIntelligence:P},findWorksheetRow:(rows,re)=>rows.find(r=>re.test(String(r[0]))),normalizeWorkbookNumber:v=>Number(v)||0,normalizeWorkbookPercent:v=>Number(v)||0,matchPropertyName:n=>n};vm.createContext(context);vm.runInContext(extract('normalizeMarketSurveyCancellationPercent')+'\n'+extract('extractMarketSurveyCompRows'),context);
 const surveyRows=[['Applications (Last 7 days)','',2,8],['Applications (Last 30 days)','',19,19],['Leases (Last 7 days)','',1,2],['Leases (Last 30 days)','',16,5],['Cancel % (Last 7 days)','',0,0],['Cancel % (Last 30 days)','',.26,.31],['Concession Details','','Ten weeks free','One month free']];
 const comps=context.extractMarketSurveyCompRows(surveyRows,['','Comp average','RISE Baymeadows','Elevate Baymeadows'],2,1);
 assert.equal(comps[1].applicationsLast7,8);assert.equal(comps[1].leasesLast30,5);assert.equal(comps[1].cancelPctLast7,0);

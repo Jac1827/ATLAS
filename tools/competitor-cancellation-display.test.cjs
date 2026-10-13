@@ -67,7 +67,7 @@ assert.equal(readComps[1].cancellationSource.cancelPctLast7.sourceCell,'E6');
 assert.equal(readComps[1].cancellationSource.cancelPctLast7.sourceSheet,'Market Survey');
 assert.equal(readComps[1].cancellationSource.cancelPctLast30.cellType,'e');
 assert.equal(readComps[1].cancellationSource.cancelPctLast30.availabilityReason,'source_error');
-for (const format of ['General','0.0','0.0"%"','0.0\\%','0.0;0.0%','[>=1]0.0%;0.0']) {
+for (const format of ['General','0.0','0.0"%"','0.0\\%','0.0_%','0.0*%','0.0;0.0%','[>=1]0.0%;0.0']) {
   const currentSheet={...readSheet,E6:{t:'n',v:0.7,z:format}};
   const currentRows=XLSX.utils.sheet_to_json(currentSheet,{header:1,defval:'',raw:false});
   const current=parser.extractMarketSurveyCompRows(currentRows,currentRows[0],1,-1,{sheet:currentSheet,sheetName:'Market Survey'})[1];

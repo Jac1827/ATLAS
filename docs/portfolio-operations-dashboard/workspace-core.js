@@ -27156,8 +27156,8 @@ function extractMarketSurveyCompRows(rows, headerRow, subjectIdx, compAverageIdx
     }
     const rawValue = cell ? cell.v : row[idx];
     const numberFormat = String(cell?.z || "");
-    // Quoted/escaped percent signs are display literals, not Excel scaling.
-    const scalingFormat = numberFormat.replace(/"[^"]*"|\\.|\[[^\]]*\]/g, "");
+    // Quoted, escaped, spacing and fill characters do not declare Excel scaling.
+    const scalingFormat = numberFormat.replace(/"[^"]*"|[\\_*].|\[[^\]]*\]/g, "");
     const formatSections = scalingFormat.split(";").slice(0, 3);
     const chosenSection = rawValue < 0 && formatSections.length > 1 ? 1 : rawValue === 0 && formatSections.length > 2 ? 2 : 0;
     // Conditional formats can choose another section. Accept them only when

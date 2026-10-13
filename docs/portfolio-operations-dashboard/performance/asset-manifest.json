@@ -628,6 +628,10 @@
         "./canonical-finance.mjs"
       ],
       [
+        "features/reputation-store.mjs",
+        "./canonical-finance.mjs"
+      ],
+      [
         "features/occupancy-budget-store.mjs",
         "./canonical-finance.mjs"
       ],
@@ -650,6 +654,16 @@
       [
         "features/canonical-budget-report.mjs",
         "./canonical-finance.mjs"
+      ]
+    ]
+  },
+  "features/reputation-store.mjs": {
+    "sha256": "16d881bab84dd8d4",
+    "bytes": 7376,
+    "references": [
+      [
+        "workspace-core.js",
+        "./features/reputation-store.mjs"
       ]
     ]
   },
@@ -854,8 +868,8 @@
     ]
   },
   "features/occupancy-source-evidence.mjs": {
-    "sha256": "3aec7b2038711914",
-    "bytes": 23099,
+    "sha256": "36f147710db65c57",
+    "bytes": 24010,
     "references": [
       [
         "workspace-core.js",
@@ -868,7 +882,7 @@
     ]
   },
   "features/community-goal-planning.mjs": {
-    "sha256": "37761d5459654f88",
+    "sha256": "bf73b4fa3327de0f",
     "bytes": 19333,
     "references": [
       [
@@ -882,7 +896,7 @@
     ]
   },
   "features/community-finance.mjs": {
-    "sha256": "a279d6ae52b5616c",
+    "sha256": "a8aff057c725c852",
     "bytes": 8932,
     "references": [
       [
@@ -1068,8 +1082,8 @@
     ]
   },
   "features/presentation-slides.mjs": {
-    "sha256": "9dce07011bd94412",
-    "bytes": 21188,
+    "sha256": "dde8f610519a05a4",
+    "bytes": 21069,
     "references": [
       [
         "workspace-core.js",
@@ -1192,8 +1206,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "40fa92bfac58a91e",
-    "bytes": 3105087,
+    "sha256": "2fea8c25d9cc2943",
+    "bytes": 3116011,
     "references": [
       [
         "index.html",
@@ -1904,8 +1918,8 @@
     ]
   },
   "atlas-dashboard-reskin.js": {
-    "sha256": "72fb0c56f3b106df",
-    "bytes": 42012,
+    "sha256": "641c3f85d2b71b4f",
+    "bytes": 42137,
     "references": [
       [
         "index.html",
@@ -2214,7 +2228,7 @@
     ]
   },
   "community-goal-editor.js": {
-    "sha256": "bf4eb7bd0eec8f8d",
+    "sha256": "3da7a83a15fdc873",
     "bytes": 16749,
     "references": [
       [
@@ -2254,8 +2268,8 @@
     ]
   },
   "features/reports-workspace.js": {
-    "sha256": "d9575cefb6e74e0e",
-    "bytes": 139453,
+    "sha256": "2316a86f272545fd",
+    "bytes": 139336,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2354,7 +2368,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "6e5e1a6d78d70f0e",
+    "sha256": "258c3fa0c595d565",
     "bytes": 3962,
     "references": [
       [

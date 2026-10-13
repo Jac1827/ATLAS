@@ -14044,7 +14044,7 @@ function prepareAtlasReputationView() {
     const request={context:getAtlasRenderContextKey(),epoch:atlasWorkspaceAccess.epoch};
     prepareAtlasReputationView.pending=request;
     const current=()=>prepareAtlasReputationView.pending===request && request.context===getAtlasRenderContextKey() && request.epoch===atlasWorkspaceAccess.epoch;
-    request.task=import('./features/reputation-store.mjs').then(async module=>{
+    request.task=import('./features/reputation-store.mjs?v=16d881bab84dd8d4').then(async module=>{
       if(!current())return;
       if(!window.AtlasReputation)window.AtlasReputation=module.createReputationStore(window.ATLAS_CENTRAL);
       await window.AtlasReputation.hydrate(entries);
@@ -24028,7 +24028,7 @@ function queueCommunityRosterFinancials(items) {
       hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=a279d6ae52b5616c");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=a8aff057c725c852");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -37524,7 +37524,7 @@ async function addPptxDeckShell(slide, pptx, report, options = {}) {
 }
 
 async function buildMonthlyInvestorPresentationPptxSlides(pptx, report) {
-  const feature = await import("./features/presentation-slides.mjs?v=9dce07011bd94412");
+  const feature = await import("./features/presentation-slides.mjs?v=dde8f610519a05a4");
   return feature.default(pptx, report);
 }
 
@@ -47447,7 +47447,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
   const sheets = [];
   const occupancySourceParser = ["box_score", "rent_roll", "delinquency"].includes(plan.reportType)
-    ? (await import("./features/occupancy-source-evidence.mjs?v=3aec7b2038711914")).parseOccupancySheet : null;
+    ? (await import("./features/occupancy-source-evidence.mjs?v=36f147710db65c57")).parseOccupancySheet : null;
   plan.occupancyEvidenceBySheet = {};
   const occupancyParameterSheet = (workbook.SheetNames || []).find(name => /^report parameters$/i.test(name.trim()));
   const occupancyReportParameters = occupancySourceParser && occupancyParameterSheet

@@ -49457,14 +49457,23 @@ function dataImportArchiveFreshnessDate(entry) {
     (entry.periodSelection?.mode === "multiple_months" || entry.metadata?.periodSelection?.mode === "multiple_months");
   // Expiration dates identify cohorts, not when a multi-month tracker was current.
   // Receipt and file-modification dates do not prove the source's effective date.
-  if (multiPeriodRenewal) return entry.metadata?.dataAsOf || entry.metadata?.generatedAt || "";
-  return entry?.metadata?.dataAsOf || entry?.dataDateIso || entry?.metadata?.generatedAt || entry?.uploadedAt || "";
+  const sourceDate = multiPeriodRenewal
+    ? entry.metadata?.dataAsOf || entry.metadata?.generatedAt || ""
+    : entry?.metadata?.dataAsOf || entry?.dataDateIso || entry?.metadata?.generatedAt || "";
+  // Receipt time is never evidence that the underlying operational data is current.
+  // Keep invalid preferred dates unavailable instead of falling back to another clock.
+  if (typeof sourceDate !== "string" || !sourceDate.trim() || !Number.isFinite(new Date(sourceDate).getTime())) return "";
+  const isoDay = sourceDate.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|$)/);
+  if (isoDay) {
+    const day = new Date(`${isoDay[1]}-${isoDay[2]}-${isoDay[3]}T12:00:00Z`);
+    if (day.getUTCFullYear() !== Number(isoDay[1]) || day.getUTCMonth() + 1 !== Number(isoDay[2]) || day.getUTCDate() !== Number(isoDay[3])) return "";
+  }
+  return sourceDate;
 }
 
 function dataImportAgeForArchive(entry, def) {
   const sourceDate = dataImportArchiveFreshnessDate(entry);
-  if (!sourceDate && entry?.reportType === "renewal_tracker") return null;
-  if (!sourceDate) return Infinity;
+  if (!sourceDate) return null;
   return def?.freshness?.businessDays
     ? dataImportBusinessDaysBetween(sourceDate)
     : Math.max(0, Math.floor((Date.now() - new Date(sourceDate).getTime()) / 86400000));
@@ -49939,10 +49948,11 @@ function dataImportBuildHealthModel() {
       }
       if (required && archive) {
         const age = dataImportAgeForArchive(archive, { freshness });
-        const stale = age > Number(freshness.days || 7);
-        status = age === null ? "Saved" : stale ? "Stale" : "Fresh";
-        ageLabel = age === null ? "Source date unverified" : Number.isFinite(age) ? `${age} ${freshness.businessDays ? "business " : ""}day${age === 1 ? "" : "s"} old` : "Age unavailable";
-        detail = age === null ? "The retained multi-month tracker has no verified effective date. Expiration months do not establish freshness." : stale
+        const dated = Number.isFinite(age);
+        const stale = dated && age > Number(freshness.days || 7);
+        status = !dated ? "Saved" : stale ? "Stale" : "Fresh";
+        ageLabel = !dated ? "Source date unverified" : `${age} ${freshness.businessDays ? "business " : ""}day${age === 1 ? "" : "s"} old`;
+        detail = !dated ? "The retained source has no verified effective date. Upload time and expiration months do not establish freshness." : stale
           ? `${def.label} is outside the ${freshness.label || "configured"} freshness expectation${freshness.action === "block_hold" ? " and is held from downstream send" : ""}.`
           : `${def.label} is current from ${archive.batchId}.`;
       } else if (required && hasFallback) {
@@ -49985,7 +49995,7 @@ function dataImportBuildHealthModel() {
           : status === "Fresh"
           ? "No upload needed."
           : status === "Saved" && archive
-          ? "Verify the tracker's effective date or upload a current dated source."
+          ? "Verify the source's effective date or upload a current dated source."
           : `Upload a current ${def.label} for ${communityName}.`,
         modulesAffected: def.dependencies || []
       };

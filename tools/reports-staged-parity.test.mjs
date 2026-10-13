@@ -39,6 +39,7 @@ try{
    requests.push(url.pathname);
    if(request.method()!=='GET'&&!/\/rpc\/(atlas_read_|atlas_get_|atlas_directory|atlas_bonus_workspace)/.test(url.pathname))return route.fulfill({status:403,json:{message:'Synthetic test blocks writes'}});
    let value=[];
+   if(url.pathname.endsWith('/rpc/atlas_read_reputation_months'))value={records:[],editableCommunityIds:[]};
    if(url.pathname.endsWith('/atlas_approved_budget_versions')&&url.searchParams.get('community_id')==='eq.'+community&&url.searchParams.get('calendar_year')==='eq.2026')value=[{community_id:community,calendar_year:2026,status:'locked',version_id:'budget-test',content_hash:'test-hash',covered_months:[0,8],payload:{occupancyPct:[0,null,null,null,null,null,null,null,budgetPct]}}];
    if(url.pathname.endsWith('/atlas_user_profiles')){if(profileGate)await profileGate.promise;if(profileUnavailable)return route.fulfill({status:503,json:{message:'Synthetic access read unavailable'}});value=[profile];}
    if(url.pathname.endsWith('/atlas_communities'))value=roster;
@@ -71,7 +72,7 @@ try{
   window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixedNow]));}static now(){return fixedNow;}};
  });
  await page.evaluate(()=>setTab(8));
- const ready=()=>page.waitForFunction(()=>{const panel=document.getElementById('tab-panel-8');if(panel?.dataset.atlasReportsError==='1')throw Error('Preparation failed');return !prepareAtlasOccupancyBudgetView.pending&&window.AtlasReports&&panel&&panel.dataset.atlasReportsPreparing!=='1'&&!panel.innerText.includes('Loading this workspace')&&!panel.innerText.includes('Reading saved community budgets');});
+ const ready=()=>page.waitForFunction(()=>{const panel=document.getElementById('tab-panel-8');if(panel?.dataset.atlasReportsError==='1')throw Error('Preparation failed');if(panel?.innerText.includes('Monthly reputation could not be verified'))throw Error('Reputation preparation failed');return !prepareAtlasReputationView.pending&&!prepareAtlasOccupancyBudgetView.pending&&window.AtlasReports&&panel&&panel.dataset.atlasReportsPreparing!=='1'&&!panel.innerText.includes('Loading this workspace')&&!panel.innerText.includes('Reading monthly reputation scores')&&!panel.innerText.includes('Reading saved community budgets');});
  await ready();
  await page.evaluate(()=>{reportHubType='community_progress';reportHubYear=2026;reportHubMonth=8;reportHubCommunityProgressCommunities=['Doro'];renderTab();});await ready();
  const budget=await page.evaluate(()=>{const report=buildCommunityProgressReportData({silent:true});return {pct:report.budgetOccPct,has:report.hasBudgetOcc,preview:atlasCommunityProgressPreview.html};});

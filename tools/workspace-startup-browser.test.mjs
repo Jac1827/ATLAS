@@ -39,6 +39,7 @@ try{
    if(url.pathname.endsWith('/atlas_user_profiles')&&url.searchParams.has('user_id')&&request.frame()===page.mainFrame())workspaceAuthorizationReads.push(url.href);
    if(url.pathname.endsWith('/atlas_user_profiles')&&!url.searchParams.has('user_id')&&directoryGate){await directoryGate.promise;}
    let value=[];
+   if(url.pathname.endsWith('/rpc/atlas_read_reputation_months'))value={records:[],editableCommunityIds:[]};
    if(url.pathname.endsWith('/atlas_user_profiles')){if(profileGate)await profileGate.promise;if(profileUnavailable)return route.fulfill({status:503,json:{message:'Synthetic access read unavailable'}});value=[profile];}
    if(url.pathname.endsWith('/atlas_communities'))value=roster;
    if(url.pathname.endsWith('/rpc/atlas_read_workspace_projection')){
@@ -78,7 +79,7 @@ try{
  await page.reload();await page.waitForFunction(()=>atlasDashboardInitializationComplete&&atlasWorkspaceAccess.hasData);
  const warm=await page.evaluate(()=>performance.getEntriesByName('atlas:time-to-workspace').at(-1)?.duration);
  assert(warm<1000,`synthetic warm workspace budget: ${warm}ms`);
- await page.evaluate(()=>setTab(8));await page.waitForFunction(()=>!!window.AtlasReports&&document.querySelector('#tab-panel-8').innerText.length>150).catch(async error=>{console.log('NAV DEBUG',await page.evaluate(()=>({html:document.querySelector('#tab-panel-8').innerText,feature:!!window.AtlasReports,ready:atlasWorkspaceAccess.hasData})),errors);throw error;});
+ await page.evaluate(()=>setTab(8));await page.waitForFunction(()=>{const panel=document.querySelector('#tab-panel-8');if(panel.innerText.includes('Monthly reputation could not be verified'))throw Error('Reputation preparation failed');return !prepareAtlasReputationView.pending&&!!window.AtlasReports&&panel.innerText.length>150&&!panel.innerText.includes('Reading monthly reputation scores');}).catch(async error=>{console.log('NAV DEBUG',await page.evaluate(()=>({html:document.querySelector('#tab-panel-8').innerText,feature:!!window.AtlasReports,ready:atlasWorkspaceAccess.hasData})),errors);throw error;});
  assert(requests.some(x=>x.includes('reports-workspace')));
  assert.match(await page.locator('#tab-panel-8').innerText(),/Reporting Hub/);
  assert.doesNotMatch(await page.locator('#tab-panel-8').innerText(),/render issue|did not finish loading/);
@@ -86,7 +87,7 @@ try{
  for(const [tab,feature,label] of [[7,'importWorkspace',/ATLAS Data Health/],[9,'bonusWorkspace',/Bonus/],[14,'adminWorkspace',/ATLAS Settings/],[15,'centralServices',/Central Services/]]){
   const before=await page.evaluate(()=>window.AtlasPerformance.report().counters.render||0);
   await page.evaluate(tab=>setTab(tab),tab);
-  await page.waitForFunction(({tab,feature})=>window.AtlasFeatures.ready(feature)&&!atlasWorkspaceFeature(tab)&&!document.querySelector('#tab-panel-'+tab).innerText.includes('Loading this workspace'),{tab,feature});
+  await page.waitForFunction(({tab,feature})=>{const panel=document.querySelector('#tab-panel-'+tab);if(panel.innerText.includes('Monthly reputation could not be verified'))throw Error('Reputation preparation failed');return !prepareAtlasReputationView.pending&&window.AtlasFeatures.ready(feature)&&!atlasWorkspaceFeature(tab)&&!panel.innerText.includes('Loading this workspace')&&!panel.innerText.includes('Reading monthly reputation scores');},{tab,feature});
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   const text=await page.locator('#tab-panel-'+tab).innerText();assert.match(text,label);assert.doesNotMatch(text,/render issue|did not finish loading/);
   navigation.push({tab,feature,renders:await page.evaluate(()=>window.AtlasPerformance.report().counters.render||0)-before});

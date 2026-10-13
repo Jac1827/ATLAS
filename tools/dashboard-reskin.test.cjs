@@ -7,6 +7,7 @@ for(const id of ['atlas-ticker-track','atlas-ticker-compose','atlas-announcement
 let status={signedIn:true,role:'admin',userEmail:'admin@example.test'},snapshots=0,request;
 const definition={label:'Occupancy',defaultMetric:'Physical Occupancy',category:'Operations'};
 const ctx={getPortfolioObservedOccupancy:()=>({pct:80,complete:true,missing:[]}),window:{},document:{readyState:'loading',addEventListener(){},documentElement:{},getElementById:id=>elements.get(id)},getComputedStyle:()=>({getPropertyValue:()=> '#fff'}),escapeHtml:escape,atlasDashboardJsArg:v=>escape(JSON.stringify(v)),getAtlasCentralStatus:()=>status,getAtlasDashboardWidgetDefinition:()=>definition,buildAtlasDashboardWidgetSnapshot:()=>{snapshots++;return {value:'80%',scopedDetails:[]}},renderAtlasPersonalBonusLandingWidget:()=>'<div>Private payout</div>',atlasDashboardBuilderState:{},atlasDashboardScopeLabel:()=> 'Portfolio',getAtlasDashboardAuthorizedCommunityOptions:()=>[{name:'A'}],readAtlasSharedPropertyGraph:()=>({properties:{a:{displayName:'A'},b:{displayName:'Hidden'}},auditTrail:[{entityId:'a',createdAt:new Date().toISOString(),fields:{occupancy:1},source:'Import'},{entityId:'b',createdAt:new Date().toISOString(),fields:{secret:1}}]}),atlasLivePresenceState:{users:[]},uniqueAtlasLiveUsers:x=>x,atlasUserDisplayName:u=>u.name,atlasUserInitials:u=>u.name[0],aggregateCommunitySummaries:rows=>rows[0]||{},atlasDashboardMetricChartValues:(i,s)=>s.scopedDetails.map(d=>d.summary.occPct),getSelectedDashboardMonthIndex:()=>0,MONTHS:['Jan'],getRecordMonthlyDataForYear:r=>r.monthlyData,dashboardMonthlyEntryHasData:e=>!!e,buildCommunityDetailForMonth:(n,r)=>({name:n,record:r,summary:{occPct:80,budgetOccPct:95,budgetOccCoverage:{complete:true}}}),atlasHomeRenderDetails:new Map(),console,Date,Set,Map,Promise,innerWidth:1280};
+ctx.atlasDashboardMetricChartValues=(i,s)=>s.scopedDetails.map(d=>i.widgetKey==='reputation_pulse' ? d.summary[i.metric==='Google Rating'?'googleReviewScore':'oraScore'] ?? null : d.summary.occPct);
 vm.createContext(ctx);vm.runInContext(source,ctx);const app=ctx.window.AtlasReskin;
 app.card({widgetKey:'projected_bonus'});assert.equal(snapshots,0,'Personal bonus must not build a portfolio snapshot');
 const instance={widgetKey:'portfolio_overview',metric:'Physical Occupancy'},snapshot={scopedDetails:[{name:'<Community>',record:{monthlyData:[{}]},summary:{occPct:80,budgetOccPct:95}}]};
@@ -19,7 +20,14 @@ assert.equal((html.match(/class="fstage"/g)||[]).length,5,'Saved legacy collapse
 assert(html.includes('data-val="667"') && html.includes('data-val="166"') && html.includes('data-conv="25"'),'Funnel must use live counts and conversions');
 assert(html.includes('tableview'),'Saved legacy collapse flag must not hide the data table');
 assert(html.includes('var(--seq-5)'),'Funnel must use theme-aware sequential colors');
-html=app.visual({widgetKey:'reputation_pulse',metric:'ORA Score'}, {scopedDetails:[{name:'A',summary:{occPct:0}}]},{});assert(html.includes('No reputation scores loaded.'));assert(!html.includes('data-atlas-line'),'Current reputation must not be backfilled into fictitious historical points');
+for(const [metric,field] of [['ORA Score','oraScore'],['Google Rating','googleReviewScore']]){
+ html=app.visual({widgetKey:'reputation_pulse',metric}, {scopedDetails:[{name:'Missing',summary:{[field]:null}}]},{});
+ assert(html.includes('No reputation scores loaded.'));assert(html.includes('<tr><td>Missing</td><td>—</td></tr>'));
+ html=app.visual({widgetKey:'reputation_pulse',metric}, {scopedDetails:[{name:'Missing',summary:{[field]:null}},{name:'Zero',summary:{[field]:0}}]},{});
+ assert(!html.includes('No reputation scores loaded.'),'A measured zero is an available monthly score');
+ assert(html.includes('<tr><td>Missing</td><td>—</td></tr>'));assert(html.includes('<tr><td>Zero</td><td>0</td></tr>'));
+ assert(!/NaN|Infinity/.test(html));assert(!html.includes('data-atlas-line'),'Monthly comparisons must not fabricate historical scores');
+}
 const posts=[{id:'one',text:'<script>unsafe</script>',scope:'All communities',postedBy:'Author',postedByEmail:'author@example.test',createdAt:new Date().toISOString(),expiresAt:new Date(Date.now()+7200000).toISOString()}];
 ctx.window.ATLAS_CENTRAL={news:async()=>({items:[{title:'Fresh news',link:'javascript:alert(1)',publishedAt:new Date().toISOString()}]}),announcements:async(action,body)=>{if(action!=='list')request={action,body};return {items:posts}}};
 (async()=>{

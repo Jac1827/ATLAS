@@ -301,6 +301,7 @@ function atlasReportPreviewContext() {
     selectedCommunities: reportHubCommunityProgressCommunities, lvr: reportHubLvrCommunity,
     sourceEpoch: atlasReportSourceEpoch,
     budgetRevision: window.AtlasOccupancyBudgets?.revision,
+    reputationRevision: window.AtlasReputation?.revision,
     documentVersion: typeof atlasCentralRuntimeMeta === "undefined" ? null : [atlasCentralRuntimeMeta.lastDocumentVersion, atlasCentralRuntimeMeta.lastDocumentHash]
   });
 }

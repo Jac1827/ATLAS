@@ -49561,10 +49561,13 @@ function dataImportArchiveFreshnessDate(entry) {
   // Receipt time is never evidence that the underlying operational data is current.
   // Keep invalid preferred dates unavailable instead of falling back to another clock.
   if (typeof sourceDate !== "string" || !sourceDate.trim() || !Number.isFinite(new Date(sourceDate).getTime())) return "";
-  const isoDay = sourceDate.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|$)/);
-  if (isoDay) {
-    const day = new Date(`${isoDay[1]}-${isoDay[2]}-${isoDay[3]}T12:00:00Z`);
-    if (day.getUTCFullYear() !== Number(isoDay[1]) || day.getUTCMonth() + 1 !== Number(isoDay[2]) || day.getUTCDate() !== Number(isoDay[3])) return "";
+  const raw = sourceDate.trim();
+  const isoDay = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:T|\s|$)/);
+  const usDay = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\s|$)/);
+  const parts = isoDay ? [isoDay[1], isoDay[2], isoDay[3]] : usDay ? [usDay[3], usDay[1], usDay[2]] : null;
+  if (parts) {
+    const [year, month, date] = parts.map(Number), day = new Date(Date.UTC(year, month - 1, date, 12));
+    if (day.getUTCFullYear() !== year || day.getUTCMonth() + 1 !== month || day.getUTCDate() !== date) return "";
   }
   return sourceDate;
 }

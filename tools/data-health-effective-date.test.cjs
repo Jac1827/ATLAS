@@ -34,6 +34,7 @@ test('receipt-only, missing and invalid source dates never claim current data or
     {uploadedAt: new Date(now).toISOString()},
     {metadata: {dataAsOf: 'not-a-date'}, uploadedAt: new Date(now).toISOString()},
     {metadata: {dataAsOf: '2026-02-30', generatedAt: new Date(now).toISOString()}},
+    ...['2026-02-30 00:00:00', '02/30/2026', '02-30-2026', ' 2026-02-30 '].map(dataAsOf => ({metadata: {dataAsOf}})),
     {metadata: {dataAsOf: ' ', generatedAt: new Date(now).toISOString()}},
     {dataDateIso: 'invalid', metadata: {generatedAt: new Date(now).toISOString()}}
   ];
@@ -67,5 +68,7 @@ test('verified effective dates retain current/stale classification and outrank a
   assert.equal(c.dataImportArchiveFreshnessDate({dataDateIso: '2026-10-12'}), '2026-10-12');
   assert.equal(c.dataImportArchiveFreshnessDate({metadata: {generatedAt: '2026-10-12T10:00:00Z'}}), '2026-10-12T10:00:00Z');
   assert.equal(c.dataImportArchiveFreshnessDate({metadata: {dataAsOf: '2024-02-29'}}), '2024-02-29');
+  assert.equal(c.dataImportArchiveFreshnessDate({metadata: {dataAsOf: '02/29/2024'}}), '02/29/2024');
+  assert.equal(c.dataImportArchiveFreshnessDate({metadata: {dataAsOf: '2026-10-12 10:00:00'}}), '2026-10-12 10:00:00');
   assert.equal(c.dataImportArchiveFreshnessDate({reportType: 'renewal_tracker', periodSelection: {mode: 'multiple_months'}, dataDateIso: '2026-10-12', uploadedAt: '2026-10-13'}), '');
 });

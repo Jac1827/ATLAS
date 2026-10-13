@@ -1043,7 +1043,7 @@ function buildMonthlyPresentationCommunitySpotlightSlide(report, detail, photoIn
             <div><strong>${Math.round(summary.applicationsApproved ?? 0)}</strong><span>Approved applications MTD</span></div>
             <div><strong>${formatSignedDisplay(summary.monthAbsorption ?? 0)}</strong><span>Net absorption MTD</span></div>
             <div><strong>${(summary.renewalRetentionRate ?? 0).toFixed(1)}%</strong><span>Renewal retention</span></div>
-            <div><strong>${(summary.oraScore ?? 0) > 0 ? (summary.oraScore ?? 0).toFixed(1) : "—"}</strong><span>ORA average</span></div>
+            <div><strong>${atlasReputationDisplay(summary.oraScore)}</strong><span>ORA average</span></div>
           </div>
         </div>
         <div class="deck-panel deck-panel-soft">
@@ -1411,15 +1411,16 @@ function buildMonthlyInvestorPresentationSlides(report) {
       "ORA by Community vs National Average",
       report.details.map(detail => ({
         label: detail.name,
-        value: Number(detail.summary.oraScore ?? 0),
+        value: typeof detail.summary.oraScore === "number" && Number.isFinite(detail.summary.oraScore) ? detail.summary.oraScore : null,
         target: 62,
-        note: Number(detail.summary.googleQuarterlyRating ?? 0) > 0 ? `Quarterly Google ${Number(detail.summary.googleQuarterlyRating).toFixed(2)}` : "Quarterly Google pending",
+        note: `Google Review Score ${atlasReputationDisplay(detail.summary.googleReviewScore, 2)}`,
         color: RISE_PRESENTATION_BRAND.blue
       })),
       {
         max: 100,
         subtitle: "The goal marker reflects the 62 national ORA average baseline used elsewhere in the dashboard.",
-        valueFormatter: value => Number(value || 0) > 0 ? Number(value).toFixed(1) : "—",
+        preserveMissing: true,
+        valueFormatter: value => atlasReputationDisplay(value),
         targetFormatter: value => Number(value || 0).toFixed(0)
       }
     );
@@ -1432,8 +1433,8 @@ function buildMonthlyInvestorPresentationSlides(report) {
         <div class="deck-metric-card"><div class="deck-metric-label">Renewals Signed</div><div class="deck-metric-value">${Math.round(report.aggregate.renewalsSigned ?? 0)}</div><div class="deck-metric-sub">${formatPortfolioTrendValue(report.aggregate.renewalsSigned ?? 0, report.aggregate.previousRenewalsSigned ?? 0, "count_pct")}</div></div>
         <div class="deck-metric-card"><div class="deck-metric-label">Retention Rate</div><div class="deck-metric-value">${(report.aggregate.renewalRetentionRate ?? 0).toFixed(1)}%</div><div class="deck-metric-sub">${formatPortfolioTrendValue(report.aggregate.renewalRetentionRate ?? 0, report.aggregate.previousRenewalRetentionRate ?? 0, "point")}</div></div>
         <div class="deck-metric-card"><div class="deck-metric-label">Projected Attrition</div><div class="deck-metric-value">${Math.round(report.aggregate.renewalProjectedAttrition ?? 0)}</div><div class="deck-metric-sub">MTD risk units in lease planning</div></div>
-        <div class="deck-metric-card"><div class="deck-metric-label">ORA</div><div class="deck-metric-value">${(report.aggregate.oraScore ?? 0) > 0 ? (report.aggregate.oraScore ?? 0).toFixed(1) : "—"}</div><div class="deck-metric-sub">Portfolio average</div></div>
-        <div class="deck-metric-card"><div class="deck-metric-label">Quarterly Google</div><div class="deck-metric-value">${(report.aggregate.googleQuarterlyRating ?? 0) > 0 ? (report.aggregate.googleQuarterlyRating ?? 0).toFixed(2) : "—"}</div><div class="deck-metric-sub">Current quarter rating</div></div>
+        <div class="deck-metric-card"><div class="deck-metric-label">ORA</div><div class="deck-metric-value">${atlasReputationDisplay(report.aggregate.oraScore)}</div><div class="deck-metric-sub">Portfolio average</div></div>
+        <div class="deck-metric-card"><div class="deck-metric-label">Google Review Score</div><div class="deck-metric-value">${atlasReputationDisplay(report.aggregate.googleReviewScore, 2)}</div><div class="deck-metric-sub">Selected month rating</div></div>
       </div>
       <div class="deck-two-col">
         ${retentionChart}

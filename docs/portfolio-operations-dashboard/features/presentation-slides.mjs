@@ -229,8 +229,8 @@ export default async function buildMonthlyInvestorPresentationPptxSlides(pptx, r
       { label: "Renewals Signed", value: `${Math.round(report.aggregate.renewalsSigned ?? 0)}`, sub: formatPortfolioTrendValue(report.aggregate.renewalsSigned ?? 0, report.aggregate.previousRenewalsSigned ?? 0, "count_pct") },
       { label: "Retention Rate", value: `${(report.aggregate.renewalRetentionRate ?? 0).toFixed(1)}%`, sub: formatPortfolioTrendValue(report.aggregate.renewalRetentionRate ?? 0, report.aggregate.previousRenewalRetentionRate ?? 0, "point") },
       { label: "Projected Attrition", value: `${Math.round(report.aggregate.renewalProjectedAttrition ?? 0)}`, sub: "MTD risk units in lease planning" },
-      { label: "ORA", value: (report.aggregate.oraScore ?? 0) > 0 ? (report.aggregate.oraScore ?? 0).toFixed(1) : "—", sub: "Portfolio average" },
-      { label: "Quarterly Google", value: (report.aggregate.googleQuarterlyRating ?? 0) > 0 ? (report.aggregate.googleQuarterlyRating ?? 0).toFixed(2) : "—", sub: "Current quarter rating" }
+      { label: "ORA", value: atlasReputationDisplay(report.aggregate.oraScore), sub: "Portfolio average" },
+      { label: "Google Review Score", value: atlasReputationDisplay(report.aggregate.googleReviewScore, 2), sub: "Selected month rating" }
     ], {
       x: 0.35, y: 2.0, w: 9.15, h: 1.72, cols: 3, valueSize: 15.5, subSize: 6.8
     });
@@ -254,16 +254,17 @@ export default async function buildMonthlyInvestorPresentationPptxSlides(pptx, r
     addPptxBarPanel(renewalsSlide, pptx, {
       x: 5.0, y: 3.9, w: 4.52, h: 2.34,
       title: "ORA by Community vs National Average",
+      preserveMissing: true,
       subtitle: "The target marker reflects the 62 ORA national average baseline used elsewhere in the dashboard.",
       items: report.details.map(detail => ({
         label: detail.name,
-        value: Number(detail.summary.oraScore ?? 0),
+        value: typeof detail.summary.oraScore === "number" && Number.isFinite(detail.summary.oraScore) ? detail.summary.oraScore : null,
         target: 62,
-        note: Number(detail.summary.googleQuarterlyRating ?? 0) > 0 ? `Quarterly Google ${Number(detail.summary.googleQuarterlyRating).toFixed(2)}` : "Quarterly Google pending",
+        note: `Google Review Score ${atlasReputationDisplay(detail.summary.googleReviewScore, 2)}`,
         color: RISE_PRESENTATION_BRAND.blue
       })),
       max: 100,
-      valueFormatter: value => Number(value || 0) > 0 ? Number(value).toFixed(1) : "—",
+      valueFormatter: value => atlasReputationDisplay(value),
       targetFormatter: value => `${Number(value || 0).toFixed(0)}`
     });
   }
@@ -296,7 +297,7 @@ export default async function buildMonthlyInvestorPresentationPptxSlides(pptx, r
       { label: "Approved apps MTD", value: `${Math.round(summary.applicationsApproved ?? 0)}` },
       { label: "Net absorption MTD", value: formatSignedDisplay(summary.monthAbsorption ?? 0) },
       { label: "Renewal retention", value: `${(summary.renewalRetentionRate ?? 0).toFixed(1)}%` },
-      { label: "ORA average", value: (summary.oraScore ?? 0) > 0 ? (summary.oraScore ?? 0).toFixed(1) : "—" }
+      { label: "ORA average", value: atlasReputationDisplay(summary.oraScore) }
     ], {
       x: 0.35, y: 3.25, w: 4.55, h: 1.52, cols: 2, valueSize: 13.5, subSize: 0
     });

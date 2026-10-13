@@ -63,4 +63,18 @@ assert.equal(context.atlasBonusMetricActual({communityName:'A'},{metricKey:'repu
 assert.equal(context.getAtlasQuarterOra('A',{},3,2026),null,'No quarterly aggregation policy is invented');
 assert.equal(context.getMetricOutcome({syncKey:'oraScore',actual:0,goal:62,tiers:[{threshold:62,multiplier:1}]}).status,'miss');
 assert.equal(context.getMetricOutcome({syncKey:'oraScore',actual:null,goal:62}).status,'pending');assert.equal(context.atlasReputationDisplay(0),'0.0');assert.equal(context.atlasReputationDisplay(null),'—');
+// Render preparation must not write a failed old-account read into the new view.
+let renderContext='old',readReject,scheduled=0;
+const panel={innerHTML:''},pendingRead=new Promise((resolve,reject)=>readReject=reject);
+const preparationContext={window:{AtlasReputation:{ready:()=>false,hydrate:()=>pendingRead}},activeTab:6,
+ getAtlasCentralStatus:()=>({configured:true}),getAtlasDashboardAuthorizedCommunityOptions:()=>[{name:'A'}],
+ getAtlasCommunityAccessRecord:()=>({atlasCommunityId:'community-a'}),savedData:{A:{reportYear:2026}},
+ getReportHubYear:()=>2026,atlasBonusPeriodFromQuarter:()=>({start:'2026-10-01'}),
+ document:{getElementById:()=>panel},getAtlasRenderContextKey:()=>renderContext,atlasWorkspaceAccess:{epoch:1},
+ loadReputationModule:async()=>({}),scheduleAtlasSharedRender:()=>scheduled++,escapeHtml:value=>String(value)};
+vm.createContext(preparationContext);vm.runInContext(fn('prepareAtlasReputationView').replace("import('./features/reputation-store.mjs')","loadReputationModule()"),preparationContext);
+assert.equal(preparationContext.prepareAtlasReputationView(),false);await Promise.resolve();
+renderContext='new';preparationContext.atlasWorkspaceAccess.epoch++;readReject(Error('Old account failed'));
+await preparationContext.prepareAtlasReputationView.pending.task;
+assert.equal(scheduled,1);assert.equal(panel.innerHTML.includes('Old account failed'),false);assert.equal(preparationContext.prepareAtlasReputationView.pending,null);
 console.log('PASS monthly reputation exact save/readback, lost-response retry, independent scopes, drafts and CAS recovery, stale-session isolation, canonical import protection, zero-aware consumers and unchanged payout thresholds.');

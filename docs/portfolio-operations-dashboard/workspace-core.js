@@ -46205,6 +46205,14 @@ function dataImportParseMetadataDate(value = "") {
   if (!raw) return "";
   const match = raw.match(/(?:as[ -]?of|data date|generated|created|run date|report date|through)\s*:?\s*([^|;\n]+)/i);
   const candidate = String(match?.[1] || raw).trim().replace(/^[:|\s]+/, "").replace(/\s{2,}.*$/, "");
+  // Reject invalid printed calendar dates before Date can normalize them into another month.
+  const isoDay = candidate.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})(?=T|\b)/);
+  const usDay = candidate.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/);
+  const parts = isoDay ? [isoDay[1], isoDay[2], isoDay[3]] : usDay ? [usDay[3], usDay[1], usDay[2]] : null;
+  if (parts) {
+    const [year, month, date] = parts.map(Number), day = new Date(Date.UTC(year, month - 1, date, 12));
+    if (day.getUTCFullYear() !== year || day.getUTCMonth() + 1 !== month || day.getUTCDate() !== date) return "";
+  }
   let parsed = new Date(candidate);
   if (!Number.isFinite(parsed.getTime())) {
     const sourceDate = candidate.match(/\b\d{1,2}[/-]\d{1,2}[/-](?:20|19)\d{2}\b/);

@@ -117,6 +117,9 @@ console.log('PASS actual UI renderer and XLSX export share filtered rows; unsupp
 
 assert.equal(context.dataImportParseMetadataDate('Availability (As of 09/16/2026)').slice(0,10),'2026-09-16');
 assert.equal(context.dataImportParseMetadataDate('not a date'),'');
+assert.equal(context.dataImportParseMetadataDate('Availability (As of 09/31/2026)'),'', 'Invalid source dates cannot normalize into a fresh month');
+assert.equal(context.dataImportParseMetadataDate('Generated: 2026-02-30T10:00:00Z'),'');
+assert.equal(context.dataImportParseMetadataDate('As of 02/29/2024').slice(0,10),'2024-02-29');
 const scopes={Campus:{status:'inactive',propertyType:'Student Housing'},Student:{status:'active',propertyType:'Student Housing'},Senior:{status:'inactive',propertyType:'Senior Housing'}};
 context.getAtlasCommunityAccessRecord=name=>scopes[name];
 assert.equal(context.isAtlasLeaseTrackingCommunity('Campus'),false);

@@ -78,7 +78,9 @@ const preparationContext={window:{AtlasReputation:{ready:()=>false,hydrate:()=>p
  getReportHubYear:()=>2026,atlasBonusPeriodFromQuarter:()=>({start:'2026-10-01'}),
  document:{getElementById:()=>panel},getAtlasRenderContextKey:()=>renderContext,atlasWorkspaceAccess:{epoch:1},
  loadReputationModule:async()=>({}),scheduleAtlasSharedRender:()=>scheduled++,escapeHtml:value=>String(value)};
-vm.createContext(preparationContext);vm.runInContext(fn('prepareAtlasReputationView').replace("import('./features/reputation-store.mjs')","loadReputationModule()"),preparationContext);
+const preparationSource=fn('prepareAtlasReputationView').replace(/import\('\.\/features\/reputation-store\.mjs(?:\?v=[^']+)?'\)/,"loadReputationModule()");
+assert.match(preparationSource,/loadReputationModule\(\)/,'The fixture replaces the content-versioned module loader');
+vm.createContext(preparationContext);vm.runInContext(preparationSource,preparationContext);
 assert.equal(preparationContext.prepareAtlasReputationView(),false);await Promise.resolve();
 renderContext='new';preparationContext.atlasWorkspaceAccess.epoch++;readReject(Error('Old account failed'));
 await preparationContext.prepareAtlasReputationView.pending.task;

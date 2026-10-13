@@ -658,8 +658,8 @@
     ]
   },
   "features/reputation-store.mjs": {
-    "sha256": "16d881bab84dd8d4",
-    "bytes": 7376,
+    "sha256": "9efd4297457fe16d",
+    "bytes": 7474,
     "references": [
       [
         "workspace-core.js",
@@ -1206,8 +1206,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "2fea8c25d9cc2943",
-    "bytes": 3116011,
+    "sha256": "7005aa6fac4e2703",
+    "bytes": 3116089,
     "references": [
       [
         "index.html",
@@ -2268,8 +2268,8 @@
     ]
   },
   "features/reports-workspace.js": {
-    "sha256": "2316a86f272545fd",
-    "bytes": 139336,
+    "sha256": "61529663786a8653",
+    "bytes": 139394,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2368,7 +2368,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "258c3fa0c595d565",
+    "sha256": "93c628d7a18a12db",
     "bytes": 3962,
     "references": [
       [

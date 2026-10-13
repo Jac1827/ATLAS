@@ -83,4 +83,19 @@ c.window.atlasCsIngestRenewalSheetRows=(rows,context)=>({renewalRows:c.window.at
  assert.equal(applied.monthlyHistoryByPeriod['2026-10'].renewalUndecided,1,'Closed period remains unchanged');
  await assert.rejects(c.handleRenewalWorkbook(file,{communityName:'Wrong property'}),/conflicts/);
  console.log('PASS full annual-sheet preview and repeated workbook publication, closed-period preservation, community mismatch and unrelated occupancy unchanged');
+ const xlsx=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
+ const offsetSheet=xlsx.utils.aoa_to_sheet([[],[],source[0],
+  ['Synthetic Offset A','201','10/31/2026','',''],
+  ['Synthetic Offset B','202','10/31/2026','','']]);
+ assert.equal(offsetSheet['!ref'],'A3:E5');
+ offsetSheet.A5.s={fgColor:{rgb:'FF0000'}};
+ // Retain the style-bearing in-memory source while exercising the real XLSX row reader,
+ // production color annotator, renewal preview, and canonical structured-row reader.
+ c.XLSX={...xlsx,read:()=>({SheetNames:['October'],Sheets:{October:offsetSheet}})};
+ const offsetRows=(await c.dataImportReadStructuredRows(file,{reportType:'renewal_tracker',communities:['Example'],reportingYear:2026}))[0].rows;
+ assert.equal(offsetRows.length,2,'Leading blank rows and the header must not become resident records');
+ assert.deepEqual(Array.from(offsetRows,row=>[row.values.resident,row.values.renewal_status]),[
+  ['Synthetic Offset A','Not Started'],['Synthetic Offset B','NTV Received']
+ ],'Worksheet fill remains attached to the highlighted resident when the used range starts below row one');
+ console.log('PASS shifted renewal worksheet preserves the highlighted resident status through the structured reader');
 })().catch(error=>{console.error(error);process.exitCode=1;});

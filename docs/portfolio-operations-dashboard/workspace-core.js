@@ -47430,8 +47430,8 @@ async function dataImportReadStructuredRows(file, plan = {}) {
     ? XLSX.utils.sheet_to_json(workbook.Sheets[occupancyParameterSheet], {header:1,defval:null,raw:true,range:0}) : [];
   (workbook.SheetNames || []).forEach(sheetName => {
     if (dataImportIsMetadataSheetName(sheetName)) return;
-    // Preserve leading blank rows so every downstream locator remains an absolute worksheet row.
-    const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true, range: 0 });
+    // Preserve absolute occupancy source rows; other readers retain their existing row-origin contract.
+    const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true, ...(occupancySourceParser ? { range: 0 } : {}) });
     if (occupancySourceParser) {
       // Keep cached source precision for aggregate evidence; formatted display values may round cents.
       const evidenceRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1,defval:null,raw:true,blankrows:true,range:0});

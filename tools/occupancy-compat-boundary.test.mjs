@@ -22,9 +22,9 @@ test('twelve exact boundaries preserve all other retained operational bytes',()=
   assert.equal(patched.match(pattern)[0],expected,'Only reviewed allowlist/correction call changes in '+name);
  }
  // Removing the precise allowlist and worksheet-range changes leaves an insertion-only patch.
- assert(patched.includes('blankrows: true, range: 0'));
+ assert(patched.includes('blankrows: true, ...(occupancySourceParser ? { range: 0 } : {})'));
  assert(patched.includes('community_name:evidence.resolvedCommunityName'));
- const insertionOnly=patched.replaceAll(newTypes,oldTypes).replace('blankrows: true, range: 0','blankrows: true');
+ const insertionOnly=patched.replaceAll(newTypes,oldTypes).replace('blankrows: true, ...(occupancySourceParser ? { range: 0 } : {})','blankrows: true');
  const before=oldIndex.split('\n'),after=insertionOnly.split('\n');let i=0,j=0,inserted=[];
  while(i<before.length||j<after.length){if(before[i]===after[j]){i++;j++;}else {assert(j<after.length,'Patch changed an existing line');inserted.push(after[j]);after.splice(j,1);}}
  assert.equal(after.join('\n'),oldIndex);assert(inserted.some(line=>line.includes('raw:true')));assert(inserted.some(line=>line.includes('occupancyEvidence:')));assert(inserted.some(line=>line.includes('Rent roll reporting period is missing')));
@@ -41,6 +41,6 @@ test('changed or missing retained anchors fail closed instead of replacing opera
  assert.throws(()=>patch(oldIndex,current.replace('Rent roll reporting period is missing','Ignore missing report month')),/period boundary is incomplete/);
  assert.throws(()=>patch(oldIndex,current.replace('result.periodCorrection = dataImportSupersedeRentRollPeriods(plan, entry, result)','result.periodCorrection = skipCorrection()')),/anchors are missing or ambiguous|correction call is incomplete/);
  assert.throws(()=>patch(oldIndex,current.replace('function dataImportSupersedeRentRollPeriods','function unreviewedCorrection')),/function missing/);
- assert.throws(()=>patch(oldIndex,current.replace('blankrows: true, range: 0','blankrows: true')),/absolute locator boundary is incomplete/);
+ assert.throws(()=>patch(oldIndex,current.replace('blankrows: true, ...(occupancySourceParser ? { range: 0 } : {})','blankrows: true')),/absolute locator boundary is incomplete/);
  assert.throws(()=>patch(oldIndex,current.replace('community_name:evidence.resolvedCommunityName','community_name:plan.selectedCommunities[0]')),/absolute locator boundary is incomplete/);
 });

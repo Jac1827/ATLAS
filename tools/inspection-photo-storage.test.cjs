@@ -31,5 +31,11 @@ vm.runInContext(source.match(/^  window.atlasCsAttachInspectionPhotos = async fu
  await context.window.atlasCsAttachInspectionPhotos({files:[big]},'i','f');const legacy=state.inspections[0].findings[0].photos.find(p=>p.id==='legacy');assert.ok(legacy.photoStorageKey);assert.equal(legacy.dataUrl,undefined);assert.equal(state.morfRecords[0].charges[0].thumbnailStorageKey,legacy.photoStorageKey);assert.equal(await context.inspectionPhotoDataUrl(legacy.photoStorageKey),inline);
  const modules=source.match(/const MODULES = \[([^]*?)\n  \];/)[1];for(const removed of ['communications','invoices','compliance'])assert.ok(!modules.includes(`"${removed}"`));
  const admin=fs.readFileSync('docs/portfolio-operations-dashboard/features/admin-workspace.js','utf8');assert.match(admin,/atlasSetSettingsSection\('compliance'\)/);assert.match(admin,/window.renderAtlasComplianceSettings\(\)/);
+ const settings={window:{AtlasFeatures:{load:async name=>assert.equal(name,'centralServices')},renderAtlasComplianceSettings:()=>'<p>Compliance rules</p>'},renderTab:()=>{},getAtlasCentralStatus:()=>({}),getAtlasAccessProfile:()=>({}),atlasProfileCanManageSettings:()=>false,statBox:()=>'',getPortfolioSetupCommunityRecordsForMonth:()=>[],getSelectedDashboardMonthIndex:()=>0,savedData:{},loadDailyBackupIndex:()=>[],renderPortfolioScopePanel:(a,b,c,body)=>body};
+ vm.createContext(settings);vm.runInContext(admin,settings);
+ for(const name of ['renderAtlasSettingsDashboardPanel','renderAtlasEmployeeAccessPanel','renderAtlasSettingsSetupPanel','renderAtlasRegionManagementPanel','renderAtlasSettingsIntegrationsPanel','renderAtlasSettingsMemoryPanel','renderAtlasCentralPlatformPanel'])settings[name]=()=>'';
+ assert.match(settings.renderAtlasSettingsTab(),/Settings sections/);
+ await settings.window.atlasSetSettingsSection('compliance');assert.match(settings.renderAtlasSettingsTab(),/Compliance rules/);
+ await settings.window.atlasSetSettingsSection('general');assert.ok(!settings.renderAtlasSettingsTab().includes('Compliance rules'));
  console.log('PASS inspection originals > localStorage quota persist in IndexedDB, metadata stays small, exports contain images, legacy photos migrate, failed saves preserve records, resident report is branded and excludes private fields, and navigation moves Compliance.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

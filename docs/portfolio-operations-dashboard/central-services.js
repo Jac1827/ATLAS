@@ -11082,8 +11082,10 @@
 
   window.renderCentralServicesTab = renderCentralServices;
   window.renderAtlasComplianceSettings = () => renderComplianceSettings(loadState());
-  new MutationObserver(hydrateInspectionPhotos).observe(document.documentElement, { childList: true, subtree: true });
-  hydrateInspectionPhotos();
+  if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
+    new MutationObserver(hydrateInspectionPhotos).observe(document.documentElement, { childList: true, subtree: true });
+    hydrateInspectionPhotos();
+  }
 
   // Parse expiration cohorts for upload review without changing workflow state.
   window.atlasCsPreviewRenewalSheetRows = function (sheetRows, context = {}) {

@@ -1,3 +1,4 @@
+import {handleMoveOutIntegration} from './moveout-integrations.mjs';
 import {handleResidentCommunications, createCommunicationService} from './resident-communications.mjs';
 import {handleCommunityPlanEmail} from './community-plan-email.mjs';
 export { EvictionCaseState } from './eviction-store.mjs';
@@ -2230,6 +2231,11 @@ export default {
       if(request.method === "OPTIONS") return noContent();
       if(request.method !== "POST")return apiResponse({ok:false,error:"Method Not Allowed"},{status:405});
       return handleEvictionRequest(request,env);
+    }
+
+    if (url.pathname.startsWith("/api/atlas/moveout/")) {
+      if (request.method === "OPTIONS") return noContent();
+      return handleMoveOutIntegration(request,env,{requireAtlasAccessUser,apiResponse,supabaseRequest,community:propertySpecialsCommunity});
     }
 
     if (url.pathname === "/api/atlas/community-plan/email") {

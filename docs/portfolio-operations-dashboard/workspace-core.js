@@ -9492,7 +9492,8 @@ function applyIncomingWorkspaceNavigation() {
     if (incomingReport) {
       reportHubType = normalizeReportHubType(incomingReport);
     }
-    if (incomingTab) {
+    if (params.get("moveOutCase")) { activeTab = 15; }
+    else if (incomingTab) {
       const normalizedTab = String(incomingTab).trim().toLowerCase();
       if (normalizedTab === "reporting" || normalizedTab === "reports" || normalizedTab === "dlr") {
         activeTab = 8;
@@ -13914,6 +13915,10 @@ function atlasWorkspaceFeature(tab) {
 }
 
 function setTab(i) {
+  if (window.AtlasMoveOutWorkspace?.hasUnsaved()) {
+    window.AtlasMoveOutWorkspace.guard().then(allowed => { if (allowed) setTab(i); });
+    return;
+  }
   atlasNavigationEpoch += 1;
   atlasFinanceRequestController?.abort();
   atlasActiveFeatureRequest = null;

@@ -1,4 +1,54 @@
 {
+  "vendor/pdf-lib-1.17.1.mjs": {
+    "sha256": "72c052d97b4d5d9f",
+    "bytes": 523417,
+    "references": [
+      [
+        "features/str-ltr-comparison-export.mjs",
+        "../vendor/pdf-lib-1.17.1.mjs"
+      ],
+      [
+        "features/standard-budget-render.mjs",
+        "../vendor/pdf-lib-1.17.1.mjs"
+      ],
+      [
+        "features/moveout-documents.mjs",
+        "../vendor/pdf-lib-1.17.1.mjs"
+      ],
+      [
+        "features/budget-export-delivery.mjs",
+        "../vendor/pdf-lib-1.17.1.mjs"
+      ],
+      [
+        "features/snapshot-pdf.mjs",
+        "../vendor/pdf-lib-1.17.1.mjs"
+      ]
+    ]
+  },
+  "features/moveout-documents.mjs": {
+    "sha256": "8bea8a710f435d44",
+    "bytes": 13001,
+    "references": [
+      [
+        "features/moveout-workspace.mjs",
+        "./moveout-documents.mjs"
+      ]
+    ]
+  },
+  "features/moveout-workspace.mjs": {
+    "sha256": "eec30021a007de52",
+    "bytes": 40402,
+    "references": [
+      [
+        "central-services.js",
+        "features/moveout-workspace.mjs"
+      ],
+      [
+        "central-services.js",
+        "./features/moveout-workspace.mjs"
+      ]
+    ]
+  },
   "features/budget-consumer-delivery.mjs": {
     "sha256": "f5342574d4b39aa2",
     "bytes": 1817,
@@ -456,28 +506,6 @@
       [
         "features/snapshot-pdf.mjs",
         "./rise-report-brand.mjs"
-      ]
-    ]
-  },
-  "vendor/pdf-lib-1.17.1.mjs": {
-    "sha256": "72c052d97b4d5d9f",
-    "bytes": 523417,
-    "references": [
-      [
-        "features/str-ltr-comparison-export.mjs",
-        "../vendor/pdf-lib-1.17.1.mjs"
-      ],
-      [
-        "features/standard-budget-render.mjs",
-        "../vendor/pdf-lib-1.17.1.mjs"
-      ],
-      [
-        "features/budget-export-delivery.mjs",
-        "../vendor/pdf-lib-1.17.1.mjs"
-      ],
-      [
-        "features/snapshot-pdf.mjs",
-        "../vendor/pdf-lib-1.17.1.mjs"
       ]
     ]
   },
@@ -1206,8 +1234,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "6097d63901c1b22f",
-    "bytes": 3118700,
+    "sha256": "b082733f34a69e6e",
+    "bytes": 3118915,
     "references": [
       [
         "index.html",
@@ -2338,8 +2366,8 @@
     ]
   },
   "central-services.js": {
-    "sha256": "2a3e91286a0fea32",
-    "bytes": 779182,
+    "sha256": "fa23afcef6e4d8d9",
+    "bytes": 780661,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2368,7 +2396,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "ae12ba04a19835bd",
+    "sha256": "3aae8472054aea82",
     "bytes": 3962,
     "references": [
       [

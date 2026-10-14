@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import {PGlite} from '@electric-sql/pglite';
+const db=new PGlite();
+await db.exec(`create role anon; create role authenticated; create role service_role bypassrls; create table atlas_communities(community_id uuid primary key); insert into atlas_communities values('11111111-1111-4111-8111-111111111111');`);
+await db.exec(fs.readFileSync('supabase/migrations/20261014153000_moveout_external_operations.sql','utf8'));
+const args=['22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111','case','mog','email','33333333-3333-4333-8333-333333333333','hash','{}'];
+await db.exec('set role service_role');
+const claim=async a=>(await db.query('select atlas_claim_moveout_external_operation($1,$2,$3,$4,$5,$6,$7,$8) result',a)).rows[0].result;
+assert.equal((await claim(args)).claimed,true);assert.equal((await claim(args)).claimed,false);
+await assert.rejects(()=>claim(['44444444-4444-4444-8444-444444444444',...args.slice(1)]),/pending or uncertain/);
+await assert.rejects(()=>claim([...args.slice(0,6),'changed','{}']),/identity conflicts/);
+await db.exec("update atlas_moveout_external_operations set status='unknown'");await assert.rejects(()=>claim(['44444444-4444-4444-8444-444444444444',...args.slice(1)]),/pending or uncertain/);
+await db.exec('reset role;set role authenticated');await assert.rejects(()=>db.query('select * from atlas_moveout_external_operations'),/permission denied/);await assert.rejects(()=>claim(args),/permission denied/);await assert.rejects(()=>db.query('select * from atlas_moveout_document_templates'),/permission denied/);
+await db.close();console.log('PASS durable operation claims: duplicate and conflicting IDs, uncertain operation barrier, service-only receipts and template access.');

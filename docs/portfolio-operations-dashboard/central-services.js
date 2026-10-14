@@ -430,6 +430,7 @@
     "Other"
   ];
   const INSPECTION_STATUSES = [
+    "Cancelled",
     "Draft",
     "Submitted",
     "Awaiting Review",
@@ -2883,7 +2884,7 @@
   }
 
   function getMoveOutInspectionForCase(state, caseRecord = {}) {
-    return state.inspections.find(inspection => inspection.relatedMoveOutId === caseRecord.id && inspection.templateName === "Move-Out Inspection") || null;
+    return state.inspections.find(inspection => inspection.relatedMoveOutId === caseRecord.id && inspection.inspectionKind !== "field" && inspection.templateName === "Move-Out Inspection") || null;
   }
 
   function caseInspectionIsApproved(state, caseRecord = {}) {
@@ -3190,7 +3191,7 @@
 
   function getApprovedInspectionChargesForCase(state, caseRecord) {
     return state.inspections
-      .filter(inspection => inspection && inspection.relatedMoveOutId === caseRecord.id && isInspectionApprovedStatus(inspection.status))
+      .filter(inspection => inspection && inspection.inspectionKind !== "field" && inspection.templateName === "Move-Out Inspection" && inspection.relatedMoveOutId === caseRecord.id && isInspectionApprovedStatus(inspection.status))
       .flatMap(inspection => asArray(inspection.findings)
         .filter(findingHasResidentCharge)
         .map(finding => ({ inspection, finding })));
@@ -3990,6 +3991,7 @@
   }
 
   function getInspectionRelatedCase(state, inspection) {
+    if (inspection.inspectionKind === "field" || inspection.templateName !== "Move-Out Inspection") return null;
     return state.moveOutCases.find(item => item.id === inspection.relatedMoveOutId) || null;
   }
 
@@ -6439,33 +6441,38 @@
     </div>`;
   }
 
+  const moveOutModuleUrl = typeof document !== "undefined" && document.currentScript?.src
+    ? new URL("features/moveout-workspace.mjs?v=eec30021a007de52", document.currentScript.src).href : "./features/moveout-workspace.mjs?v=eec30021a007de52";
+  let moveOutWorkspacePromise, moveOutWorkspaceError = "";
+  function ensureMoveOutWorkspace() {
+    if (!moveOutWorkspacePromise) moveOutWorkspacePromise = import(moveOutModuleUrl).then(module => {
+      window.AtlasMoveOutWorkspace = module.installMoveOutWorkspace({
+        load: loadState, save: saveState, render: renderActiveTab,
+        scopedCases: getScopedMoveOuts, properties: getPortfolioProperties, people: getPeopleEmployees,
+        csEmployees: getCentralServicesEmployees, technicians: getInspectionEligibleEmployees,
+        actor: () => currentActor().name, isAdmin: currentUserCanUseAdministrativeView,
+        activity: pushCaseActivity, buckets: getMoveOutWorkflowBuckets, bucketConfigs: WORKFLOW_BUCKET_CONFIGS,
+        table: renderMoveOutTable, timeline: renderMiniTimeline,
+        manual: state => renderManualMoveOutPanel(state, getCentralServicesEmployees()), sourceUpdates: renderPotentialMoveOutUpdates,
+        requiredInspection: getMoveOutInspectionForCase,
+        createRequiredInspection: (state, record) => createMoveOutInspection(state, record, getCentralServicesEmployees()),
+        resolvePhotos: resolveInspectionPhotoExport, releasePossession: releaseMoveOutCaseForInspection,
+        completeMog: id => window.atlasCsCompleteMog(id), addMemo: id => window.atlasCsAddLifecycleMemo(id),
+        openMorf: id => window.atlasCsOpenMorfForCase(id), accounting: id => window.atlasCsSendToAccounting(id)
+      });
+      renderActiveTab();
+      return window.AtlasMoveOutWorkspace;
+    }).catch(error => { moveOutWorkspaceError = error.message; renderActiveTab(); throw error; });
+    return moveOutWorkspacePromise;
+  }
+  function renderMoveOutWorkspacePart(state, settings = false) {
+    if (window.AtlasMoveOutWorkspace) return settings ? window.AtlasMoveOutWorkspace.settings(state) : window.AtlasMoveOutWorkspace.render(state);
+    if (!moveOutWorkspaceError) ensureMoveOutWorkspace().catch(() => {});
+    return `<div class="cs-alert">${escapeHtml(moveOutWorkspaceError || "Loading move-out workspace…")}</div>`;
+  }
+
   function renderMoveOuts(state, employees) {
-    return `<div class="cs-two-col">
-      <div style="display:grid;gap:14px">
-        ${renderManualMoveOutPanel(state, employees)}
-        ${renderPotentialMoveOutUpdates(state)}
-        <div class="cs-panel">
-          <div class="cs-panel-head">
-            <div>
-              <div class="cs-panel-title">Portfolio Workload Buckets</div>
-              <div class="cs-panel-sub">Open a bucket to filter the lifecycle records below.</div>
-            </div>
-          </div>
-          <div class="cs-panel-body">${renderWorkflowBucketBoard(state)}</div>
-        </div>
-        <div class="cs-panel">
-          <div class="cs-panel-head">
-            <div>
-              <div class="cs-panel-title">Move-Out Lifecycle Records</div>
-              <div class="cs-panel-sub">One persistent resident record moves from On Notice through inspection, MORF, Accounting, archive, and dispute follow-up.</div>
-            </div>
-            <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsDrill('moveOuts','all')">Clear Bucket</button>
-          </div>
-          <div class="cs-panel-body">${renderMoveOutTable(state)}</div>
-        </div>
-      </div>
-      ${renderMoveOutDetail(state)}
-    </div>`;
+    return renderMoveOutWorkspacePart(state);
   }
 
   function renderEmptyWorkflowModule(state, config) {
@@ -7563,6 +7570,7 @@
 
   function renderSettings(state, employees) {
     return `<div style="display:grid;gap:14px">
+      ${renderMoveOutWorkspacePart(state, true)}
       <div class="cs-panel">
         <div class="cs-panel-head">
           <div>
@@ -7846,8 +7854,26 @@
     return renderOverview(state, employees);
   }
 
+  let moveOutDeepLinkConsumed = false;
   function renderCentralServices() {
     const state = loadState();
+    if (!moveOutDeepLinkConsumed && typeof location !== "undefined") {
+      const caseId = new URLSearchParams(location.search).get("moveOutCase");
+      if (caseId) {
+        state.ui.module = "moveOuts";
+        state.ui.propertyId = "all";
+        state.ui.search = "";
+        const allowed = new Set(getScopedProperties(state).map(property => property.name));
+        const target = state.moveOutCases.find(record => record.id === caseId && allowed.has(record.propertyName));
+        state.ui.selectedMoveOutId = target ? caseId : "";
+        if (target && /^\d{4}-\d{2}$/.test(target.periodKey || "")) {
+          state.ui.year = Number(target.periodKey.slice(0, 4));
+          state.ui.monthIdx = Number(target.periodKey.slice(5)) - 1;
+        }
+        saveState(state);
+      }
+      moveOutDeepLinkConsumed = true;
+    }
     const employees = getCentralServicesEmployees();
     const monthLabel = MONTH_LABELS[selectedMonthIdx(state)];
     const adminArchitectureButton = currentUserCanUseAdministrativeView()
@@ -10320,7 +10346,7 @@
   }
 
   function createMoveOutInspection(state, caseRecord, employees = []) {
-    const existing = state.inspections.find(inspection => inspection.relatedMoveOutId === caseRecord.id && inspection.templateName === "Move-Out Inspection");
+    const existing = state.inspections.find(inspection => inspection.relatedMoveOutId === caseRecord.id && inspection.inspectionKind !== "field" && inspection.templateName === "Move-Out Inspection");
     if (existing) return existing;
     const actualPossession = getActualPossessionDate(caseRecord);
     const defaultInspector = caseRecord.inspectorEmployeeId
@@ -11162,7 +11188,8 @@
     };
   };
 
-  window.atlasCsSetModule = function (module) {
+  window.atlasCsSetModule = async function (module) {
+    if (window.AtlasMoveOutWorkspace && !await window.AtlasMoveOutWorkspace.guard()) return;
     const state = loadState();
     const requestedModule = cleanString(module);
     const allowedModule = MODULES.some(([key]) => key === requestedModule) && (requestedModule !== "architecture" || currentUserCanUseAdministrativeView());
@@ -12953,12 +12980,9 @@
     }));
   };
 
-  window.atlasCsSelectMoveOut = function (id) {
-    const state = loadState();
-    state.ui.selectedMoveOutId = cleanString(id);
-    state.ui.module = "moveOuts";
-    saveState(state);
-    renderActiveTab();
+  window.atlasCsSelectMoveOut = async function (id) {
+    try { await (await ensureMoveOutWorkspace()).select(id); }
+    catch (error) { alert(error.message); }
   };
 
   window.atlasCsUpdateMoveOutField = function (id, field, value) {
@@ -12978,15 +13002,9 @@
     renderActiveTab();
   };
 
-  window.atlasCsSendMog = function (id) {
-    const state = loadState();
-    const item = findMoveOutCase(state, id);
-    if (!item) return;
-    item.mogStatus = "Awaiting Signature";
-    setCaseWorkflowStatus(item, "On Notice", "MOG marked as sent and awaiting resident signature.");
-    addAudit(state, "Sent MOG", { id });
-    saveState(state);
-    renderActiveTab();
+  window.atlasCsSendMog = async function (id) {
+    const workspace = await ensureMoveOutWorkspace();
+    if (await workspace.select(id)) workspace.openDocument("mog");
   };
 
   window.atlasCsCompleteMog = function (id) {
@@ -13007,21 +13025,9 @@
     renderActiveTab();
   };
 
-  window.atlasCsScheduleInspection = function (id) {
-    const state = loadState();
-    const item = findMoveOutCase(state, id);
-    if (!item) return;
-    const date = normalizeDate(prompt("Enter the inspection date (for example, 2026-09-15)."));
-    if (!date) {
-      alert("Enter a valid inspection date to schedule the inspection.");
-      return;
-    }
-    item.inspectionDate = date;
-    item.inspectionStatus = isHoldOverCase(item) ? "HOLD - POSSESSION NOT RETURNED" : "Inspection Scheduled";
-    setCaseWorkflowStatus(item, getActualPossessionDate(item) ? "Move-Out Inspection" : isHoldOverCase(item) ? "Inspection Hold - Possession Not Returned" : "Upcoming Move Out", `Inspection scheduled for ${date}.`);
-    addAudit(state, "Scheduled inspection", { id, date });
-    saveState(state);
-    renderActiveTab();
+  window.atlasCsScheduleInspection = async function (id) {
+    const workspace = await ensureMoveOutWorkspace();
+    if (await workspace.select(id)) workspace.openSchedule("moveout");
   };
 
   window.atlasCsCreateInspectionFromMoveOut = function (id) {
@@ -13781,11 +13787,9 @@
     window.atlasCsSendMorfAccountingPacket(morf.id);
   };
 
-  window.atlasCsDownloadCasePacket = function (id) {
-    const state = loadState();
-    const item = findMoveOutCase(state, id);
-    if (!item) return;
-    downloadJson(`central-services-${item.propertyName}-${item.unit || item.id}.json`.replace(/[^a-z0-9_.-]+/gi, "-"), item);
+  window.atlasCsDownloadCasePacket = async function (id) {
+    try { await (await ensureMoveOutWorkspace()).exportCase(id); }
+    catch (error) { alert(error.message); }
   };
 
   window.atlasCsOpenTask = function (id) {

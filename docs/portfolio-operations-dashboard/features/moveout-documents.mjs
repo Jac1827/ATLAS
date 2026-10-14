@@ -22,8 +22,8 @@ export function validateTemplate(template){
 }
 export function prepopulate(template,record,renewal={},community={},employee=''){
  const source={...renewal,...Object.fromEntries(Object.entries(record).filter(([,v])=>v!==null&&v!==undefined&&v!==''))};
- source.leaseStart=record.leaseStart || record.leaseStartDate || record.moveInDate || renewal.leaseStart || '';
- source.communityAddress=record.communityAddress || community.address || community.communityAddress || '';
+ source.leaseStart=record.leaseStart || record.leaseStartDate || renewal.leaseStart || renewal.leaseStartDate || '';
+ source.communityAddress=[record.communityAddress,community.communityAddress,community.address].find(value=>typeof value==='string'&&value.trim()) || '';
  source.communityContact=record.communityContact || [community.phone,community.email||record.communityEmail].filter(Boolean).join(' · ');
  source.documentingEmployee=record.documentingEmployee||employee;
  source.instructions=template.instructionsApproved ? template.instructions : '';

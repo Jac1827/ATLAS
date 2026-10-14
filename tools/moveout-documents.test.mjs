@@ -22,3 +22,5 @@ console.log('PASS templates, prepopulation, explicit possession separation, ETF 
 assert.equal(prepopulate(templates.mog,{...record,phone:''},{phone:'555-0199'}).phone,'555-0199');assert.ok(missingFields(templates.mog,{...prepopulate(templates.mog,record),leaseStart:'2026-02-31'}).some(x=>x.includes('valid date')));
 
 assert.throws(()=>validateTemplate({...templates.ntv,instructionsApproved:'false'}),/explicitly/);assert.ok(!inspectionSections({findings:[{inspectorRecommendedAmount:''}]})[1].lines.some(x=>x.includes('$')));assert.ok(inspectionSections({findings:[{inspectorRecommendedAmount:0}]})[1].lines.some(x=>x.includes('$0')));
+
+assert.equal(prepopulate(templates.mog,{moveInDate:'2019-01-01'}).leaseStart,'','Move-in is not an inferred current lease start');assert.equal(prepopulate(templates.mog,{moveInDate:'2019-01-01'},{leaseStartDate:'2026-01-01'}).leaseStart,'2026-01-01');assert.equal(prepopulate(templates.mog,{}, {}, {address:{street:'Sample'}}).communityAddress,'','An address object is not printable address text');

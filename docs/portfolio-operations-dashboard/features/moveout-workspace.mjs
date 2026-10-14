@@ -1,4 +1,4 @@
-import {escape as e,fields,documentKinds,defaultTemplates,validateTemplate,prepopulate,missingFields,documentSections,reportHtml,reportPdf,caseSections,inspectionSections} from './moveout-documents.mjs?v=8bea8a710f435d44';
+import {escape as e,fields,documentKinds,defaultTemplates,validateTemplate,prepopulate,missingFields,documentSections,reportHtml,reportPdf,caseSections,inspectionSections} from './moveout-documents.mjs?v=74c42156748a0cfd';
 const clone=v=>structuredClone(v),id=()=>crypto.randomUUID(),stamp=()=>new Date().toISOString();
 const recordFields=['residentName','unit','communityAddress','phone','email','leaseStart','leaseExpiration','ntvReceivedDate','scheduledMoveOutDate','forwardingAddress','notes'];
 const button=(action,label,attrs='')=>`<button type="button" class="cs-btn" data-mo-action="${action}" ${attrs}>${label}</button>`;

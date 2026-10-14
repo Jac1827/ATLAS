@@ -6442,7 +6442,7 @@
   }
 
   const moveOutModuleUrl = typeof document !== "undefined" && document.currentScript?.src
-    ? new URL("features/moveout-workspace.mjs?v=6c7072ee69c7413d", document.currentScript.src).href : "./features/moveout-workspace.mjs?v=6c7072ee69c7413d";
+    ? new URL("features/moveout-workspace.mjs?v=7d5f9fd346e219e7", document.currentScript.src).href : "./features/moveout-workspace.mjs?v=7d5f9fd346e219e7";
   let moveOutWorkspacePromise, moveOutWorkspaceError = "";
   function ensureMoveOutWorkspace() {
     if (!moveOutWorkspacePromise) moveOutWorkspacePromise = import(moveOutModuleUrl).then(module => {

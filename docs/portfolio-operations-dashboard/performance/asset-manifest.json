@@ -36,8 +36,8 @@
     ]
   },
   "features/moveout-workspace.mjs": {
-    "sha256": "eec30021a007de52",
-    "bytes": 40402,
+    "sha256": "6c7072ee69c7413d",
+    "bytes": 40618,
     "references": [
       [
         "central-services.js",
@@ -2366,7 +2366,7 @@
     ]
   },
   "central-services.js": {
-    "sha256": "fa23afcef6e4d8d9",
+    "sha256": "876a0fddf71e0594",
     "bytes": 780661,
     "references": [
       [
@@ -2396,7 +2396,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "3aae8472054aea82",
+    "sha256": "003e56751a6c5c95",
     "bytes": 3962,
     "references": [
       [

@@ -10,7 +10,6 @@
   ];
   const MODULES = [
     ["overview", "Overview", "squares-four"],
-    ["communications", "Resident Communications", "chats-circle"],
     ["renewals", "Renewals", "arrows-clockwise"],
     ["moveOuts", "Move-Outs", "door-open"],
     ["inspections", "Inspections", "clipboard-text"],
@@ -20,8 +19,6 @@
     ["evictions", "Evictions", "gavel"],
     ["bankruptcy", "Bankruptcy", "bank"],
     ["vendors", "Vendors", "truck"],
-    ["invoices", "Invoices", "receipt"],
-    ["compliance", "Compliance", "shield-check"],
     ["disputes", "Disputes", "chats-circle"],
     ["archive", "Archived MORFs", "archive-box"],
     ["tasks", "Work Queue", "check-square"],
@@ -1402,6 +1399,65 @@
     } catch {
       return fallback;
     }
+  }
+
+  // Originals are stored separately from the small synchronous record cache.
+  // Commit the image transaction before publishing its reference in an inspection.
+  function inspectionPhotoDatabase() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("atlas-inspection-photos", 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("photos");
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => reject(new Error("Photo storage is busy. Close other ATLAS tabs and retry."));
+      request.onsuccess = () => resolve(request.result);
+    });
+  }
+
+  async function inspectionPhotoTransaction(mode, operation) {
+    const db = await inspectionPhotoDatabase();
+    try {
+      return await new Promise((resolve, reject) => {
+        const transaction = db.transaction("photos", mode);
+        const request = operation(transaction.objectStore("photos"));
+        transaction.oncomplete = () => resolve(request?.result);
+        transaction.onabort = transaction.onerror = () => reject(transaction.error || new Error("Photo storage failed."));
+      });
+    } finally { db.close(); }
+  }
+
+  async function inspectionPhotoDataUrl(key) {
+    const blob = await inspectionPhotoTransaction("readonly", store => store.get(key));
+    if (!blob) throw new Error("An inspection photo is unavailable in this browser. Use the browser where it was saved.");
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error || new Error("The photo could not be read."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function hydrateInspectionPhotos() {
+    document.querySelectorAll("img[data-atlas-inspection-photo]:not([data-photo-loading])").forEach(async image => {
+      image.dataset.photoLoading = "true";
+      try { image.src = await inspectionPhotoDataUrl(image.dataset.atlasInspectionPhoto); }
+      catch (error) { image.alt = "Photo unavailable in this browser"; image.title = error.message; }
+    });
+  }
+
+  async function resolveInspectionPhotoExport(value) {
+    if (Array.isArray(value)) return Promise.all(value.map(resolveInspectionPhotoExport));
+    if (!value || typeof value !== "object") return value;
+    const result = {};
+    for (const [key, item] of Object.entries(value)) result[key] = await resolveInspectionPhotoExport(item);
+    if (value.photoStorageKey) {
+      result.dataUrl = await inspectionPhotoDataUrl(value.photoStorageKey);
+      delete result.photoStorageKey;
+    }
+    if (value.thumbnailStorageKey) {
+      result.thumbnail = await inspectionPhotoDataUrl(value.thumbnailStorageKey);
+      delete result.thumbnailStorageKey;
+    }
+    return result;
   }
 
   function storageGet(key) {
@@ -6619,7 +6675,7 @@
     const photos = asArray(finding.photos);
     if (!photos.length) return `<div class="cs-alert">No photos yet. Resident chargebacks normally require at least one supporting image before submission.</div>`;
     return `<div class="cs-photo-strip">${photos.map(photo => `<div class="cs-photo-card">
-      ${photo.dataUrl ? `<img src="${escapeAttr(photo.dataUrl)}" alt="${escapeAttr(photo.fileName || "Inspection photo")}">` : `<div class="cs-photo-placeholder">${icon("image-square")}</div>`}
+      ${photo.photoStorageKey ? `<img data-atlas-inspection-photo="${escapeAttr(photo.photoStorageKey)}" alt="${escapeAttr(photo.fileName || "Inspection photo")}">` : photo.dataUrl ? `<img src="${escapeAttr(photo.dataUrl)}" alt="${escapeAttr(photo.fileName || "Inspection photo")}">` : `<div class="cs-photo-placeholder">${icon("image-square")}</div>`}
       <div class="cs-photo-meta"><strong>${escapeHtml(photo.fileName || "Inspection photo")}</strong><span>Original preserved${asArray(photo.annotations).length ? ` / ${asArray(photo.annotations).length} annotations` : ""}</span></div>
       <div class="cs-chip-row">
         ${["Circle", "Arrow", "Freehand", "Highlight", "Text", "Crop"].map(tool => `<button type="button" class="cs-icon-btn" title="${escapeAttr(tool)} annotation" data-inspection="${escapeAttr(inspection.id)}" data-finding="${escapeAttr(finding.id)}" data-photo="${escapeAttr(photo.id)}" data-tool="${escapeAttr(tool)}" onclick="atlasCsAddPhotoAnnotation(this.dataset.inspection,this.dataset.finding,this.dataset.photo,this.dataset.tool)">${escapeHtml(tool.slice(0, 1))}</button>`).join("")}
@@ -6954,7 +7010,7 @@
           ${morf.charges.map(charge => `<tr>
             <td><div class="cs-name-cell"><strong>${escapeHtml(charge.description)}</strong><span>${escapeHtml(charge.category || "Resident Charge")}</span></div></td>
             <td><div class="cs-name-cell"><strong>${escapeHtml(charge.room || "Room")}</strong><span>${escapeHtml(charge.damage || "Damage")}</span></div></td>
-            <td>${charge.thumbnail ? `<img class="cs-thumb" src="${escapeAttr(charge.thumbnail)}" alt="${escapeAttr(charge.description)}">` : `<span class="cs-chip">No image</span>`}</td>
+            <td>${charge.thumbnailStorageKey ? `<img class="cs-thumb" data-atlas-inspection-photo="${escapeAttr(charge.thumbnailStorageKey)}" alt="${escapeAttr(charge.description)}">` : charge.thumbnail ? `<img class="cs-thumb" src="${escapeAttr(charge.thumbnail)}" alt="${escapeAttr(charge.description)}">` : `<span class="cs-chip">No image</span>`}</td>
             <td>${escapeHtml(formatMoney(charge.originalInspectorAmount) || "No amount shown")}</td>
             <td><div class="cs-name-cell"><strong>${escapeHtml(formatMoney(charge.recommendedAmount) || "$0")}</strong><span>${escapeHtml(charge.calculationSummary || "Catalog calculation")}</span></div></td>
             <td><input type="number" min="0" value="${escapeAttr(charge.finalAmount ?? charge.recommendedAmount ?? 0)}" data-morf="${escapeAttr(morf.id)}" data-charge="${escapeAttr(charge.id)}" onchange="atlasCsUpdateMorfCharge(this.dataset.morf,this.dataset.charge,'finalAmount',this.value)"></td>
@@ -7511,7 +7567,7 @@
         <div class="cs-panel-head">
           <div>
             <div class="cs-panel-title">Workflow Settings</div>
-            <div class="cs-panel-sub">Operational settings are configurable here; state-specific legal settings live in the Compliance module.</div>
+            <div class="cs-panel-sub">Operational settings are configurable here; state-specific legal settings live in ATLAS Settings → Compliance.</div>
           </div>
         </div>
         <div class="cs-panel-body">
@@ -10348,6 +10404,7 @@
       room: finding.room,
       damage: finding.component,
       thumbnail: photo.dataUrl || "",
+      thumbnailStorageKey: photo.photoStorageKey || "",
       originalInspectorRecommendation: finding.notes || "",
       originalInspectorAmount: numberValue(finding.inspectorRecommendedAmount || calc.recommendedCharge),
       catalogRecommendation: calc,
@@ -10471,7 +10528,9 @@
     return state.accountingContacts.find(contact => contact.propertyName === caseRecord.propertyName) || state.accountingContacts.find(contact => contact.propertyName === "all");
   }
 
-  function downloadJson(filename, data) {
+  async function downloadJson(filename, data) {
+    try { data = await resolveInspectionPhotoExport(data); }
+    catch (error) { alert(`Export could not include all inspection photos: ${error.message}`); return; }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -11022,6 +11081,9 @@
   }
 
   window.renderCentralServicesTab = renderCentralServices;
+  window.renderAtlasComplianceSettings = () => renderComplianceSettings(loadState());
+  new MutationObserver(hydrateInspectionPhotos).observe(document.documentElement, { childList: true, subtree: true });
+  hydrateInspectionPhotos();
 
   // Parse expiration cohorts for upload review without changing workflow state.
   window.atlasCsPreviewRenewalSheetRows = function (sheetRows, context = {}) {
@@ -12067,47 +12129,60 @@
     renderActiveTab();
   };
 
-  window.atlasCsAttachInspectionPhotos = function (input, inspectionId, findingId) {
+  window.atlasCsAttachInspectionPhotos = async function (input, inspectionId, findingId) {
     const files = Array.from(input?.files || []);
-    if (!files.length) return;
-    const readFile = file => new Promise(resolve => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({
-        id: makeId("photo", [inspectionId, findingId, file.name, file.size, Date.now()]),
-        fileName: file.name,
-        type: file.type,
-        size: file.size,
-        dataUrl: reader.result,
-        originalPreserved: true,
-        annotations: [],
-        capturedAt: new Date().toISOString()
+    if (!files.length || input.disabled) return;
+    input.disabled = true;
+    try {
+      if (files.some(file => !file.type.startsWith("image/"))) throw new Error("Choose image files for inspection photos.");
+      const photos = files.map(file => ({
+        id: crypto.randomUUID(), fileName: file.name, type: file.type, size: file.size,
+        photoStorageKey: crypto.randomUUID(), originalPreserved: true,
+        annotations: [], capturedAt: new Date().toISOString()
+      }));
+      const legacyPhotos = [];
+      for (const existing of loadState().inspections) {
+        for (const finding of asArray(existing.findings)) {
+          for (const photo of asArray(finding.photos)) {
+            if (!photo.photoStorageKey && /^data:image\//i.test(photo.dataUrl || "")) {
+              const blob = await (await fetch(photo.dataUrl)).blob();
+              legacyPhotos.push({ dataUrl: photo.dataUrl, key: crypto.randomUUID(), blob });
+            }
+          }
+        }
+      }
+      await inspectionPhotoTransaction("readwrite", store => {
+        legacyPhotos.forEach(photo => store.put(photo.blob, photo.key));
+        files.forEach((file, index) => store.put(file, photos[index].photoStorageKey));
       });
-      reader.onerror = () => resolve({
-        id: makeId("photo", [inspectionId, findingId, file.name, Date.now()]),
-        fileName: file.name,
-        type: file.type,
-        size: file.size,
-        dataUrl: "",
-        originalPreserved: true,
-        annotations: [],
-        capturedAt: new Date().toISOString()
-      });
-      reader.readAsDataURL(file);
-    });
-    Promise.all(files.map(readFile)).then(photos => {
+      // Reload after the asynchronous write so concurrent edits are not overwritten.
       const state = loadState();
       const inspection = findInspection(state, inspectionId);
       const finding = inspection?.findings?.find(item => item.id === findingId);
-      if (!inspection || !finding) return;
+      if (!inspection || !finding) throw new Error("This finding is no longer available. Reopen the inspection and retry.");
+      // Replace only exact originals that were durably copied, preserving intervening edits.
+      for (const existing of state.inspections) for (const item of asArray(existing.findings)) {
+        for (const photo of asArray(item.photos)) {
+          const copied = legacyPhotos.find(candidate => candidate.dataUrl === photo.dataUrl);
+          if (copied) { photo.photoStorageKey = copied.key; delete photo.dataUrl; }
+        }
+      }
+      for (const morf of asArray(state.morfRecords)) for (const charge of asArray(morf.charges)) {
+        const copied = legacyPhotos.find(candidate => candidate.dataUrl === charge.thumbnail);
+        if (copied) { charge.thumbnailStorageKey = copied.key; charge.thumbnail = ""; }
+      }
       finding.photos = [...asArray(finding.photos), ...photos];
       inspection.syncStatus = "Saved Offline";
       inspection.updatedAt = new Date().toISOString();
       pushInspectionAudit(inspection, `Attached ${photos.length} photo${photos.length === 1 ? "" : "s"} to finding.`, { findingId });
       addAudit(state, "Attached inspection photos", { inspectionId, findingId, count: photos.length });
-      saveState(state);
-      renderActiveTab();
-    });
-    input.value = "";
+      if (saveState(state)) {
+        input.value = "";
+        renderActiveTab();
+      }
+    } catch (error) {
+      alert(`Inspection photos could not be saved: ${error.message || error}. Your existing inspection is unchanged. Please retry.`);
+    } finally { input.disabled = false; }
   };
 
   window.atlasCsOverridePhotoRequirement = function (inspectionId, findingId) {
@@ -12262,11 +12337,55 @@
     renderActiveTab();
   };
 
-  window.atlasCsDownloadInspectionReport = function (inspectionId, mode) {
+  function residentInspectionReportHtml(inspection) {
+    const field = (label, value) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value || "Not recorded")}</dd></div>`;
+    const logo = new URL("assets/rise-wordmark-blue.png", window.location.href).href;
+    const findings = asArray(inspection.findings).map((finding, index) => {
+      const potential = finding.chargebackId && finding.residentResponsibility !== "No";
+      const photos = asArray(finding.photos).map(photo => {
+        // Only image data is embedded; never allow report fields to become active URLs.
+        const src = /^data:image\/(png|jpe?g|gif|webp|avif|heic|heif);base64,/i.test(photo.dataUrl || "") ? photo.dataUrl : "";
+        return src ? `<figure><img src="${escapeAttr(src)}" alt="Inspection photo for ${escapeAttr(finding.room || "finding")}"><figcaption>Supporting photo</figcaption></figure>` : "";
+      }).join("");
+      return `<section class="finding"><h2>${index + 1}. ${escapeHtml([finding.room, finding.component].filter(Boolean).join(" / ") || "Inspection finding")}</h2>
+        <p><strong>Condition:</strong> ${escapeHtml(finding.condition || "Not recorded")}</p>
+        ${finding.notes ? `<p class="notes">${escapeHtml(finding.notes)}</p>` : ""}
+        <p class="charge">${potential ? "Potential chargeback — subject to review. This finding may result in a resident charge after review and final accounting." : "No potential chargeback is identified for this finding in this inspection."}</p>
+        ${photos ? `<div class="photos">${photos}</div>` : "<p class=muted>No supporting photos attached.</p>"}</section>`;
+    }).join("");
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RISE Resident Inspection Report</title><style>
+      @page{size:letter;margin:0.6in}*{box-sizing:border-box}body{font:14px/1.5 Arial,sans-serif;color:#173e50;max-width:900px;margin:32px auto;padding:0 24px}header{display:flex;justify-content:space-between;gap:24px;align-items:center;border-bottom:3px solid #24758b;padding-bottom:20px}header img{width:135px}h1{font-size:25px;margin:0}h2{font-size:18px;margin:0 0 12px}dl{display:grid;grid-template-columns:1fr 1fr;gap:16px;background:#f0f5f6;padding:20px}dt{font-size:11px;text-transform:uppercase;letter-spacing:1px}dd{margin:3px 0 0;font-weight:bold}.finding{border-top:1px solid #cad9df;padding:20px 0}.notes{white-space:pre-wrap;overflow-wrap:anywhere}.charge{background:#f0f5f6;padding:12px}.photos{display:flex;flex-wrap:wrap;gap:12px}figure{margin:0;width:calc(50% - 6px);break-inside:avoid}figure img{width:100%;max-height:320px;object-fit:contain}figcaption,.muted{font-size:12px;color:#536d77}footer{border-top:2px solid #24758b;margin-top:24px;padding-top:16px}button{padding:10px 18px;background:#173e50;color:white;border:0;border-radius:5px;cursor:pointer}.actions{margin-bottom:20px}.status{font-weight:bold;color:#536d77}@media print{body{margin:0;padding:0;font-size:11px}.actions{display:none}h2{break-after:avoid}p,dl,figure{break-inside:avoid}header img{width:110px}}@media(max-width:600px){header{display:block}dl{grid-template-columns:1fr}figure{width:100%}}
+      </style></head><body><div class="actions"><button onclick="window.print()">Print / Save as PDF</button><p>Save as PDF to share this report with the resident.</p></div>
+      <header><img src="${escapeAttr(logo)}" alt="RISE"><div><h1>Resident Inspection Report</h1><div>${escapeHtml(inspection.templateName || "Property inspection")}</div></div></header>
+      <p class="status">Inspection status: ${escapeHtml(inspection.status || "Draft")}${inspection.status !== "Approved" ? " — preliminary findings" : ""}</p>
+      <dl>${field("Community", inspection.propertyName)}${field("Resident", inspection.residentName)}${field("Unit / Location", [inspection.unit, inspection.building, inspection.locationName].filter(Boolean).join(" · "))}${field("Inspection date", inspection.inspectionDate)}</dl>
+      <p>This report summarizes the conditions documented during your inspection and any items identified for potential chargeback review.</p>
+      ${findings || "<p>No findings were documented in this inspection.</p>"}
+      <footer><strong>About potential charges</strong><p>This inspection report is not a bill or a final deposit statement. Any final charges will be communicated through the applicable accounting process. Please contact your community management team with questions about the findings or supporting photos.</p></footer></body></html>`;
+  }
+
+  window.atlasCsDownloadInspectionReport = async function (inspectionId, mode) {
     const state = loadState();
     const inspection = findInspection(state, inspectionId);
     if (!inspection) return;
     const residentMode = mode === "resident";
+    if (residentMode) {
+      const preview = window.open("", "_blank");
+      if (!preview) { alert("Allow pop-ups for ATLAS to open the resident inspection report."); return; }
+      preview.opener = null;
+      preview.document.write("<!doctype html><title>Preparing inspection report</title><p>Preparing your resident inspection report…</p>");
+      preview.document.close();
+      try {
+        const report = await resolveInspectionPhotoExport(cloneJson(inspection));
+        preview.document.open();
+        preview.document.write(residentInspectionReportHtml(report));
+        preview.document.close();
+      } catch (error) {
+        preview.close();
+        alert(`The resident report could not be prepared with all supporting photos: ${error.message}`);
+      }
+      return;
+    }
     const payload = cloneJson(inspection);
     payload.reportMode = residentMode ? "Resident copy" : "Internal review copy";
     payload.riseBranding = "RISE-branded inspection report payload";

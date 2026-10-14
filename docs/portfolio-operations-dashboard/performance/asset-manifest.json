@@ -2298,8 +2298,8 @@
     ]
   },
   "features/admin-workspace.js": {
-    "sha256": "ffee801ee359c2d3",
-    "bytes": 57546,
+    "sha256": "145c9a3eca313317",
+    "bytes": 58754,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2338,8 +2338,8 @@
     ]
   },
   "central-services.js": {
-    "sha256": "9a99fb00ed4d5309",
-    "bytes": 768834,
+    "sha256": "0596fdf517140368",
+    "bytes": 779090,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2368,7 +2368,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "93c628d7a18a12db",
+    "sha256": "ddfeb2ffe9235225",
     "bytes": 3962,
     "references": [
       [

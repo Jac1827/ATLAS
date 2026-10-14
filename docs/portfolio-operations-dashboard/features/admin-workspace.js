@@ -595,6 +595,16 @@ function renderAtlasSettingsDashboardPanel() {
   finally { atlasHomeRenderDetails = previous; }
 }
 
+let atlasSettingsSection = "general";
+window.atlasSetSettingsSection = async function (section) {
+  if (section === "compliance") {
+    try { await window.AtlasFeatures.load("centralServices"); }
+    catch (error) { alert(`Compliance could not load: ${error.message}`); return; }
+  }
+  atlasSettingsSection = section === "compliance" ? "compliance" : "general";
+  renderTab();
+};
+
 function renderAtlasSettingsTab() {
   const status = getAtlasCentralStatus();
   const profile = getAtlasAccessProfile();
@@ -605,7 +615,15 @@ function renderAtlasSettingsTab() {
     ${statBox("Community Settings", getPortfolioSetupCommunityRecordsForMonth(getSelectedDashboardMonthIndex(), savedData, { includeInactive: true }).length, "Community settings, imports, and outputs route through this admin page.", "#a371f7")}
     ${statBox("Memory", loadDailyBackupIndex().length, "Daily backups plus export and rollback controls live here.", "#58a6ff")}
   </div>`;
+  const settingsNavigation = `<div class="cs-module-nav" role="tablist" aria-label="Settings sections">
+    <button class="cs-module-tab ${atlasSettingsSection === "general" ? "active" : ""}" type="button" role="tab" aria-selected="${atlasSettingsSection === "general"}" onclick="atlasSetSettingsSection('general')">General</button>
+    <button class="cs-module-tab ${atlasSettingsSection === "compliance" ? "active" : ""}" type="button" role="tab" aria-selected="${atlasSettingsSection === "compliance"}" onclick="atlasSetSettingsSection('compliance')">Compliance</button>
+  </div>`;
+  if (atlasSettingsSection === "compliance") {
+    return renderPortfolioScopePanel("ATLAS Settings", "State-specific deposit accounting rules.", "", settingsNavigation + window.renderAtlasComplianceSettings());
+  }
   const bodyHtml = `<div>
+    ${settingsNavigation}
     ${renderAtlasSettingsDashboardPanel()}
     <details class="atlas-settings-administration"><summary>Account, access &amp; platform settings</summary>
     ${cardsHtml}

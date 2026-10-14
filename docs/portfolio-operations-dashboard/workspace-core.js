@@ -35205,7 +35205,7 @@ function setReportHubAction(value) {
 }
 
 function formatPortfolioReportValue(value, kind = "number") {
-  if (value === null || value === undefined || value === "") return "—";
+  if (!hasDlrDisplayMetricValue(value)) return "—";
   if (kind === "currency") return `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   if (kind === "pct") return `${Number(value).toFixed(1)}%`;
   if (kind === "rating") return Number(value).toFixed(2);
@@ -35213,8 +35213,9 @@ function formatPortfolioReportValue(value, kind = "number") {
 }
 
 function formatPortfolioTrendValue(currentValue, previousValue, mode = "count_pct") {
-  const current = Number(currentValue) || 0;
-  const previous = Number(previousValue) || 0;
+  if (!hasDlrDisplayMetricValue(currentValue) || !hasDlrDisplayMetricValue(previousValue)) return "";
+  const current = Number(currentValue);
+  const previous = Number(previousValue);
   if (mode === "point") {
     const diff = current - previous;
     if (Math.abs(diff) < 0.05) return "flat MoM";
@@ -35240,8 +35241,9 @@ function formatPortfolioTrendValue(currentValue, previousValue, mode = "count_pc
 }
 
 function formatPortfolioProjectedTrendValue(currentValue, previousValue, mode = "count_pct", selectedMonth = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
-  const current = Number(currentValue) || 0;
-  const previous = Number(previousValue) || 0;
+  if (!hasDlrDisplayMetricValue(currentValue) || !hasDlrDisplayMetricValue(previousValue)) return "";
+  const current = Number(currentValue);
+  const previous = Number(previousValue);
   const calendarContext = getCurrentCalendarDayContext(selectedMonth, year);
   if (!calendarContext.isCurrentCalendarMonth) {
     return formatPortfolioTrendValue(current, previous, mode).replace("MoM", "vs prior month");
@@ -35996,60 +35998,60 @@ function buildPortfolioSectionMetrics(sectionKey, summary) {
       { metric: "Leased Percentage", value: formatPortfolioReportValue(getSummaryLeasedPct(summary), "pct") },
       { metric: "Budget Occ Gap", value: formatPortfolioReportValue(summary.occGapPts, "pct") },
       { metric: "Budget Leased Gap", value: formatPortfolioReportValue(summary.leasedGapPts, "pct") },
-      { metric: "Move-Ins (MTD)", value: formatPortfolioReportValueWithTrend(summary.moveIns ?? 0, "number", summary.previousMoveIns ?? 0, "count_pct") },
-      { metric: "Move-Outs (MTD)", value: formatPortfolioReportValueWithTrend(summary.moveOuts ?? 0, "number", summary.previousMoveOuts ?? 0, "count_pct") },
-      { metric: "Net Absorption (MTD)", value: formatPortfolioReportValueWithTrend(summary.monthAbsorption ?? 0, "number", summary.previousMonthAbsorption ?? 0, "number_diff") },
-      { metric: "NER Delta vs Budget", value: summary.nerDelta !== 0 ? formatPortfolioReportValue(summary.nerDelta, "currency") : "—" }
+      { metric: "Move-Ins (MTD)", value: formatPortfolioReportValueWithTrend(summary.moveIns, "number", summary.previousMoveIns, "count_pct") },
+      { metric: "Move-Outs (MTD)", value: formatPortfolioReportValueWithTrend(summary.moveOuts, "number", summary.previousMoveOuts, "count_pct") },
+      { metric: "Net Absorption (MTD)", value: formatPortfolioReportValueWithTrend(summary.monthAbsorption, "number", summary.previousMonthAbsorption, "number_diff") },
+      { metric: "NER Delta vs Budget", value: formatPortfolioReportValue(summary.nerDelta, "currency") }
     ];
   }
   if (sectionKey === "traffic") {
     return [
-      { metric: "Guest Cards (MTD)", value: formatPortfolioReportValueWithTrend(summary.guestCards ?? 0, "number", summary.previousGuestCards ?? 0, "count_pct") },
-      { metric: "Tours (MTD)", value: formatPortfolioReportValueWithTrend(summary.tours ?? 0, "number", summary.previousTours ?? 0, "count_pct") },
-      { metric: "Applications (MTD)", value: formatPortfolioReportValueWithTrend(summary.applications ?? 0, "number", summary.previousApplications ?? 0, "count_pct") },
-      { metric: "Approved Applications (MTD)", value: formatPortfolioReportValueWithTrend(summary.applicationsApproved ?? 0, "number", summary.previousApplicationsApproved ?? 0, "count_pct") },
-      { metric: "Approval Rate", value: formatPortfolioReportValueWithTrend(summary.applicationApprovalPct ?? 0, "pct", summary.previousApplicationApprovalPct ?? 0, "point") },
-      { metric: "Tour to Lease", value: formatPortfolioReportValueWithTrend(summary.tourToLeasePct ?? 0, "pct", summary.previousTourToLeasePct ?? 0, "point") },
-      { metric: "Tour to App", value: formatPortfolioReportValueWithTrend(summary.tourToAppPct ?? 0, "pct", summary.previousTourToAppPct ?? 0, "point") }
+      { metric: "Guest Cards (MTD)", value: formatPortfolioReportValueWithTrend(summary.guestCards, "number", summary.previousGuestCards, "count_pct") },
+      { metric: "Tours (MTD)", value: formatPortfolioReportValueWithTrend(summary.tours, "number", summary.previousTours, "count_pct") },
+      { metric: "Applications (MTD)", value: formatPortfolioReportValueWithTrend(summary.applications, "number", summary.previousApplications, "count_pct") },
+      { metric: "Approved Applications (MTD)", value: formatPortfolioReportValueWithTrend(summary.applicationsApproved, "number", summary.previousApplicationsApproved, "count_pct") },
+      { metric: "Approval Rate", value: formatPortfolioReportValueWithTrend(summary.applicationApprovalPct, "pct", summary.previousApplicationApprovalPct, "point") },
+      { metric: "Tour to Lease", value: formatPortfolioReportValueWithTrend(summary.tourToLeasePct, "pct", summary.previousTourToLeasePct, "point") },
+      { metric: "Tour to App", value: formatPortfolioReportValueWithTrend(summary.tourToAppPct, "pct", summary.previousTourToAppPct, "point") }
     ];
   }
   if (sectionKey === "marketing") {
     const market = summary?.marketSurveyAggregate ?? {};
     return [
-      { metric: "Market Survey Coverage", value: formatPortfolioReportValue(market.communityCount ?? 0) },
+      { metric: "Market Survey Coverage", value: formatPortfolioReportValue(market.communityCount) },
       { metric: "Comp Avg Rent", value: market.compAverageRentCount > 0 ? formatPortfolioReportValue(market.compAverageRentTotal / market.compAverageRentCount, "currency") : "—" },
       { metric: "Comp Avg NER", value: market.compAverageNerCount > 0 ? formatPortfolioReportValue(market.compAverageNerTotal / market.compAverageNerCount, "currency") : "—" },
-      { metric: "Applications Last 30", value: formatPortfolioReportValue(market.applicationsLast30 ?? 0) },
-      { metric: "Leases Last 30", value: formatPortfolioReportValue(market.leasesLast30 ?? 0) }
+      { metric: "Applications Last 30", value: formatPortfolioReportValue(market.applicationsLast30) },
+      { metric: "Leases Last 30", value: formatPortfolioReportValue(market.leasesLast30) }
     ];
   }
   if (sectionKey === "leasing") {
     return [
-      { metric: "Leased Units", value: formatPortfolioReportValue(summary.leased ?? 0) },
-      { metric: "Lease Goal Gap", value: formatPortfolioReportValue(Math.max(summary.leasedGapUnits ?? 0, 0)) },
-      { metric: "Leases Signed (MTD)", value: formatPortfolioReportValueWithTrend(summary.leasesSigned ?? 0, "number", summary.previousLeasesSigned ?? 0, "count_pct") },
-      { metric: "Tour to Lease", value: formatPortfolioReportValueWithTrend(summary.tourToLeasePct ?? 0, "pct", summary.previousTourToLeasePct ?? 0, "point") },
-      { metric: "Net Absorption", value: formatPortfolioReportValueWithTrend(summary.monthAbsorption ?? 0, "number", summary.previousMonthAbsorption ?? 0, "number_diff") }
+      { metric: "Leased Units", value: formatPortfolioReportValue(summary.leased) },
+      { metric: "Lease Goal Gap", value: formatPortfolioReportValue(hasDlrDisplayMetricValue(summary.leasedGapUnits) ? Math.max(Number(summary.leasedGapUnits), 0) : null) },
+      { metric: "Leases Signed (MTD)", value: formatPortfolioReportValueWithTrend(summary.leasesSigned, "number", summary.previousLeasesSigned, "count_pct") },
+      { metric: "Tour to Lease", value: formatPortfolioReportValueWithTrend(summary.tourToLeasePct, "pct", summary.previousTourToLeasePct, "point") },
+      { metric: "Net Absorption", value: formatPortfolioReportValueWithTrend(summary.monthAbsorption, "number", summary.previousMonthAbsorption, "number_diff") }
     ];
   }
   if (sectionKey === "budget") {
     return [
       { metric: "Physical Occupancy vs Budget", value: formatPortfolioReportValue(summary.occGapPts, "pct") },
-      { metric: "Leased Occupancy vs Target", value: formatPortfolioReportValue(summary.leasedGapPts ?? 0, "pct") },
-      { metric: "Budget Occ Attainment", value: formatPortfolioReportValue(summary.budgetOccAttainmentPct ?? 0, "pct") },
-      { metric: "Communities On Budget", value: `${Math.round(summary.onTrackBudgetOccCount ?? 0)} / ${Math.round(summary.trackedBudgetOccCount ?? 0)}` },
-      { metric: "Units to Budget", value: formatPortfolioReportValue(Math.max(summary.occGapUnits ?? 0, 0)) }
+      { metric: "Leased Occupancy vs Target", value: formatPortfolioReportValue(summary.leasedGapPts, "pct") },
+      { metric: "Budget Occ Attainment", value: formatPortfolioReportValue(summary.budgetOccAttainmentPct, "pct") },
+      { metric: "Communities On Budget", value: `${formatPortfolioReportValue(summary.onTrackBudgetOccCount)} / ${formatPortfolioReportValue(summary.trackedBudgetOccCount)}` },
+      { metric: "Units to Budget", value: formatPortfolioReportValue(hasDlrDisplayMetricValue(summary.occGapUnits) ? Math.max(Number(summary.occGapUnits), 0) : null) }
     ];
   }
   if (sectionKey === "renewals") {
     return [
-      { metric: "Lease Expirations (MTD)", value: formatPortfolioReportValueWithTrend(summary.renewalExpirations ?? 0, "number", summary.previousRenewalExpirations ?? 0, "count_pct") },
-      { metric: "Renewals Signed (MTD)", value: formatPortfolioReportValueWithTrend(summary.renewalsSigned ?? 0, "number", summary.previousRenewalsSigned ?? 0, "count_pct") },
-      { metric: "NTVs", value: formatPortfolioReportValue(summary.renewalNTV ?? 0) },
-      { metric: "Undecided / M2M", value: formatPortfolioReportValue(summary.renewalUndecided ?? 0) },
-      { metric: "Early Terminations", value: formatPortfolioReportValue(summary.renewalEarlyTermination ?? 0) },
-      { metric: "Projected Attrition", value: formatPortfolioReportValue(summary.renewalProjectedAttrition ?? 0) },
-      { metric: "Retention Rate", value: formatPortfolioReportValueWithTrend(summary.renewalRetentionRate ?? 0, "pct", summary.previousRenewalRetentionRate ?? 0, "point") }
+      { metric: "Lease Expirations (MTD)", value: formatPortfolioReportValueWithTrend(summary.renewalExpirations, "number", summary.previousRenewalExpirations, "count_pct") },
+      { metric: "Renewals Signed (MTD)", value: formatPortfolioReportValueWithTrend(summary.renewalsSigned, "number", summary.previousRenewalsSigned, "count_pct") },
+      { metric: "NTVs", value: formatPortfolioReportValue(summary.renewalNTV) },
+      { metric: "Undecided / M2M", value: formatPortfolioReportValue(summary.renewalUndecided) },
+      { metric: "Early Terminations", value: formatPortfolioReportValue(summary.renewalEarlyTermination) },
+      { metric: "Projected Attrition", value: formatPortfolioReportValue(summary.renewalProjectedAttrition) },
+      { metric: "Retention Rate", value: formatPortfolioReportValueWithTrend(summary.renewalRetentionRate, "pct", summary.previousRenewalRetentionRate, "point") }
     ];
   }
   if (sectionKey === "reputation") {
@@ -36060,11 +36062,11 @@ function buildPortfolioSectionMetrics(sectionKey, summary) {
   }
   if (sectionKey === "finances") {
     return [
-      { metric: "Market Rent", value: formatPortfolioReportValue(summary.marketRent ?? 0, "currency") },
-      { metric: "Budget Rent", value: formatPortfolioReportValue(summary.proformaRent ?? 0, "currency") },
-      { metric: "Budget NER", value: formatPortfolioReportValue(summary.proformaNER ?? 0, "currency") },
-      { metric: "Actual NER", value: formatPortfolioReportValue(summary.nerActual ?? 0, "currency") },
-      { metric: "NER Delta vs Budget", value: summary.nerDelta !== 0 ? formatPortfolioReportValue(summary.nerDelta, "currency") : "—" }
+      { metric: "Market Rent", value: formatPortfolioReportValue(summary.marketRent, "currency") },
+      { metric: "Budget Rent", value: formatPortfolioReportValue(summary.proformaRent, "currency") },
+      { metric: "Budget NER", value: formatPortfolioReportValue(summary.proformaNER, "currency") },
+      { metric: "Actual NER", value: formatPortfolioReportValue(summary.nerActual, "currency") },
+      { metric: "NER Delta vs Budget", value: formatPortfolioReportValue(summary.nerDelta, "currency") }
     ];
   }
   return [];
@@ -40395,8 +40397,14 @@ function buildDlrForwardLookRows(record, totalUnits, startMonth, year, options =
     });
 }
 
+function getDlrMetricDifference(currentValue, previousValue) {
+  if (!hasDlrDisplayMetricValue(currentValue) || !hasDlrDisplayMetricValue(previousValue)) return null;
+  return Number(currentValue) - Number(previousValue);
+}
+
 function formatDlrSignedNumber(value) {
-  const numeric = Number(value) || 0;
+  if (!hasDlrDisplayMetricValue(value)) return "N/A";
+  const numeric = Number(value);
   return numeric > 0 ? `+${numeric}` : `${numeric}`;
 }
 
@@ -41011,6 +41019,7 @@ function buildAtlasDlrDeepLink(report) {
 }
 
 function formatDlrTrendDelta(currentValue, previousValue, digits = 1) {
+  if (!hasDlrDisplayMetricValue(currentValue) || !hasDlrDisplayMetricValue(previousValue)) return "";
   const current = Number(currentValue);
   const previous = Number(previousValue);
   if (!Number.isFinite(current) || !Number.isFinite(previous) || previous <= 0) return "";
@@ -41021,10 +41030,10 @@ function formatDlrTrendDelta(currentValue, previousValue, digits = 1) {
 
 function getDlrExecutiveSummaryLines(report) {
   const lines = [];
-  const occupancyDelta = Number(report.trendingOccupancyPct ?? 0) - Number(report.occupancyPct ?? 0);
+  const occupancyDelta = getDlrMetricDifference(report.trendingOccupancyPct, report.occupancyPct);
   const appTrend = report.applicationTrendRows?.find(row => row.windowKey === "mtd") || null;
   const renewals = report.renewalSnapshot || {};
-  const netMoveIns = (Number(report.trafficMetrics?.moveIns) || 0) - (Number(report.trafficMetrics?.moveOuts) || 0);
+  const netMoveIns = getDlrMetricDifference(report.trafficMetrics?.moveIns, report.trafficMetrics?.moveOuts);
   if (Number.isFinite(occupancyDelta) && Math.abs(occupancyDelta) >= 0.2) {
     lines.push(
       occupancyDelta > 0
@@ -41032,21 +41041,21 @@ function getDlrExecutiveSummaryLines(report) {
         : `Physical occupancy is projected to soften from ${formatDlrPercent(report.occupancyPct, 1)} to ${formatDlrPercent(report.trendingOccupancyPct, 1)} based on scheduled move-outs currently on the books.`
     );
   }
-  if (appTrend && Number.isFinite(Number(appTrend.deltaValue))) {
+  if (appTrend && hasDlrDisplayMetricValue(appTrend.currentValue) && hasDlrDisplayMetricValue(appTrend.previousValue) && hasDlrDisplayMetricValue(appTrend.deltaValue)) {
     lines.push(
       Number(appTrend.deltaValue) >= 0
-        ? `Application volume is trending ahead of the prior comparable period at ${formatDlrMetricValue(appTrend.currentValue)} MTD versus ${formatDlrMetricValue(appTrend.previousValue)} prior (${formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue)}).`
-        : `Application volume is trailing the prior comparable period at ${formatDlrMetricValue(appTrend.currentValue)} MTD versus ${formatDlrMetricValue(appTrend.previousValue)} prior (${formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue)}).`
+        ? `Application volume is trending ahead of the prior comparable period at ${formatDlrMetricValue(appTrend.currentValue)} MTD versus ${formatDlrMetricValue(appTrend.previousValue)} prior (${formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue) || "Comparison unavailable"}).`
+        : `Application volume is trailing the prior comparable period at ${formatDlrMetricValue(appTrend.currentValue)} MTD versus ${formatDlrMetricValue(appTrend.previousValue)} prior (${formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue) || "Comparison unavailable"}).`
     );
   }
-  if (Number(netMoveIns) !== 0) {
+  if (Number.isFinite(netMoveIns) && netMoveIns !== 0) {
     lines.push(
       netMoveIns > 0
         ? `Net move-ins are positive month to date at ${formatDlrSignedNumber(netMoveIns)}, supporting near-term occupancy momentum.`
         : `Net move-ins are negative month to date at ${formatDlrSignedNumber(netMoveIns)}, which is creating near-term occupancy pressure.`
     );
   }
-  if (Number.isFinite(Number(renewals.retentionRate)) && Number(renewals.expirations) > 0) {
+  if (hasDlrDisplayMetricValue(renewals.retentionRate) && Number(renewals.expirations) > 0) {
     lines.push(`Renewal retention is ${formatDlrPercent(renewals.retentionRate, 0)} from ${formatDlrMetricValue(renewals.expirations)} expirations with ${formatDlrMetricValue(renewals.undecided)} undecided / month-to-month households still in play.`);
   }
   if (!lines.length) {
@@ -41091,7 +41100,7 @@ function buildDlrEmailHtml(report, settings = {}) {
     { label: "90-Day Projection", value: formatDlrPercent(report.trendingOccupancyPct, 1), sub: "Forward occupancy" },
     { label: "MTD Applications", value: formatDlrMetricValue(report.trafficMetrics?.applications), sub: `${formatDlrMetricValue(report.trafficMetrics?.approvals)} approved` },
     { label: "MTD Move-Ins", value: formatDlrMetricValue(report.trafficMetrics?.moveIns), sub: `Goal / week ${formatDlrMetricValue(report.moveInGoalPerWeek)}` },
-    { label: "MTD Move-Outs", value: formatDlrMetricValue(report.trafficMetrics?.moveOuts), sub: `Net ${formatDlrSignedNumber((Number(report.trafficMetrics?.moveIns) || 0) - (Number(report.trafficMetrics?.moveOuts) || 0))}` },
+    { label: "MTD Move-Outs", value: formatDlrMetricValue(report.trafficMetrics?.moveOuts), sub: `Net ${formatDlrSignedNumber(getDlrMetricDifference(report.trafficMetrics?.moveIns, report.trafficMetrics?.moveOuts))}` },
     { label: "Retention", value: formatDlrPercent(report.renewalSnapshot?.retentionRate, 0), sub: `${formatDlrMetricValue(report.renewalSnapshot?.signed)} signed` }
   ];
   const compactKpis = detailMode ? kpis : kpis.slice(0, 6);
@@ -41103,7 +41112,7 @@ function buildDlrEmailHtml(report, settings = {}) {
     ["Denials / Cancels", `${formatDlrMetricValue(report.trafficMetrics?.denials)} / ${formatDlrMetricValue(report.trafficMetrics?.cancelled)}`],
     ["Move-Ins", formatDlrMetricValue(report.trafficMetrics?.moveIns)],
     ["Move-Outs", formatDlrMetricValue(report.trafficMetrics?.moveOuts)],
-    ["Net Move-Ins", formatDlrSignedNumber((Number(report.trafficMetrics?.moveIns) || 0) - (Number(report.trafficMetrics?.moveOuts) || 0))]
+    ["Net Move-Ins", formatDlrSignedNumber(getDlrMetricDifference(report.trafficMetrics?.moveIns, report.trafficMetrics?.moveOuts))]
   ];
   const attributionMeta = [
     String(record.investorName || "").trim(),
@@ -41157,7 +41166,7 @@ function buildDlrEmailHtml(report, settings = {}) {
           <div style="font-family:Arial,sans-serif;font-size:14px;line-height:21px;color:#334155;">
             Applications MTD: <strong>${escapeHtml(formatDlrMetricValue(appTrend.currentValue))}</strong><br>
             Prior comparable period: <strong>${escapeHtml(formatDlrMetricValue(appTrend.previousValue))}</strong><br>
-            <span style="font-weight:700;color:${Number(appTrend.deltaValue) >= 0 ? "#166534" : "#991b1b"}">${escapeHtml(formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue) || "■ 0.0%")}</span>
+            <span style="font-weight:700;color:${Number(appTrend.deltaValue) >= 0 ? "#166534" : "#991b1b"}">${escapeHtml(formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue) || "Comparison unavailable")}</span>
           </div>
         </td></tr>
       </table>
@@ -41227,11 +41236,11 @@ function buildDlrEmailSnapshotSvg(report) {
   const today = report.dailyTraffic || {};
   const mtd = report.trafficMetrics || {};
   const metrics = [
-    { label: "Occupancy", value: formatDlrPercent(report.occupancyPct, 1), sub: `${report.occupiedUnits} occupied units` },
-    { label: "Leased", value: formatDlrPercent(report.leasedPct, 1), sub: `${report.leasedUnits} leased units` },
+    { label: "Occupancy", value: formatDlrPercent(report.occupancyPct, 1), sub: `${formatDlrMetricValue(report.occupiedUnits)} occupied units` },
+    { label: "Leased", value: formatDlrPercent(report.leasedPct, 1), sub: `${formatDlrMetricValue(report.leasedUnits)} leased units` },
     { label: "90-Day Projection", value: formatDlrPercent(report.trendingOccupancyPct, 1), sub: "ending physical occ" },
-    { label: "Today's Apps", value: String(today.applications ?? 0), sub: `${today.approvals ?? 0} approved · ${today.denials ?? 0} denied` },
-    { label: "Retention", value: formatDlrPercent(report.renewalSnapshot?.retentionRate, 0), sub: `${report.renewalSnapshot?.signed ?? 0} signed / ${report.renewalSnapshot?.expirations ?? 0} exp` }
+    { label: "Today's Apps", value: formatDlrMetricValue(today.applications), sub: `${formatDlrMetricValue(today.approvals)} approved · ${formatDlrMetricValue(today.denials)} denied` },
+    { label: "Retention", value: formatDlrPercent(report.renewalSnapshot?.retentionRate, 0), sub: `${formatDlrMetricValue(report.renewalSnapshot?.signed)} signed / ${formatDlrMetricValue(report.renewalSnapshot?.expirations)} exp` }
   ];
   const noteLines = (report.notes?.wins?.length ? report.notes.wins : report.notes?.highlights || []).slice(0, 3);
   const metricBlocks = metrics.map((card, idx) => {
@@ -41254,11 +41263,11 @@ function buildDlrEmailSnapshotSvg(report) {
     ["Renewals", today.renewals]
   ].map((row, idx) => `
       <text x="78" y="${324 + (idx * 34)}" font-size="18" fill="#334155">${escapeHtml(row[0])}</text>
-      <text x="510" y="${324 + (idx * 34)}" font-size="20" font-weight="700" text-anchor="end" fill="#0f172a">${escapeHtml(String(row[1] ?? 0))}</text>
+      <text x="510" y="${324 + (idx * 34)}" font-size="20" font-weight="700" text-anchor="end" fill="#0f172a">${escapeHtml(formatDlrMetricValue(row[1]))}</text>
   `).join("");
   const forwardRows = (report.forwardLook || []).slice(0, 3).map((row, idx) => `
       <text x="648" y="${324 + (idx * 56)}" font-size="20" font-weight="700" fill="#1d4ed8">${escapeHtml(row.label)}</text>
-      <text x="648" y="${348 + (idx * 56)}" font-size="16" fill="#475569">Exp ${escapeHtml(String(row.leaseExpirations ?? 0))} · Outs ${escapeHtml(String(row.pendingMoveOuts ?? 0))} · Ins ${escapeHtml(String(row.pendingMoveIns ?? 0))}</text>
+      <text x="648" y="${348 + (idx * 56)}" font-size="16" fill="#475569">Exp ${escapeHtml(formatDlrMetricValue(row.leaseExpirations))} · Outs ${escapeHtml(formatDlrMetricValue(row.pendingMoveOuts))} · Ins ${escapeHtml(formatDlrMetricValue(row.pendingMoveIns))}</text>
       <text x="648" y="${370 + (idx * 56)}" font-size="16" fill="#475569">Budget ${escapeHtml(formatDlrPercent(row.budgetedOccupancy, 1))} · Projected ${escapeHtml(formatDlrPercent(row.projectedOccupancy, 1))}</text>
   `).join("");
   const highlights = noteLines.map((line, idx) => `
@@ -41291,15 +41300,15 @@ function buildDlrEmailPlainTextBody(report) {
   const summaryLines = getDlrExecutiveSummaryLines(report);
   const appTrend = report.applicationTrendRows?.find(row => row.windowKey === "mtd") || null;
   const trendLine = appTrend
-    ? `Applications MTD: ${formatDlrMetricValue(appTrend.currentValue)} vs ${formatDlrMetricValue(appTrend.previousValue)} prior (${formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue) || "■ 0.0%"})`
+    ? `Applications MTD: ${formatDlrMetricValue(appTrend.currentValue)} vs ${formatDlrMetricValue(appTrend.previousValue)} prior (${formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue) || "Comparison unavailable"})`
     : "";
   return [
     `ATLAS RISE Daily Leasing Report - ${report.communityName}`,
     report.reportPeriodLabel,
     "",
     `Physical Occupancy: ${formatDlrPercent(report.occupancyPct, 1)} | Leased: ${formatDlrPercent(report.leasedPct, 1)} | 90-Day Projection: ${formatDlrPercent(report.trendingOccupancyPct, 1)}`,
-    `MTD Activity: ${formatDlrMetricValue(mtd.rolledGuestCards || mtd.guestCards)} leads | ${formatDlrMetricValue(mtd.tours)} tours | ${formatDlrMetricValue(mtd.applications)} apps | ${formatDlrMetricValue(mtd.approvals)} approved`,
-    `Move-Ins: ${formatDlrMetricValue(mtd.moveIns)} | Move-Outs: ${formatDlrMetricValue(mtd.moveOuts)} | Net Move-Ins: ${formatDlrSignedNumber((Number(mtd.moveIns) || 0) - (Number(mtd.moveOuts) || 0))}`,
+    `MTD Activity: ${formatDlrMetricValue(mtd.rolledGuestCards ?? mtd.guestCards)} leads | ${formatDlrMetricValue(mtd.tours)} tours | ${formatDlrMetricValue(mtd.applications)} apps | ${formatDlrMetricValue(mtd.approvals)} approved`,
+    `Move-Ins: ${formatDlrMetricValue(mtd.moveIns)} | Move-Outs: ${formatDlrMetricValue(mtd.moveOuts)} | Net Move-Ins: ${formatDlrSignedNumber(getDlrMetricDifference(mtd.moveIns, mtd.moveOuts))}`,
     trendLine,
     "",
     "Performance Summary",
@@ -42733,7 +42742,7 @@ function renderDlrPricingRenewalSnapshot(report, sourceLine = "") {
 }
 
 function buildDlrInvestorOverviewDocument(report) {
-  const netAbsorption = Number(report.monthAbsorption ?? ((Number(report.trafficMetrics?.moveIns) || 0) - (Number(report.trafficMetrics?.moveOuts) || 0))) || 0;
+  const netAbsorption = report.monthAbsorption ?? getDlrMetricDifference(report.trafficMetrics?.moveIns, report.trafficMetrics?.moveOuts);
   const communityPhoto = String(report.communityPhotoSrc || report.communityPhotoPreviewSrc || "");
   const photoHeroHtml = communityPhoto ? `<div class="section dlr-photo-hero">
     <img src="${communityPhoto}" alt="" class="dlr-photo-hero-img">

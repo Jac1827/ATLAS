@@ -9,7 +9,7 @@
     bonusWorkspace: { src: new URL('features/bonus-workspace.js?v=077cf554254699a4', base).href, ready: () => !!root.AtlasBonusWorkspace },
     adminWorkspace: { src: new URL('features/admin-workspace.js?v=600530cac17e3615', base).href, ready: () => !!root.AtlasAdminWorkspace },
     residentCommunications: { src: new URL('features/resident-communications.js?v=877a0ce805f91383', base).href, css: new URL('features/resident-communications.css?v=8f84c3003c7be5b8', base).href, ready: () => !!root.AtlasResidentCommunications },
-    centralServices: { src: new URL('central-services.js?v=b72ed82e9906e498', base).href, ready: () => typeof root.renderCentralServicesTab === 'function' },
+    centralServices: { src: new URL('central-services.js?v=cf8320b3f9a2153a', base).href, ready: () => typeof root.renderCentralServicesTab === 'function' },
     historyRestore: { src: new URL('atlas_historical_restore_data.js?v=43f55dab14d794f6', base).href, ready: () => !!root.ATLAS_HISTORICAL_RESTORE_COMMUNITY_DATA },
     xlsx: { src: new URL('assets/xlsx.full.min.js?v=c9506197caf809a0', base).href, ready: () => !!root.XLSX?.utils },
     migrationArchive: { src: new URL("migration-archive.js?v=8cb6480f96dd3ca0", base).href, ready: () => !!root.AtlasMigrationArchive },

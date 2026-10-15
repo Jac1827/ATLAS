@@ -16,3 +16,7 @@ let accessed=false;const denied=await handleMoveOutState(new Request('https://ex
 a.edit(s=>s.inspections[0].photos.push({photoStorageKey:'another-local'}));lose=true;await a.store.synchronize(['Test']);const photoVersion=server.version;await a.store.synchronize(['Test']);assert.equal(server.version,photoVersion,'lost photo-save response must not append an identical revision');assert.match(a.get().inspections[0].photos[1].photoStorageKey,/^central:/);
 a.logout();await a.store.synchronize(['Test']);assert.equal(server.version,photoVersion);
 console.log('PASS two-session recovery, original photos, conflict preservation, lost-response idempotency, scope and auth isolation');
+
+// Failed hydration must never acknowledge a base then publish an empty local cache.
+let unavailable=true,hydrated=empty(),writes=0;const meta=new Map();const guarded=createMoveOutStore({request:async b=>{if(b.action==='save')writes++;return request(b);},read:()=>clone(hydrated),write:s=>{if(unavailable)throw Error('Quota exceeded');hydrated=clone(s);},photo:async()=>'',storage:{getItem:async k=>meta.get(k),setItem:async(k,v)=>meta.set(k,v)},actor:()=> 'hydration-user'});
+await guarded.synchronize(['Test']);await guarded.synchronize(['Test']);assert.equal(writes,0);assert.match(guarded.status(),/Quota/);unavailable=false;await guarded.synchronize(['Test']);assert.equal(stable(hydrated),stable(server.payload));assert.equal(writes,0);

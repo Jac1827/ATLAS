@@ -2249,7 +2249,7 @@
       sharedMoveOutStore = module.createMoveOutStore({
         request: sharedMoveOutRequest, read: () => normalizeState(safeJsonParse(storageGet(STORAGE_KEY), {})),
         write: state => { if (!storageSet(STORAGE_KEY, JSON.stringify(state))) throw new Error("Local recovery cache could not save."); },
-        photo: inspectionPhotoDataUrl, storage: localStorage, actor: sharedMoveOutActor, onStatus: sharedMoveOutMessage
+        photo: inspectionPhotoDataUrl, storage: module.createMetadataStorage({indexedDB,legacyStorage:localStorage}), actor: sharedMoveOutActor, onStatus: sharedMoveOutMessage
       });
       return sharedMoveOutStore;
     }).catch(error => { sharedMoveOutLoading = null; throw error; });

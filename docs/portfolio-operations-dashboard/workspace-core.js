@@ -14271,7 +14271,7 @@ function syncAtlasTopbar() {
     let sourceStatus = document.getElementById("atlas-workspace-source");
     if (!sourceStatus) { sourceStatus = document.createElement("div"); sourceStatus.id = "atlas-workspace-source"; sourceStatus.setAttribute("role","status"); sourceStatus.style.cssText="font-size:11px;padding:5px 12px;color:#486581"; document.getElementById("atlas-topbar")?.after(sourceStatus); }
     const source = atlasWorkspaceAccess.source;
-    sourceStatus.textContent = source ? `${source.cached ? "Cached workspace" : "Central workspace"} · version ${source.version} · source effective ${source.effectiveAt || "unknown"} · verified ${source.verifiedAt || "not yet checked"}${source.localChanges ? " · local changes pending publication" : ""}${atlasWorkspaceAccess.error ? " · refresh unavailable" : ""}` : "Source version not verified";
+    sourceStatus.textContent = source ? `${source.cached ? "Cached workspace" : "Central workspace"} · version ${source.version} · source effective ${source.effectiveAt || "unknown"} · verified ${source.verifiedAt || "not yet checked"}${source.localChanges ? " · local changes pending publication" : ""}${atlasWorkspaceAccess.error ? " · " + atlasWorkspaceAccess.error : ""}` : "Source version not verified";
     if (freshChip) {
       if (isPortfolioWorkspaceSelected() && activeTab === 1) {
         const count = getPortfolioSetupCommunityRecordsForMonth(getSelectedDashboardMonthIndex(), savedData, { includeInactive: true }).length;
@@ -54914,8 +54914,10 @@ async function initializeAtlasDashboard() {
         measureAtlasStartupStage("central-property-graph",()=>pullAtlasSharedPropertyGraphFromCentral({silent:true,applyToPortfolio:false}))
       ]);
       if (epoch !== atlasWorkspaceAccess.epoch) return;
-      const failure=outcomes.find(result=>result.status==="rejected");
-      if(failure)atlasWorkspaceAccess.error=failure.reason?.message || "A remote source is unavailable.";
+      // Optional preferences/property reads do not establish failure of the canonical workspace.
+      const failure = outcomes[0]?.status === "rejected" ? outcomes[0] : null;
+      if (failure) atlasWorkspaceAccess.error = failure.reason?.message || "The central workspace could not be checked.";
+      atlasWorkspaceAccess.auxiliaryError = outcomes.slice(1).filter(result => result.status === "rejected").map(result => result.reason?.message || "An optional source is unavailable.").join("; ");
       if(outcomes.some(result=>result.status==="fulfilled" && result.value === true))scheduleAtlasSharedRender(true);
       else syncAtlasTopbar();
       startAtlasLivePresence(); startAtlasSharedRealtime({initialRefresh:false});

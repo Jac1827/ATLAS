@@ -31,6 +31,7 @@ export function installMoveOutWorkspace(api){
  const logo=()=>logoPromise||=(fetch(logoUrl).then(r=>{if(!r.ok)throw Error('RISE logo could not load.');return r.arrayBuffer();}));
  async function download(title,sections,draftFlag=false){const bytes=await reportPdf(title,sections,{logoBytes:await logo(),draft:draftFlag});const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));const link=document.createElement('a');link.href=url;link.download=title.replace(/[^a-z0-9 -]/gi,'')+'.pdf';link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);return bytes;}
  async function external(path,payload){
+  if(['email','calendar'].includes(path) && window.atlasCsFlushSharedMoveOut) await window.atlasCsFlushSharedMoveOut(payload.communityName);
   const central=window.ATLAS_CENTRAL,config=central?.getConfig?.(),session=central?.getSession?.();
   if(!session?.access_token)throw Error('Sign in to ATLAS to use Microsoft delivery and calendar synchronization.');
   const base=config?.accessApiBaseUrl||config?.apiBaseUrl;if(!base)throw Error('The ATLAS integration endpoint is not configured.');

@@ -1427,6 +1427,10 @@
   }
 
   async function inspectionPhotoDataUrl(key) {
+    if (String(key).startsWith("central:")) {
+      const [,communityId,hash] = key.split(":");
+      return (await sharedMoveOutRequest({action:"photo-get",communityId,hash})).dataUrl;
+    }
     const blob = await inspectionPhotoTransaction("readonly", store => store.get(key));
     if (!blob) throw new Error("An inspection photo is unavailable in this browser. Use the browser where it was saved.");
     return await new Promise((resolve, reject) => {
@@ -1441,7 +1445,7 @@
     document.querySelectorAll("img[data-atlas-inspection-photo]:not([data-photo-loading])").forEach(async image => {
       image.dataset.photoLoading = "true";
       try { image.src = await inspectionPhotoDataUrl(image.dataset.atlasInspectionPhoto); }
-      catch (error) { image.alt = "Photo unavailable in this browser"; image.title = error.message; }
+      catch (error) { image.alt = "Photo unavailable; shared storage could not be verified"; image.title = error.message; }
     });
   }
 
@@ -2214,6 +2218,68 @@
     return normalized;
   }
 
+  const sharedMoveOutUrl = typeof document !== "undefined" && document.currentScript?.src
+    ? new URL("features/moveout-state-store.mjs", document.currentScript.src).href : "./features/moveout-state-store.mjs";
+  let sharedMoveOutStore, sharedMoveOutLoading, sharedMoveOutTimer, sharedMoveOutStatus = "Shared case storage not checked";
+  const sharedMoveOutActor = () => window.ATLAS_CENTRAL?.getSession?.()?.user?.id || "";
+  let sharedMoveOutOwner = "";
+  async function sharedMoveOutRequest(payload) {
+    const central = window.ATLAS_CENTRAL, config = central?.getConfig?.(), session = central?.getSession?.();
+    if (!session?.access_token) throw new Error("Sign in to synchronize shared cases.");
+    const response = await fetch(`${String(config.accessApiBaseUrl || config.apiBaseUrl).replace(/\/$/, "")}/api/atlas/moveout/state`, {
+      method: "POST", headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Shared case storage is unavailable.");
+    return result;
+  }
+  function sharedMoveOutMessage(message) {
+    sharedMoveOutStatus = message;
+    const node = document.getElementById("atlas-shared-moveout-status");
+    if (node) node.textContent = message;
+  }
+  async function ensureSharedMoveOutStore() {
+    const owner = sharedMoveOutActor();
+    if (!owner) throw new Error("Sign in to synchronize shared cases.");
+    if (sharedMoveOutOwner !== owner) {
+      sharedMoveOutStore?.stop(); sharedMoveOutStore = null; sharedMoveOutLoading = null; sharedMoveOutOwner = owner;
+    }
+    if (!sharedMoveOutLoading) sharedMoveOutLoading = import(sharedMoveOutUrl).then(module => {
+      if (sharedMoveOutActor() !== owner) throw new Error("Signed-in user changed.");
+      sharedMoveOutStore = module.createMoveOutStore({
+        request: sharedMoveOutRequest, read: () => normalizeState(safeJsonParse(storageGet(STORAGE_KEY), {})),
+        write: state => { if (!storageSet(STORAGE_KEY, JSON.stringify(state))) throw new Error("Local recovery cache could not save."); },
+        photo: inspectionPhotoDataUrl, storage: localStorage, actor: sharedMoveOutActor, onStatus: sharedMoveOutMessage
+      });
+      return sharedMoveOutStore;
+    }).catch(error => { sharedMoveOutLoading = null; throw error; });
+    return sharedMoveOutLoading;
+  }
+  function scheduleSharedMoveOutSave() {
+    if (!sharedMoveOutActor()) return;
+    clearTimeout(sharedMoveOutTimer);
+    sharedMoveOutMessage("Local recovery saved; shared synchronization pending");
+    sharedMoveOutTimer = setTimeout(() => window.atlasCsSyncSharedMoveOuts(false), 600);
+  }
+  window.atlasCsSyncSharedMoveOuts = async (redraw = true) => {
+    try {
+      const store = await ensureSharedMoveOutStore();
+      await store.synchronize(getScopedProperties(loadState()).map(p => p.name));
+      if (redraw && !window.AtlasMoveOutWorkspace?.hasUnsaved?.() && !document.getElementById("mo-case")) renderActiveTab();
+    } catch (error) { sharedMoveOutMessage("NOT SYNCHRONIZED — " + error.message); }
+  };
+  window.atlasCsFlushSharedMoveOut = async name => { const store = await ensureSharedMoveOutStore(); await store.flush([name]); };
+  window.atlasCsExportMoveOutRecovery = async () => {
+    const state = loadState();
+    const names = new Set(getScopedProperties(state).map(p => p.name));
+    const scoped = Object.fromEntries(["moveOutCases", "inspections", "morfRecords"].map(key => [key, state[key].filter(row => names.has(row.propertyName))]));
+    let recovery;
+    try { recovery = await resolveInspectionPhotoExport(scoped); }
+    catch (error) { sharedMoveOutMessage("Recovery export could not include all originals: " + error.message); return; }
+    const blob = new Blob([JSON.stringify(recovery, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob), link = document.createElement("a"); link.href = url; link.download = "ATLAS-moveout-local-recovery.json"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+
   function loadState() {
     removeLegacyStorage();
     const state = normalizeState(safeJsonParse(storageGet(STORAGE_KEY), {}));
@@ -2230,7 +2296,9 @@
       ...state,
       updatedAt: new Date().toISOString()
     });
-    return storageSet(STORAGE_KEY, JSON.stringify(next));
+    const saved = storageSet(STORAGE_KEY, JSON.stringify(next));
+    if (saved) scheduleSharedMoveOutSave();
+    return saved;
   }
 
   function renderActiveTab() {
@@ -6442,7 +6510,7 @@
   }
 
   const moveOutModuleUrl = typeof document !== "undefined" && document.currentScript?.src
-    ? new URL("features/moveout-workspace.mjs?v=7d5f9fd346e219e7", document.currentScript.src).href : "./features/moveout-workspace.mjs?v=7d5f9fd346e219e7";
+    ? new URL("features/moveout-workspace.mjs?v=7953dc6a8c5519a6", document.currentScript.src).href : "./features/moveout-workspace.mjs?v=7953dc6a8c5519a6";
   let moveOutWorkspacePromise, moveOutWorkspaceError = "";
   function ensureMoveOutWorkspace() {
     if (!moveOutWorkspacePromise) moveOutWorkspacePromise = import(moveOutModuleUrl).then(module => {
@@ -7817,7 +7885,7 @@
   function renderImportHistory(state) {
     if (!state.importHistory.length) return "";
     return `<div class="cs-alert">
-      Last import: ${escapeHtml(state.importHistory[0].propertyName)} - ${escapeHtml(state.importHistory[0].fileName)} - ${escapeHtml(state.importHistory[0].rowCount)} rows - ${escapeHtml(formatDate(state.importHistory[0].importedAt) || state.importHistory[0].importedAt)}
+      Latest retained import record (active row lineage not verified): ${escapeHtml(state.importHistory[0].propertyName)} - ${escapeHtml(state.importHistory[0].fileName)} - ${escapeHtml(state.importHistory[0].rowCount)} rows - ${escapeHtml(formatDate(state.importHistory[0].importedAt) || state.importHistory[0].importedAt)}
     </div>`;
   }
 
@@ -7879,7 +7947,12 @@
     const adminArchitectureButton = currentUserCanUseAdministrativeView()
       ? `<button type="button" class="cs-btn" onclick="atlasCsSetModule('architecture')">${icon("blueprint")} Architecture</button>`
       : "";
+    if (!sharedMoveOutLoading && sharedMoveOutActor()) setTimeout(() => window.atlasCsSyncSharedMoveOuts(), 0);
     return `<div class="cs-page">
+      <div class="cs-alert"><span id="atlas-shared-moveout-status" role="status">${escapeHtml(sharedMoveOutStatus)}</span>
+        <button type="button" class="cs-btn" onclick="atlasCsSyncSharedMoveOuts()">Refresh / retry shared cases</button>
+        <button type="button" class="cs-btn" onclick="atlasCsExportMoveOutRecovery()">Export local recovery</button>
+      </div>
       <div class="cs-command-header">
         <div>
           <div class="cs-kicker">ATLAS Central Services</div>

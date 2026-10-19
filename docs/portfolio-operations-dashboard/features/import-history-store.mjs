@@ -102,6 +102,45 @@ async function fullState(db,storeName,head,signal){
   for(const [name,collection]of Object.entries(head.collections)) value[name]=(await readVerified(db,storeName,collection.pages,signal)).flat();
   return value;
 }
+// Export complete logical history through bounded token batches. Collection
+// pages and rollback snapshots are consumed in order, never held together.
+async function* exportHistoryTokenBatches(db,storeName,key,head,archiveRecord,archive,signal){
+  const [base]=await readVerified(db,storeName,[head.state],signal),prefs=(await preferences(db,storeName,key,signal)).values;
+  const plain={...base,...prefs},fields=Array.from(new Set([...Object.keys(base),...Object.keys(head.collections),...Object.keys(prefs)]));
+  const wrapper={...archiveRecord,value:null};
+  yield [['object']];
+  for(const field of Object.keys(wrapper)){
+    check(signal);yield [['key']];yield archive.recordTokens(field);
+    if(field!=='value'){yield archive.recordTokens(wrapper[field]);continue;}
+    yield [['object']];
+    for(const name of fields){
+      check(signal);yield [['key']];yield archive.recordTokens(name);
+      if(!head.collections[name]||Object.hasOwn(prefs,name)){yield archive.recordTokens(plain[name]);continue;}
+      yield [['array']];
+      for(const page of head.collections[name].pages){
+        check(signal);const [rows]=await readVerified(db,storeName,[page],signal);
+        if(!Array.isArray(rows))throw fail('Import history collection page is invalid.','history_integrity');
+        for(const row of rows){
+          check(signal);
+          if(name!=='batches'||!row.beforeSnapshotRef){yield archive.recordTokens(row);continue;}
+          const ref=row.beforeSnapshotRef;
+          if(!ref.sha256||ref.batchId!==row.id||JSON.stringify(head.snapshotRefs?.[row.id])!==JSON.stringify(ref))throw fail('Rollback snapshot reference is invalid.','history_integrity');
+          const stored=await readOne(db,storeName,ref.storageKey,signal);
+          if(!stored||stored.sha256!==ref.sha256)throw fail('Rollback snapshot fingerprint changed.','history_integrity');
+          const {beforeSnapshotRef,...batch}=row;
+          yield [['object']];
+          for(const key of Object.keys(batch)){yield [['key']];yield archive.recordTokens(key);yield archive.recordTokens(batch[key]);}
+          yield [['key']];yield archive.recordTokens('beforeSnapshot');
+          yield* iterateStoredHistoryTokens(stored,{signal,expectedCapturedAt:ref.capturedAt});
+          yield [['end']];
+        }
+      }
+      yield [['end']];
+    }
+    yield [['end']];
+  }
+  yield [['end']];
+}
 function summaryBatch(batch){
   return {id:batch.id,createdAt:batch.createdAt,approvedAt:batch.approvedAt,uploader:batch.uploader,approver:batch.approver,status:batch.status,summary:batch.summary,rollback:batch.rollback,beforeSnapshotRef:batch.beforeSnapshotRef,archiveIds:batch.archiveIds,
     files:(batch.files||[]).map(f=>({fileName:f.fileName,reportType:f.reportType,reportTypeLabel:f.reportTypeLabel})),routeMessages:(batch.routeMessages||[]).slice(0,2)};
@@ -144,7 +183,7 @@ export function historyChanges(value,base={}){
   return result;
 }
 const withoutMeta = value => {const {historyStorage,...rest}=value||{};return rest;};
-async function prepare(key,value,prior,revision,{trustedData=false}={}){
+async function prepare(key,value,prior,revision,{trustedData=false,initialSnapshots}={}){
   const records=new Map(),prefix=historyNamespace(key),state={...withoutMeta(value)},oldBatches=new Map((prior?.batches||[]).map(b=>[b.id,b]));
   const add=async(kind,v)=>{const hash=await (trustedData?hashStoredHistory(v):historyHash(v)),storageKey=prefix+kind+':'+hash;records.set(storageKey,await storageRecord(storageKey,v,hash,new Date().toISOString(),{trustedData}));return {key:storageKey,hash};};
   const unique=(rows,name)=>{const ids=new Set();for(const row of rows){if(!row?.id || ids.has(row.id))throw fail(`Import ${name} identity is missing or duplicated.`,'history_integrity');ids.add(row.id);}};
@@ -165,7 +204,8 @@ async function prepare(key,value,prior,revision,{trustedData=false}={}){
       const {beforeSnapshot,beforeSnapshotRef,...rest}=batch;batches.push({...rest,beforeSnapshotRef:snapshotRef});continue;
     }
     if(batch.beforeSnapshotRef){
-      if(!oldRef?.sha256 || JSON.stringify(batch.beforeSnapshotRef)!==JSON.stringify(oldRef))throw fail('Import rollback evidence changed or is unavailable. Reload before saving.','history_integrity');
+      const allowed=oldRef||initialSnapshots?.get(batch.id);
+      if(!allowed?.sha256 || JSON.stringify(batch.beforeSnapshotRef)!==JSON.stringify(allowed))throw fail('Import rollback evidence changed or is unavailable. Reload before saving.','history_integrity');
     }else if(oldRef)throw fail('A history save cannot remove rollback evidence.','history_integrity');
     batches.push(batch);
    }
@@ -188,6 +228,36 @@ async function prepare(key,value,prior,revision,{trustedData=false}={}){
   const base=Object.fromEntries(Object.entries(state).filter(([name])=>!COLLECTIONS.includes(name)));
   const head={__atlasImportHistory:HISTORY_FORMAT,revision,updatedAt:new Date().toISOString(),state:await add('state',base),collections,snapshotRefs:Object.fromEntries((state.batches||[]).filter(b=>b.beforeSnapshotRef).map(b=>[b.id,b.beforeSnapshotRef])),current:{groups,summary:currentSummary}};
   return {head,records:[...records.values()]};
+}
+
+// Only the verified archive initializer supplies these independently retained
+// snapshots. Ordinary save/initialize requests cannot opt into this path.
+export async function prepareStreamedInitialHistory(key,value,initialSnapshots){
+  assertFull(value);
+  if(!value||typeof value!=='object'||Array.isArray(value)||isSplitHistory(value)||value.historyStorage?.view||!Array.isArray(value.batches)||!Array.isArray(value.sourceArchive))throw fail('The archive does not contain complete portable import evidence.','history_full_required');
+  return prepare(key,value,null,1,{trustedData:true,initialSnapshots});
+}
+
+export async function* iterateStoredHistoryTokens(row,{signal,expectedCapturedAt}={}){
+  const {tokensFromJsonBlob,createJsonTokenSink}=await import('./migration-token-stream.mjs');
+  const module=await import('../migration-archive.js?v=feebb32ebbdf48d8');
+  const archive=module.default||globalThis.AtlasMigrationArchive;
+  const hash=createJsonTokenSink({signal,hashOnly:true});
+  const observer=expectedCapturedAt===undefined?null:archive.createSelectedTokenReader(path=>!path.length||path.length===1&&path[0]==='capturedAt');
+  let finished=false;
+  try{
+    let batches;
+    if(row?.encoding){
+      if(row.encoding!==STORED_JSON_ENCODING||!(row.value instanceof Blob))throw fail('Import evidence encoding is invalid.','history_integrity');
+      batches=tokensFromJsonBlob(row.value,{gzip:true,signal});
+    }else{
+      batches=(async function*(){let batch=[],size=0;for(const token of archive.recordTokens(row?.value,1048576)){batch.push(token);size+=JSON.stringify(token).length;if(size>=65536){yield batch;batch=[];size=0;}}if(batch.length)yield batch;})();
+    }
+    for await(const batch of batches){check(signal);for(const token of batch){hash.add(token);observer?.accept(token);}await hash.flush();yield batch;}
+    const result=await hash.finish();finished=true;
+    if(result.sha256!==row.sha256)throw fail('Import evidence is missing or its fingerprint changed.','history_integrity');
+    if(observer&&String(observer.finish()?.capturedAt||'')!==String(expectedCapturedAt))throw fail('Retained rollback timestamp changed.','history_integrity');
+  }finally{if(!finished)await hash.abort(Error('History token reader did not complete'));}
 }
 
 // Compare protected records and the root in the same transaction as all evidence writes.
@@ -267,6 +337,23 @@ export async function executeHistory(request) {
   const {operation,dbName,storeName,key,signal}=request;
   check(signal);const db=await open(dbName,storeName);
   try{
+    if(operation==='recordExportPacked'){
+      const stored=request.storedRecord;
+      if(!stored||stored.encoding!==STORED_JSON_ENCODING||!stored.archiveRecordMetadata||stored.archiveRecordMetadata.key!==stored.key||!/^record-\d+\.json$/.test(request.archiveName))throw fail('Invalid encoded retained archive record.','history_integrity');
+      const module=await import('../migration-archive.js?v=feebb32ebbdf48d8');check(signal);
+      const archive=module.default||globalThis.AtlasMigrationArchive;
+      const tokens=(async function*(){
+        yield [['object']];
+        const metadata={...stored.archiveRecordMetadata,value:null};
+        for(const field of Object.keys(metadata)){
+          yield [['key']];yield archive.recordTokens(field);
+          if(field==='value')yield* iterateStoredHistoryTokens(stored,{signal});
+          else yield archive.recordTokens(metadata[field]);
+        }
+        yield [['end']];
+      })();
+      return archive.packTokenRecord(request.archiveName,tokens,{onProgress:progress=>{check(signal);request.onArchiveProgress?.(progress);}});
+    }
     if(operation==='legacy'){
       if(!/^[a-f0-9]{64}$/.test(request.hash||''))throw fail('A retained legacy fingerprint is required.','history_integrity');
       return (await readVerified(db,storeName,[{key:historyNamespace(key)+'legacy:'+request.hash,hash:request.hash}],signal))[0];
@@ -303,16 +390,21 @@ export async function executeHistory(request) {
     if(operation==='save'&&!existing){assertFull(request.value);const prepared=await prepare(key,request.value,null,1);await commit(db,storeName,key,existing,prepared);return {revision:1,verified:true,historyStorage:meta(prepared.head,'full')};}
     const {record,head}=await headFor(db,storeName,key,signal,{record:existing});
     if(operation==='current')return await currentState(db,storeName,key,head,request.scope,signal);
-    if(operation==='load'||operation==='export'||operation==='exportPacked'){
+    if(operation==='exportPacked'){
+      if(request.archiveRecord?.key!==key||!/^record-\d+\.json$/.test(request.archiveName))throw fail('Invalid archive record request.');
+      const module=await import('../migration-archive.js?v=feebb32ebbdf48d8');check(signal);
+      const archive=module.default||globalThis.AtlasMigrationArchive;
+      const packed=await archive.packTokenRecord(request.archiveName,exportHistoryTokenBatches(db,storeName,key,head,request.archiveRecord,archive,signal),{onProgress:progress=>{check(signal);request.onArchiveProgress?.(progress);}});
+      check(signal);const current=await readOne(db,storeName,key,signal);
+      if(!isSplitHistory(current?.value)||current.value.revision!==head.revision)throw conflict();
+      return packed;
+    }
+    if(operation==='load'||operation==='export'){
       const value=await fullState(db,storeName,head,signal);
-      if(operation==='export'||operation==='exportPacked'){
+      if(operation==='export'){
         if(Array.isArray(value.batches))value.batches=await Promise.all(value.batches.map(async batch=>{if(!batch.beforeSnapshotRef)return batch;const {beforeSnapshotRef,...rest}=batch;return {...rest,beforeSnapshot:await snapshotFor(db,storeName,head,batch,signal)};}));
         const exported={...value,...(await preferences(db,storeName,key,signal)).values};
-        if(operation==='export')return exported;
-        if(request.archiveRecord?.key!==key||!/^record-\d+\.json$/.test(request.archiveName))throw fail('Invalid archive record request.');
-        const module=await import('../migration-archive.js?v=98a40a0bb65e0c38');check(signal);
-        const archive=module.default||globalThis.AtlasMigrationArchive;
-        return await archive.packRecord(request.archiveName,{...request.archiveRecord,value:exported},{onProgress:()=>{check(signal);request.onArchiveProgress?.();}});
+        return exported;
       }
       const prefs=await preferences(db,storeName,key,signal);
       return {...value,...prefs.values,historyStorage:{...meta(head,'full'),preferencesRevision:prefs.revision}};

@@ -4336,6 +4336,13 @@ async function withAtlasStateStore(mode, action) {
 
 async function atlasStateGetValue(key) {
   const record = await withAtlasStateStore("readonly", store => store.get(String(key)));
+  if(record?.encoding==='gzip-json-v1') {
+    if(!(record.value instanceof Blob))throw new Error('Retained source encoding is invalid.');
+    const value=await new Response(record.value.stream().pipeThrough(new DecompressionStream('gzip'))).json();
+    const {hashJson}=await import('./features/bounded-json-integrity.mjs?v=a4ea8821996c3b57');
+    if(await hashJson(value)!==record.sha256)throw new Error('Retained source fingerprint changed.');
+    return value;
+  }
   return record?.value ?? null;
 }
 
@@ -16943,7 +16950,7 @@ async function atlasLegacyEvidenceRecoveryController() {
   const central=window.ATLAS_CENTRAL;
   if(atlasLegacyEvidenceRecovery&&atlasLegacyEvidenceRecoveryCentral===central)return atlasLegacyEvidenceRecovery;
   atlasLegacyEvidenceRecovery?.cancel();
-  const module=await import('./features/legacy-evidence-recovery.mjs?v=70cd49135f2f5a05');
+  const module=await import('./features/legacy-evidence-recovery.mjs?v=2d3675c8a2cc9a85');
   if(central!==window.ATLAS_CENTRAL)throw new Error("The current ATLAS account changed.");
   atlasLegacyEvidenceRecoveryCentral=central;
   atlasLegacyEvidenceRecovery=module.createLegacyEvidenceRecovery({central,getContext:()=>({validated:atlasWorkspaceAccess.validated,current:central===window.ATLAS_CENTRAL&&getAtlasCentralStatus().configured&&getAtlasCentralStatus().signedIn&&!atlasWorkspaceAccess.controller?.signal.aborted,database:ATLAS_STATE_DB_NAME,epoch:atlasWorkspaceAccess.epoch}),onState:renderAtlasLegacyEvidenceRecoveryStatus});
@@ -18629,20 +18636,123 @@ function markAtlasCentralReconciliationReviewed() {
   renderTab();
 }
 
-async function testAtlasCentralRollbackSnapshot() {
-  try {
-    await window.AtlasFeatures?.load("zip");
-    const payload = await buildAtlasCentralAppStatePayload();
-    const validation = await window.AtlasMigrationArchive.verifyRestore(payload.bundle, JSZip);
-    downloadAtlasJsonFile({...payload.bundle, rollbackValidation:validation, reconciliation:payload.reconciliation}, `atlas_rollback_test_snapshot_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-    atlasCentralRuntimeMeta.rollbackTestedAt = new Date().toISOString();
-    setAtlasCentralRuntimeMessage(`Rollback restored and verified ${validation.recordsRestored} records in isolated storage. The complete rollback file was downloaded.`);
-    renderTab();
-  } catch (error) {
-    setAtlasCentralRuntimeMessage("", error?.message || String(error));
-    alert(`Rollback snapshot test failed: ${error?.message || error}`);
-    renderTab();
+async function verifyAtlasTypedRollbackArchive(archive,{onProgress,isCurrent}={}) {
+  const check=()=>{if(!isCurrent?.())throw new DOMException('Workspace changed during rollback verification.','AbortError');};
+  check();const binding=await atlasStateGetValue('atlas_workspace_source_v2');check();
+  if(!binding?.identity||!atlasWorkspaceAccess.validated)throw new Error('A verified scoped workspace is required to verify a complete rollback archive.');
+  const {initializeCanonicalEvidence}=await import('./features/canonical-evidence.mjs');check();
+  return initializeCanonicalEvidence({archive,options:{storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,filePrefix:DATA_IMPORT_FILE_ARCHIVE_PREFIX,source:{...binding.identity,archiveHash:archive.sha256},mode:'proof'},
+    signal:atlasWorkspaceAccess.controller?.signal,assertCurrent:check,onProgress,
+    beforeCommit:async()=>check(),readPart:async(ref,signal)=>{const row=await window.ATLAS_CENTRAL.readDocument(ref.documentKey,{signal});check();return row?.payload?.data;}
+  });
+}
+
+let atlasArchiveUiProgress = null;
+
+function atlasArchiveProgressText(state = atlasArchiveUiProgress) {
+  if (!state || !state.current()) return '';
+  const phases = {preparing:'Preparing archive',downloading:'Downloading source parts',verifying:'Verifying retained evidence',retaining:'Retaining verified evidence',packing:'Building rollback archive',verifying_bundle:'Checking archive contents',download:'Preparing rollback file download',complete:'Complete'};
+  const title = state.kind === 'rollback' ? 'Rollback test' : 'Original import evidence';
+  if (state.error) return `${title} stopped: ${state.error} Retry when the issue is resolved.`;
+  const phase = phases[state.phase] || String(state.phase || 'Preparing').replace(/[_-]/g,' ');
+  const count = Number.isInteger(state.completed) && Number.isInteger(state.total) && state.completed >= 0 && state.total >= state.completed
+    ? ` · ${state.completed.toLocaleString()} of ${state.total.toLocaleString()} completed`
+    : Number.isInteger(state.completed) && state.completed >= 0 && state.total === null ? ` · ${state.completed.toLocaleString()} completed; total not yet known` : '';
+  return `${title}: ${phase}${count}${state.running ? '. Please keep this tab open.' : '.'}`;
+}
+
+function refreshAtlasArchiveProgress() {
+  const text = atlasArchiveProgressText();
+  document.querySelectorAll('[data-atlas-archive-progress]').forEach(node => {
+    node.textContent = text; node.hidden = !text;
+    node.setAttribute('aria-busy',String(!!atlasArchiveUiProgress?.running && !!text));
+  });
+  document.querySelectorAll('[data-atlas-rollback-test]').forEach(node => { node.disabled = !!testAtlasCentralRollbackSnapshot.inFlight; });
+}
+
+function renderAtlasArchiveProgress() {
+  const text = atlasArchiveProgressText();
+  return `<div data-atlas-archive-progress role="status" aria-live="polite" aria-busy="${!!atlasArchiveUiProgress?.running && !!text}" ${text ? '' : 'hidden'} style="font-size:.75rem;padding:10px 0">${escapeHtml(text)}</div>`;
+}
+
+function beginAtlasArchiveProgress(kind, current) {
+  const state = {kind,current,running:true,phase:'preparing',completed:null,total:null,error:''};
+  atlasArchiveUiProgress = state;
+  const progress = (event = {}) => {
+    if (atlasArchiveUiProgress !== state || !current()) return;
+    state.phase = event.phase === 'complete' && kind === 'rollback' ? 'Original evidence ready' : String(event.phase || state.phase);
+    state.completed = Number.isInteger(event.completed) ? event.completed : null;
+    state.total = Number.isInteger(event.total) ? event.total : null;
+    if (event.phase === 'failed') {state.running=false;state.error=String(event.error || 'Verification did not complete.');}
+    if (event.phase === 'complete' && kind !== 'rollback') state.running=false;
+    refreshAtlasArchiveProgress();
+  };
+  progress.finish = error => {
+    if (atlasArchiveUiProgress !== state || !current()) return;
+    state.running=false;state.phase=error?'failed':'complete';state.completed=null;state.total=null;state.error=error?String(error.message||error):'';
+    refreshAtlasArchiveProgress();
+  };
+  progress({phase:'preparing'});
+  return progress;
+}
+
+function updateAtlasArchiveProgress(event = {}) {
+  if (!atlasArchiveUiProgress?.running || !atlasArchiveUiProgress.current()) {
+    const context = captureAtlasAuxiliaryContext();
+    if (!context.current()) return;
+    atlasArchiveUiProgress = null;
+    const reporter = beginAtlasArchiveProgress('evidence',context.current);
+    atlasArchiveUiProgress.reporter = reporter;
   }
+  atlasArchiveUiProgress.reporter?.(event);
+}
+
+function testAtlasCentralRollbackSnapshot() {
+  if (testAtlasCentralRollbackSnapshot.inFlight) return testAtlasCentralRollbackSnapshot.inFlight;
+  const context = captureAtlasAuxiliaryContext(), renderContext = getAtlasRenderContextKey();
+  const replayGeneration = Number(window.AtlasReplayGeneration || 0);
+  const current = () => context.current() && renderContext === getAtlasRenderContextKey()
+    && replayGeneration === Number(window.AtlasReplayGeneration || 0) && !window.AtlasReplayWriteFence;
+  const check = () => {if (!current()) throw new DOMException('Workspace changed during rollback verification.','AbortError');};
+  const task = Promise.resolve().then(async () => {
+    let progress;
+    try {
+      check();
+      // This attempt cannot satisfy the gate until its own restore/readback succeeds.
+      atlasCentralRuntimeMeta.rollbackTestedAt = '';
+      setAtlasCentralRuntimeMessage('Preparing rollback verification.');
+      progress = beginAtlasArchiveProgress('rollback',current);
+      atlasArchiveUiProgress.reporter = progress;
+      renderTab();
+      await window.AtlasFeatures?.load('zip');check();
+      const payload = await buildAtlasCentralAppStatePayload({onProgress:progress});check();
+      progress({phase:'verifying'});
+      const validation = await verifyAtlasTypedRollbackArchive(payload.bundle,{onProgress:progress,isCurrent:current});check();
+      if (validation?.passed !== true || typeof payload.bundle?.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(payload.bundle.sha256)
+        || validation.archiveSha256 !== payload.bundle.sha256 || !Number.isSafeInteger(payload.bundle.recordCount) || payload.bundle.recordCount < 0
+        || validation.recordsRestored !== payload.bundle.recordCount + 1) throw new Error('Rollback readback did not verify the exact archive and every retained record.');
+      progress({phase:'download'});
+      downloadAtlasJsonFile({...payload.bundle,rollbackValidation:validation,reconciliation:payload.reconciliation},`atlas_rollback_test_snapshot_${new Date().toISOString().replace(/[:.]/g,'-')}.json`);check();
+      atlasCentralRuntimeMeta.rollbackTestedAt = new Date().toISOString();
+      setAtlasCentralRuntimeMessage(`Rollback restored and verified ${validation.recordsRestored} records in isolated storage. The complete rollback file was downloaded.`);
+      progress.finish();
+      return true;
+    } catch (error) {
+      if (current()) {
+        atlasCentralRuntimeMeta.rollbackTestedAt = '';
+        setAtlasCentralRuntimeMessage('',error?.message || String(error));
+        progress?.finish(error);
+        alert(`Rollback snapshot test failed: ${error?.message || error}`);
+      }
+      return false;
+    } finally {
+      if (testAtlasCentralRollbackSnapshot.inFlight === task) testAtlasCentralRollbackSnapshot.inFlight = null;
+      if (current()) {refreshAtlasArchiveProgress();renderTab();}
+    }
+  });
+  testAtlasCentralRollbackSnapshot.inFlight = task;
+  refreshAtlasArchiveProgress();
+  return task;
 }
 
 function disableAtlasLegacySharedBundle() {
@@ -19081,7 +19191,7 @@ function redactAtlasCentralStorageBundle(bundle = {}) {
   return next;
 }
 
-async function packAtlasCentralRetainedRecords(bundle, { expandImportHistory = false } = {}) {
+async function packAtlasCentralRetainedRecords(bundle, { expandImportHistory = false, onProgress } = {}) {
   const prefix = '__atlas_archive_capture_v1:', captureId = crypto.randomUUID(), inventory = [];
   const central = window.ATLAS_CENTRAL, actor = central?.getSession?.()?.user?.id ?? null;
   // Periodic authorization verification changes only this observation timestamp.
@@ -19181,18 +19291,21 @@ async function packAtlasCentralRetainedRecords(bundle, { expandImportHistory = f
     };
     const readPackedRecord = async (index,name) => {
       assertCurrent();const item=inventory[index];
-      if(item.sourceKey!==DATA_IMPORT_2_STATE_KEY)return null;
       const captured=await nativeIO('readonly',store=>store.get(item.key));assertCurrent();
       if(!owns(captured,item)||captured.record?.key!==item.sourceKey)throw new Error('A captured archive record is missing or changed. No archive was created.');
-      if(captured.record.value?.__atlasImportHistory!==2)return null;
+      if(captured.record.encoding==='gzip-json-v1'){
+        const packed=await dataImportHistoryOperation('recordExportPacked',{archiveName:name,storedRecord:captured.record});
+        assertCurrent();return packed;
+      }
+      if(item.sourceKey!==DATA_IMPORT_2_STATE_KEY||captured.record.value?.__atlasImportHistory!==2)return null;
       if(!expandImportHistory)throw new Error('Complete portable import history requires its verified history reader. No archive was created.');
       const {value:capturedHead,...archiveRecord}=captured.record;
-      const packed=await dataImportHistoryOperation('exportPacked',{archiveName:name,archiveRecord});
+      const packed=await dataImportHistoryOperation('exportPacked',{archiveName:name,archiveRecord,onProgress});
       const latest=await nativeIO('readonly',store=>store.get(DATA_IMPORT_2_STATE_KEY));assertCurrent();
       if(JSON.stringify(latest?.value)!==JSON.stringify(capturedHead))throw new Error('Import history changed during archive preparation. Reload before creating an archive.');
       return packed;
     };
-    const archive = await window.AtlasMigrationArchive.packRecords(bundle, {count:inventory.length, readRecord, readPackedRecord}, JSZip);
+    const archive = await window.AtlasMigrationArchive.packRecords(bundle, {count:inventory.length, readRecord, readPackedRecord}, JSZip, {onProgress});
     assertCurrent();
     return archive;
   } catch (error) { failure = error; throw error; }
@@ -19223,7 +19336,8 @@ async function packAtlasCentralRetainedRecords(bundle, { expandImportHistory = f
 }
 
 async function buildAtlasCentralAppStatePayload() {
-  const {onCaptured} = arguments[0] || {};
+  const {onCaptured,onProgress} = arguments[0] || {};
+  onProgress?.({phase:'preparing'});
   const replayGeneration=Number(window.AtlasReplayGeneration||0);
   window.AtlasReplayWriteFence?.assert(null);
   await Promise.all([window.AtlasFeatures?.load("zip"), window.AtlasFeatures?.load("migrationArchive")]);
@@ -19251,9 +19365,11 @@ async function buildAtlasCentralAppStatePayload() {
   const capturedSharedData = JSON.parse(JSON.stringify(migrationSnapshot.sharedData || normalizeAtlasSharedData(atlasSharedData)));
   // Full evidence is read only for an explicit export/publication. Do not clone
   // unrelated daily backups or immutable history chunks into the main thread.
-  if (typeof ensureAtlasCanonicalImportEvidence === 'function') await ensureAtlasCanonicalImportEvidence();
-  const portableBundle = await packAtlasCentralRetainedRecords(bundle, { expandImportHistory: true });
-  const restored = await window.AtlasMigrationArchive.verifyBundle(portableBundle, JSZip);
+  if (typeof ensureAtlasCanonicalImportEvidence === 'function') await ensureAtlasCanonicalImportEvidence({onProgress});
+  onProgress?.({phase:'packing'});
+  const portableBundle = await packAtlasCentralRetainedRecords(bundle, { expandImportHistory: true, onProgress });
+  onProgress?.({phase:'verifying_bundle'});
+  const restored = await window.AtlasMigrationArchive.verifyBundle(portableBundle, JSZip, {onProgress});
   // Compare the exact captured bytes, not a fresh summary of mutable live state.
   if (JSON.stringify(restored.bundle) !== capturedBundleJson) throw new Error("Migration round-trip data differs from the captured source. No central publication was performed.");
   const migrationSnapshotHash=await hashAtlasMigrationPayload(migrationSnapshot);
@@ -19304,7 +19420,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
       throw new Error("Complete the read-only snapshot upload, reconciliation review, and rollback snapshot test before saving Atlas state to central.");
     }
     const documentKey = getAtlasCentralDocumentKey();
-    const {ensureWorkspaceProjection} = await import("./features/workspace-publication.mjs?v=53ea91fb9ac74941");
+    const {ensureWorkspaceProjection} = await import("./features/workspace-publication.mjs?v=0fb9d6bd296e145c");
     const cacheModule = await import("./features/workspace-publication-cache.mjs");
     const finishProjection = async (document, archive) => {
       if (!current()) throw new DOMException("Workspace changed", "AbortError");
@@ -19331,7 +19447,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
       if (!current()) throw new DOMException("Workspace changed", "AbortError");
       if (publicationCacheCapture) {
         try {
-          const bootstrap = await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
+          const bootstrap = await import("./features/workspace-bootstrap.mjs?v=99b459d64e31f2cb");
           const workspace = await bootstrap.readWorkspace(window.ATLAS_CENTRAL,{signal:atlasWorkspaceAccess.controller?.signal});
           if (await cacheModule.acknowledgePublicationCache(withAtlasStateStore,publicationCacheCapture,workspace,bootstrap.sourceIdentity(document),current,bootstrap.stableJson)) {
             atlasWorkspaceAccess.source = {...workspace.source,verifiedAt:new Date().toISOString(),cached:false,localChanges:false};
@@ -19366,7 +19482,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
       const existing = await window.ATLAS_CENTRAL.readDocument(documentKey);
       if (!current()) throw new DOMException('Workspace changed','AbortError');
       if (existing) {
-        const {capturePublicationBaseline} = await import('./features/workspace-publication-baseline.mjs?v=c429aebdfdb27182');
+        const {capturePublicationBaseline} = await import('./features/workspace-publication-baseline.mjs?v=2e2c6f207da18a60');
         publicationBaseline = await capturePublicationBaseline(window.ATLAS_CENTRAL,{documentKey,dbName:database,
           readSource:()=>atlasStateGetValue('atlas_workspace_source_v2'),current,signal:atlasWorkspaceAccess.controller?.signal});
         await publicationBaseline.assertRemote(existing);
@@ -19468,7 +19584,7 @@ async function pullAtlasCentralAppState({ silent = false } = {}) {
     downloadAtlasJsonFile(rollbackSnapshot, `atlas_local_rollback_before_central_pull_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
     suppressAtlasCentralAutosave = true;
     try {
-      const {sourceIdentity} = await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
+      const {sourceIdentity} = await import("./features/workspace-bootstrap.mjs?v=99b459d64e31f2cb");
       check();
       await applyDashboardStorageBundle(remote.payload.bundle,{canonicalSource:sourceIdentity(remote)});check();
     } finally {
@@ -20592,33 +20708,24 @@ async function applyDashboardStorageBundle(bundle, {canonicalSource = null} = {}
   let retainedRecords = [];
   let intendedCommunityData = null;
   if (bundle?.bundleType === "atlas_migration_archive_v1") {
-    await Promise.all([window.AtlasFeatures?.load("zip"), window.AtlasFeatures?.load("migrationArchive")]);checkRestore();
-    const archive=await window.AtlasMigrationArchive.hydrate(bundle, window.ATLAS_CENTRAL,{signal:restoreSignal});checkRestore();
-    const unpacked = await window.AtlasMigrationArchive.unpack(archive, JSZip);
+    const archive=bundle;
+    const {sourceIdentity,stableJson}=await import('./features/workspace-bootstrap.mjs?v=99b459d64e31f2cb');checkRestore();
+    const binding=await atlasStateGetValue('atlas_workspace_source_v2');checkRestore();
+    if(!binding?.identity||!atlasWorkspaceAccess.validated)throw new Error('A verified scoped workspace is required to restore retained evidence.');
+    if(await withAtlasStateStore('readonly',store=>store.getKey(DATA_IMPORT_2_STATE_KEY)))throw new Error('This browser already has retained import evidence. Reconcile it before restoring another archive.');
     checkRestore();
-    if (canonicalSource) {
-      if (canonicalSource.archiveHash !== bundle.sha256) throw new Error("The requested canonical restore source does not match this archive.");
-      const {sourceIdentity,stableJson}=await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
-      checkRestore();
-      const latest=await window.ATLAS_CENTRAL.readDocument(canonicalSource.documentKey,{signal:restoreSignal});checkRestore();
-      if(stableJson(sourceIdentity(latest))!==stableJson(canonicalSource))throw new Error("The central source changed while restoring. Refresh before continuing.");
-    }
-    bundle = unpacked.bundle;
-    retainedRecords = unpacked.records;
-    for (const record of retainedRecords) {
-      if (!(record.key === DATA_IMPORT_2_STATE_KEY || record.key.startsWith(DATA_IMPORT_FILE_ARCHIVE_PREFIX) || record.key.startsWith("occupancy_replay_backup:"))) throw new Error("Unexpected migration archive record");
-      if (record.key === DATA_IMPORT_2_STATE_KEY) {
-        if (record.value?.__atlasImportHistory === 2 || record.value?.historyStorage?.view) throw new Error("This archive does not contain complete portable import evidence.");
-        let existing = await atlasStateGetValue(record.key);checkRestore();
-        if (existing?.__atlasImportHistory === 2) {
-          const {historyOperation} = await import('./features/import-history.mjs?v=7db7a83280571f55');
-          checkRestore();
-          existing = await historyOperation({operation:'load',dbName:restoreDatabase,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal:restoreSignal});checkRestore();
-        }
-        if (existing?.canonicalRecords?.length && JSON.stringify(existing.canonicalRecords) !== JSON.stringify(record.value?.canonicalRecords)) throw new Error("This browser has different import facts. Reconcile its import history before pulling central data.");
-      }
-    }
+    if(canonicalSource&&(canonicalSource.archiveHash!==archive.sha256||stableJson(canonicalSource)!==stableJson(binding.identity)))throw new Error('The requested canonical restore source does not match this workspace.');
+    const {initializeCanonicalEvidence}=await import('./features/canonical-evidence.mjs');checkRestore();
+    const restored=await initializeCanonicalEvidence({
+      archive,options:{dbName:restoreDatabase,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,filePrefix:DATA_IMPORT_FILE_ARCHIVE_PREFIX,source:binding.identity,mode:canonicalSource?'canonical':'local-restore',includeBundle:true},
+      signal:restoreSignal,assertCurrent:checkRestore,onProgress:event=>{checkRestore();window.updateAtlasArchiveProgress?.(event);},
+      readPart:async(ref,signal)=>{const row=await window.ATLAS_CENTRAL.readDocument(ref.documentKey,{signal});checkRestore();return row?.payload?.data;},
+      beforeCommit:async()=>{checkRestore();if(canonicalSource){const latest=await window.ATLAS_CENTRAL.readDocument(canonicalSource.documentKey,{signal:restoreSignal});checkRestore();if(stableJson(sourceIdentity(latest))!==stableJson(canonicalSource))throw new Error('The central source changed while restoring. Refresh before continuing.');}}
+    });checkRestore();
+    if(!restored?.verified||restored.records!==archive.recordCount)throw new Error('The complete archive restore could not be verified.');
+    bundle=restored.bundle;
   }
+
   const incoming = (bundle && typeof bundle === "object" && bundle.keys && typeof bundle.keys === "object")
     ? bundle.keys
     : null;
@@ -20683,7 +20790,7 @@ async function applyDashboardStorageBundle(bundle, {canonicalSource = null} = {}
   let committedCommunityData = intendedCommunityData;
   const importRecord = retainedRecords.find(record => record.key === DATA_IMPORT_2_STATE_KEY);
   if (importRecord) {
-    const {historyOperation} = await import('./features/import-history.mjs?v=7db7a83280571f55');
+    const {historyOperation} = await import('./features/import-history.mjs?v=30981952c2c17e0e');
     checkRestore();
     const options = {dbName:restoreDatabase,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal:restoreSignal};
     const current = await historyOperation({...options,operation:'load'});checkRestore();
@@ -21744,7 +21851,7 @@ function renderPortfolioScopedImportTab() {
   const residentDataImport = typeof window.renderApplicationResidentDataImportPanel === "function"
     ? window.renderApplicationResidentDataImportPanel() + (window.renderAtlasScreeningImport?.() || "")
     : "";
-  return importFreshnessPanel + residentDataImport + renderPortfolioScopePanel("Portfolio Data Import Workspace", "Stage, validate, and apply portfolio uploads here before they flow into reporting and dashboard screens.", cardsHtml, bodyHtml);
+  return renderAtlasArchiveProgress() + importFreshnessPanel + residentDataImport + renderPortfolioScopePanel("Portfolio Data Import Workspace", "Stage, validate, and apply portfolio uploads here before they flow into reporting and dashboard screens.", cardsHtml, bodyHtml);
 }
 
 function renderSetupTab() {
@@ -46011,7 +46118,7 @@ async function dataImportHistoryOperation(operation, extra = {}) {
   for(const sourceSignal of sourceSignals){if(sourceSignal.aborted)abort();else sourceSignal.addEventListener('abort',abort,{once:true});}
   try {
     check();
-    const {historyOperation} = await import("./features/import-history.mjs?v=7db7a83280571f55");check();
+    const {historyOperation} = await import("./features/import-history.mjs?v=30981952c2c17e0e");check();
     if(dataImport2State.historyStorage?.view==='remote'&&!['preferences','preferenceValues','records'].includes(operation)){
       if(typeof ensureAtlasCanonicalImportEvidence!=='function')throw new Error('Complete canonical import evidence is not available yet.');
       await ensureAtlasCanonicalImportEvidence({signal});check();
@@ -46099,7 +46206,7 @@ function persistDataImport2State(options = {}) {
     if(context!==getAtlasRenderContextKey())throw new Error('Workspace changed before import history could be saved.');
     if(options.reviewBatch && options.reviewRevision !== dataImportHistoryRevision) throw new Error('Import history changed. Refresh the review before saving your answer.');
     if(!base)throw new Error('Load verified import history before saving changes.');
-    const {historyChanges}=await import('./features/import-history-store.mjs?v=4c23a92990579aaa');
+    const {historyChanges}=await import('./features/import-history-store.mjs?v=e310a5426db3487e');
     const changes=historyChanges(value,base);
     if(value.historyStorage?.view==='full'&&(Object.keys(changes.set).length||Object.keys(changes.upsert).length)){
       const receipt=await dataImportHistoryOperation('save',{value,expectedRevision:dataImportHistoryRevision});
@@ -52455,6 +52562,7 @@ function renderLegacyCSVTab() {
     ? window.renderApplicationResidentDataImportPanel() + (window.renderAtlasScreeningImport?.() || "")
     : "";
   return [
+    renderAtlasArchiveProgress(),
     importFreshnessPanel,
     residentDataImport,
     renderWindowshadeCard({
@@ -54944,7 +55052,7 @@ async function refreshAtlasCanonicalWorkspace({force=false} = {}) {
   const current = () => generation === atlasCanonicalWorkspaceGeneration && !signal?.aborted && epoch === atlasWorkspaceAccess.epoch && actor === atlasWorkspaceActorKey() && dbName === ATLAS_STATE_DB_NAME
     && !window.AtlasReplayWriteFence && replayGeneration===Number(window.AtlasReplayGeneration||0);
   const task = (async () => {
-    const module = await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
+    const module = await import("./features/workspace-bootstrap.mjs?v=99b459d64e31f2cb");
     if (!current()) return false;
     const {source,projection,binding} = await module.readWorkspace(window.ATLAS_CENTRAL,{signal});
     if (!current()) return false;
@@ -54998,37 +55106,22 @@ async function refreshAtlasCanonicalWorkspace({force=false} = {}) {
   try {return await task;} finally {if(atlasCanonicalWorkspacePromise===task){atlasCanonicalWorkspacePromise=null;atlasCanonicalWorkspaceContext=null;}}
 }
 let atlasCanonicalImportEvidencePromise = null;
-async function stageAtlasCanonicalImportEvidence(signal,check) {
-  // Keep the complete archive and decoded records out of the caller's frame.
-  // Split and compress immutable history before the atomic copy so neither the
-  // complete legacy root nor expanded snapshots cross an IndexedDB clone boundary.
-  const module=await import('./features/workspace-bootstrap.mjs?v=def9f708c09aca8f');check();
+async function stageAtlasCanonicalImportEvidence(signal,check,onProgress) {
+  const module=await import('./features/workspace-bootstrap.mjs?v=99b459d64e31f2cb');check();
   const remote=await window.ATLAS_CENTRAL.readDocument(getAtlasCentralDocumentKey(),{signal});check();
   const source=module.sourceIdentity(remote),binding=await atlasStateGetValue('atlas_workspace_source_v2');check();
   if(module.stableJson(source)!==module.stableJson(binding?.identity))throw new Error('The central archive changed. Refresh before loading its evidence.');
-  await Promise.all([window.AtlasFeatures.load('zip'),window.AtlasFeatures.load('migrationArchive')]);check();
-  const archive=await window.AtlasMigrationArchive.hydrate(remote.payload.bundle,window.ATLAS_CENTRAL,{signal});check();
-  const {records}=await window.AtlasMigrationArchive.unpack(archive,JSZip);check();
-  for(const record of records)if(!(record.key===DATA_IMPORT_2_STATE_KEY||record.key.startsWith(DATA_IMPORT_FILE_ARCHIVE_PREFIX)||record.key.startsWith('occupancy_replay_backup:')))throw new Error('Unexpected archive evidence record.');
-  const importRecord=records.find(record=>record.key===DATA_IMPORT_2_STATE_KEY);
-  if(!importRecord||records.filter(record=>record.key===DATA_IMPORT_2_STATE_KEY).length!==1)throw new Error('Canonical archive requires exactly one complete import history record.');
-  const {executeHistory}=await import('./features/import-history-store.mjs?v=4c23a92990579aaa');check();
-  const options={dbName:ATLAS_STATE_DB_NAME,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal};
-  const receiptKey='atlas_import_archive_receipt_v2',sourceKey='atlas_workspace_source_v2';
-  const retained=records.filter(record=>record.key!==DATA_IMPORT_2_STATE_KEY);
-  const captured=(await executeHistory({...options,operation:'records',keys:[sourceKey,receiptKey,...retained.map(record=>record.key)],raw:true})).records;check();
-  if(module.stableJson(captured[0].value?.value?.identity)!==module.stableJson(source))throw new Error('Retained import evidence or its source changed. Reload before continuing.');
-  // An absent history root is not permission to replace other local evidence.
-  if(captured.slice(1).some(row=>row.value!==null))throw new Error('This browser has retained archive evidence. Reconcile before replacing it.');
-  const protectedRecords=[
-    {key:sourceKey,record:captured[0].value,expectedHash:captured[0].hash},
-    {key:receiptKey,value:{archiveHash:source.archiveHash,version:source.version,parentDocument:source.documentKey,records:records.length,verifiedAt:new Date().toISOString()},expectedHash:captured[1].hash},
-    ...retained.map((record,index)=>({key:record.key,record,expectedHash:captured[index+2].hash}))
-  ];
-  await executeHistory({...options,operation:'initialize',value:importRecord.value,updatedAt:importRecord.updatedAt,records:protectedRecords});
-  check();
+  const {initializeCanonicalEvidence}=await import('./features/canonical-evidence.mjs');check();
+  await initializeCanonicalEvidence({
+    archive:remote.payload.bundle,
+    options:{dbName:ATLAS_STATE_DB_NAME,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,filePrefix:DATA_IMPORT_FILE_ARCHIVE_PREFIX,source},
+    signal,assertCurrent:check,onProgress,
+    readPart:async(ref,partSignal)=>{const row=await window.ATLAS_CENTRAL.readDocument(ref.documentKey,{signal:partSignal});check();return row?.payload?.data;},
+    beforeCommit:async()=>{check();const latest=await window.ATLAS_CENTRAL.readDocument(getAtlasCentralDocumentKey(),{signal});check();if(module.stableJson(module.sourceIdentity(latest))!==module.stableJson(source))throw new Error('The central archive changed while preparing evidence. Refresh before continuing.');}
+  });check();
 }
-async function ensureAtlasCanonicalImportEvidence({signal:externalSignal} = {}) {
+
+async function ensureAtlasCanonicalImportEvidence({signal:externalSignal,onProgress=window.updateAtlasArchiveProgress} = {}) {
   if (!window.AtlasStartupImportProjection || dataImport2State.historyStorage?.view !== "remote") return;
   const epoch=atlasWorkspaceAccess.epoch,dbName=ATLAS_STATE_DB_NAME,context=getAtlasRenderContextKey();
   const existingTask=atlasCanonicalImportEvidencePromise;
@@ -55045,17 +55138,17 @@ async function ensureAtlasCanonicalImportEvidence({signal:externalSignal} = {}) 
     if(existing){
       const receipt=await atlasStateGetValue('atlas_import_archive_receipt_v2');check();
       if(receipt?.archiveHash!==projectionSource.archiveHash)throw new Error('This browser has retained import evidence from another source version. Reconcile before replacing it.');
-      const {historyOperation}=await import('./features/import-history.mjs?v=7db7a83280571f55');check();
+      const {historyOperation}=await import('./features/import-history.mjs?v=30981952c2c17e0e');check();
       const state=await historyOperation({operation:'current',dbName,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal});check();
       window.AtlasStartupImportProjection=null;dataImport2State=normalizeDataImport2State(state);rememberDataImportHistoryState();return;
     }
-    await stageAtlasCanonicalImportEvidence(signal,check);check();
-    const {historyOperation}=await import('./features/import-history.mjs?v=7db7a83280571f55');check();
+    await stageAtlasCanonicalImportEvidence(signal,check,event=>{check();onProgress?.(event);});check();
+    const {historyOperation}=await import('./features/import-history.mjs?v=30981952c2c17e0e');check();
     const state=await historyOperation({operation:'current',dbName,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal});check();
     window.AtlasStartupImportProjection=null;dataImport2State=normalizeDataImport2State(state);rememberDataImportHistoryState();
   })();
   const handle={task,epoch,dbName,context,controller};atlasCanonicalImportEvidencePromise=handle;
-  try{return await task;}finally{for(const sourceSignal of [parentSignal,externalSignal])sourceSignal?.removeEventListener('abort',abort);if(atlasCanonicalImportEvidencePromise===handle)atlasCanonicalImportEvidencePromise=null;}
+  try{return await task;}catch(error){try{check();onProgress?.({phase:'failed',error:error.message});}catch{}throw error;}finally{for(const sourceSignal of [parentSignal,externalSignal])sourceSignal?.removeEventListener('abort',abort);if(atlasCanonicalImportEvidencePromise===handle)atlasCanonicalImportEvidencePromise=null;}
 }
 
 async function initializeAtlasDashboard() {
@@ -55078,7 +55171,7 @@ async function initializeAtlasDashboard() {
     if (getAtlasCentralStatus().configured) {
       if (!central?.getSession()?.user) {finishAtlasStartupLoadingState(); renderTab(); return;}
       const profile = await measureAtlasStartupStage("authorization",()=>central.fetchProfile({claim:false,signal:atlasWorkspaceAccess.controller.signal}));
-      const module = await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
+      const module = await import("./features/workspace-bootstrap.mjs?v=99b459d64e31f2cb");
       const namespace = await module.accessNamespace(central,profile);
       if (epoch !== atlasWorkspaceAccess.epoch) return;
       if (!await switchAtlasWorkspaceStorage(namespace,()=>epoch === atlasWorkspaceAccess.epoch) || epoch !== atlasWorkspaceAccess.epoch) return;
@@ -55166,7 +55259,7 @@ async function verifyAtlasWorkspaceAccess() {
   const epoch=atlasWorkspaceAccess.epoch;
   atlasAccessVerificationPromise=(async()=>{
     const profile=await window.ATLAS_CENTRAL.fetchProfile({claim:false,signal:atlasWorkspaceAccess.controller?.signal});
-    const module=await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
+    const module=await import("./features/workspace-bootstrap.mjs?v=99b459d64e31f2cb");
     const namespace=await module.accessNamespace(window.ATLAS_CENTRAL,profile);
     if(epoch!==atlasWorkspaceAccess.epoch)return;
     if(namespace!==ATLAS_STATE_DB_NAME){

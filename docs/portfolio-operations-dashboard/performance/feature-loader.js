@@ -4,7 +4,7 @@
   const base = new URL('../', document.currentScript.src);
   const pending = new Map();
   const definitions = {
-    reports: { src: new URL('features/reports-workspace.js?v=90437c78aedd7d07', base).href, ready: () => !!root.AtlasReports },
+    reports: { src: new URL('features/reports-workspace.js?v=b1f605175eed2ced', base).href, ready: () => !!root.AtlasReports },
     importWorkspace: { src: new URL('features/import-workspace.js?v=55ba359f07b452ed', base).href, ready: () => !!root.AtlasImportWorkspace },
     bonusWorkspace: { src: new URL('features/bonus-workspace.js?v=5b55a9f8df2d0326', base).href, ready: () => !!root.AtlasBonusWorkspace },
     adminWorkspace: { src: new URL('features/admin-workspace.js?v=34c8f7b9b5e86064', base).href, ready: () => !!root.AtlasAdminWorkspace },

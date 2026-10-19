@@ -734,8 +734,8 @@
     ]
   },
   "centralization/atlas-central-client.js": {
-    "sha256": "148f1a19501de55f",
-    "bytes": 94320,
+    "sha256": "dc7e33cbeca2181d",
+    "bytes": 94629,
     "references": [
       [
         "index.html",
@@ -1290,7 +1290,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "8ef8e09b0e605baa",
+    "sha256": "202915f13359ba78",
     "bytes": 3135993,
     "references": [
       [
@@ -2352,8 +2352,8 @@
     ]
   },
   "features/reports-workspace.js": {
-    "sha256": "90437c78aedd7d07",
-    "bytes": 139646,
+    "sha256": "b1f605175eed2ced",
+    "bytes": 152356,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2452,7 +2452,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "7a68214a2711ffb8",
+    "sha256": "221b232709ce43d9",
     "bytes": 3962,
     "references": [
       [

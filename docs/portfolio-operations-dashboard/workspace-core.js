@@ -49485,7 +49485,7 @@ function dataImportReplayRecoveryReader(entry) {
     if(!actor||typeof source.archiveId!=="string"||!source.archiveId||typeof source.fileHash!=="string"||!source.fileHash||central!==window.ATLAS_CENTRAL||actor!==(central?.getSession?.()?.user?.id||"")||access!==authScope()||database!==ATLAS_STATE_DB_NAME
       ||(borrowedPrimaryPromise&&borrowedPrimaryPromise!==(typeof atlasStateDbPromise==="undefined"?null:atlasStateDbPromise))
       ||!dataImportCanManageArchitecture()||!atlasAccessDecision(7).ok||!(dataImport2State.sourceArchive||[]).includes(entry)
-      ||entry.importStatus!=="Approved"||!["rent_roll","trending_occupancy"].includes(entry.reportType)||!Array.isArray(entry.communities)||!entry.communities.length||!entry.communities.every(name=>atlasDashboardUserCanSeeCommunityName(name))
+      ||entry.importStatus!=="Approved"||!["rent_roll","trending_occupancy","box_score"].includes(entry.reportType)||!Array.isArray(entry.communities)||!entry.communities.length||!entry.communities.every(name=>atlasDashboardUserCanSeeCommunityName(name))
       ||entry.id!==source.archiveId||entry.fileHash!==source.fileHash||entry.batchId!==source.batchId||entry.reportType!==source.reportType)throw new Error("The authorized source or workspace changed. Reopen the intended source before inspecting.");
   };
   const names=async()=>{check();if(typeof indexedDB.databases!=="function")return null;const list=await indexedDB.databases();check();return new Set(list.map(row=>row.name));};

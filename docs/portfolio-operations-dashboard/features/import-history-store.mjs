@@ -1,5 +1,5 @@
 // Immutable evidence is stored separately from the bounded views used by the UI.
-import {hashJson,jsonEqual} from './bounded-json-integrity.mjs?v=a4ea8821996c3b57';
+import {hashJson,jsonEqual,jsonChunks} from './bounded-json-integrity.mjs?v=a4ea8821996c3b57';
 export const HISTORY_FORMAT = 2;
 export const HISTORY_PAGE_SIZE = 100;
 const COLLECTIONS = ['batches','sourceArchive','canonicalRecords','lineage','reconciliationLog','mappingAuditTrail','exceptions','leadSourceHistoricalRevisions','temporaryIgnoreHistory'];
@@ -17,6 +17,27 @@ export async function historyHash(value) {
 // Only values read from native IndexedDB, or copied directly from those values,
 // may use this path. Request-provided values keep the generic serializer.
 const hashStoredHistory=value=>hashJson(value,{trustedData:true});
+
+// IndexedDB clones ordinary objects when put/add is called. The legacy corpus
+// and a single rollback snapshot can exceed that clone's memory limit even
+// though hashing and archive transport are already bounded. Store large JSON as
+// a compressed Blob; its logical SHA-256 and exact JSON order remain unchanged.
+const STORED_JSON_LIMIT=512*1024, STORED_JSON_ENCODING='gzip-json-v1';
+async function storageRecord(key,value,sha256,updatedAt,{trustedData=false}={}){
+  let length=0;
+  for(const part of jsonChunks(value,{rejectUnsupported:true,trustedData})){length+=part.length;if(length>STORED_JSON_LIMIT)break;}
+  if(length<=STORED_JSON_LIMIT)return {key,value,sha256,updatedAt};
+  const parts=jsonChunks(value,{rejectUnsupported:true,trustedData}),encoder=new TextEncoder();
+  const stream=new ReadableStream({pull(controller){try{const next=parts.next();if(next.done)controller.close();else controller.enqueue(encoder.encode(next.value));}catch(error){controller.error(error);}},cancel(){parts.return?.();}});
+  const blob=await new Response(stream.pipeThrough(new CompressionStream('gzip'))).blob();
+  return {key,value:blob,encoding:STORED_JSON_ENCODING,sha256,updatedAt};
+}
+async function storedValue(row){
+  if(!row?.encoding)return row?.value;
+  if(row.encoding!==STORED_JSON_ENCODING||!(row.value instanceof Blob))throw fail('Import evidence encoding is invalid.','history_integrity');
+  try{return await new Response(row.value.stream().pipeThrough(new DecompressionStream('gzip'))).json();}
+  catch{throw fail('Import evidence cannot be decoded.','history_integrity');}
+}
 
 // Compatibility for existing in-memory callers. Split records must use the transaction API.
 export function projectHistory(state) {
@@ -70,7 +91,7 @@ async function readVerified(db,storeName,refs,signal){
   // Bounded fetches also keep explicit full exports from issuing unbounded IDB requests.
   for(let offset=0;offset<refs.length;offset+=16){
     check(signal);const subset=refs.slice(offset,offset+16),rows=await readMany(db,storeName,subset.map(r=>r.key),signal);
-    for(const ref of subset){const row=rows.get(ref.key);if(!row || row.sha256!==ref.hash || await hashStoredHistory(row.value)!==ref.hash)throw fail('Import evidence is missing or its fingerprint changed.','history_integrity');result.push(row.value);}
+    for(const ref of subset){const row=rows.get(ref.key),value=await storedValue(row);if(!row || row.sha256!==ref.hash || await hashStoredHistory(value)!==ref.hash)throw fail('Import evidence is missing or its fingerprint changed.','history_integrity');result.push(value);}
   }
   return result;
 }
@@ -125,7 +146,7 @@ export function historyChanges(value,base={}){
 const withoutMeta = value => {const {historyStorage,...rest}=value||{};return rest;};
 async function prepare(key,value,prior,revision,{trustedData=false}={}){
   const records=new Map(),prefix=historyNamespace(key),state={...withoutMeta(value)},oldBatches=new Map((prior?.batches||[]).map(b=>[b.id,b]));
-  const add=async(kind,v)=>{const hash=await (trustedData?hashStoredHistory(v):historyHash(v)),storageKey=prefix+kind+':'+hash;records.set(storageKey,{key:storageKey,value:v,sha256:hash,updatedAt:new Date().toISOString()});return {key:storageKey,hash};};
+  const add=async(kind,v)=>{const hash=await (trustedData?hashStoredHistory(v):historyHash(v)),storageKey=prefix+kind+':'+hash;records.set(storageKey,await storageRecord(storageKey,v,hash,new Date().toISOString(),{trustedData}));return {key:storageKey,hash};};
   const unique=(rows,name)=>{const ids=new Set();for(const row of rows){if(!row?.id || ids.has(row.id))throw fail(`Import ${name} identity is missing or duplicated.`,'history_integrity');ids.add(row.id);}};
   unique(state.batches||[],'batch');unique(state.sourceArchive||[],'source');
   for(const collection of ['batches','sourceArchive']){
@@ -205,7 +226,7 @@ async function headFor(db,storeName,key,signal,read){
   if(['remote','current','page'].includes(record?.value?.historyStorage?.view))throw fail('Complete canonical import evidence has not been loaded.','history_full_required');
   const legacy=record?.value||{},prepared=await prepare(key,legacy,null,1,{trustedData:true});
   check(signal);
-  const hash=await hashStoredHistory(legacy),original={key:historyNamespace(key)+'legacy:'+hash,value:legacy,sha256:hash,updatedAt:record?.updatedAt||new Date().toISOString()};
+  const hash=await hashStoredHistory(legacy),original=await storageRecord(historyNamespace(key)+'legacy:'+hash,legacy,hash,record?.updatedAt||new Date().toISOString(),{trustedData:true});
   await commit(db,storeName,key,record,prepared,[],original);
   return {record:{key,value:prepared.head,updatedAt:prepared.head.updatedAt},head:prepared.head};
 }
@@ -246,12 +267,28 @@ export async function executeHistory(request) {
   const {operation,dbName,storeName,key,signal}=request;
   check(signal);const db=await open(dbName,storeName);
   try{
+    if(operation==='legacy'){
+      if(!/^[a-f0-9]{64}$/.test(request.hash||''))throw fail('A retained legacy fingerprint is required.','history_integrity');
+      return (await readVerified(db,storeName,[{key:historyNamespace(key)+'legacy:'+request.hash,hash:request.hash}],signal))[0];
+    }
     if(operation==='records'){
       const records=await readMany(db,storeName,request.keys||[],signal);
       return {records:await Promise.all((request.keys||[]).map(async key=>{const value=request.raw?(records.get(key)??null):(records.get(key)?.value??null);return {key,value,hash:await historyHash(value)};}))};
     }
-    // Compatibility: initial save is the only write that can omit its revision.
+    // Initial creation may omit a revision; every existing root remains guarded.
     const existing=await readOne(db,storeName,key,signal);
+    if(operation==='initialize'){
+      // Called directly by archive hydration: posting the complete corpus to a
+      // worker would itself create another unbounded structured clone.
+      if(existing)throw conflict();
+      assertFull(request.value);
+      if(!request.value||typeof request.value!=='object'||isSplitHistory(request.value))throw fail('Complete canonical import evidence is required.','history_full_required');
+      const extras=await protectedExtras(db,storeName,request.records||[],signal);
+      const prepared=await prepare(key,request.value,null,1);
+      const hash=await historyHash(request.value),original=await storageRecord(historyNamespace(key)+'legacy:'+hash,request.value,hash,request.updatedAt||new Date().toISOString());
+      check(signal);await commit(db,storeName,key,existing,prepared,extras,original);
+      return {verified:true,revision:1,historyStorage:meta(prepared.head,'full')};
+    }
     // Preferences are independent of the canonical evidence. A remote startup
     // projection can use them without downloading or initializing that evidence.
     if(operation==='preferenceValues')return await preferences(db,storeName,key,signal);
@@ -273,7 +310,7 @@ export async function executeHistory(request) {
         const exported={...value,...(await preferences(db,storeName,key,signal)).values};
         if(operation==='export')return exported;
         if(request.archiveRecord?.key!==key||!/^record-\d+\.json$/.test(request.archiveName))throw fail('Invalid archive record request.');
-        const module=await import('../migration-archive.js?v=8cb6480f96dd3ca0');check(signal);
+        const module=await import('../migration-archive.js?v=98a40a0bb65e0c38');check(signal);
         const archive=module.default||globalThis.AtlasMigrationArchive;
         return await archive.packRecord(request.archiveName,{...request.archiveRecord,value:exported},{onProgress:()=>{check(signal);request.onArchiveProgress?.();}});
       }

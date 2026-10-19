@@ -26,7 +26,7 @@ try{
  assert.equal(current.historyStorage.revision,1);assert.equal(current.historyStorage.counts.batches,73);assert.equal(current.historyStorage.counts.sourceArchive,193);assert.equal(current.historyStorage.counts.lineage,13051);
  assert.equal(current.batches.length,25);assert.equal(current.lineage.length,1);assert.equal(current.lineage[0].importedValue,0);assert.equal(current.canonicalRecords[0].values.physical_occupancy,0);assert.equal(current.canonicalRecords[0].values.resident,undefined);assert.equal(current.canonicalRecords[0].fileHash,'source-hash');assert.equal(current.canonicalRecords[0].sectionPeriod.asOf,'2026-08-31');assert.equal(current.reconciliationLog.length,0);
  assert.equal((await run('current',{scope:{communityNames:['B']}})).canonicalRecords.length,0);
- assert.deepEqual((await get(historyNamespace(key)+'legacy:'+originalHash)).value,source,'Original migration backup is exact and retained');
+ assert.deepEqual(await run('legacy',{hash:originalHash}),source,'Original migration backup is exact and retained');
  reads.length=0;await run('current');assert(!reads.some(k=>k.includes(':snapshot:')||k.includes(':lineage:')||k.includes(':canonicalRecords:')),'Current reads never hydrate the historical corpus or rollback payloads');
  reads.length=0;const pref=await run('preferences',{value:{activeView:'history',mappingSearch:'zero'}});assert.equal(pref.preferencesRevision,1);assert(!reads.some(k=>k.includes(':snapshot:')||k.includes(':lineage:')||k.includes(':canonicalRecords:')),'Preference changes do not read evidence');
  await assert.rejects(run('preferences',{value:{lineage:[]}}),/preferences only/);
@@ -56,7 +56,7 @@ try{
  const raw=await run('records',{keys:[rawKey],raw:true});
  await run('update',{expectedRevision:4,set:{rawPreserved:true},records:[{key:rawKey,record:{key:rawKey,value:{blob,fileName:'original.txt'},otherMetadata:'preserved'},expectedHash:raw.records[0].hash}]});
  assert.equal(await (await get(rawKey)).value.blob.text(),'immutable source bytes');assert.equal((await get(rawKey)).otherMetadata,'preserved');
- const ref=latest.batches[1].beforeSnapshotRef,storedSnapshot=await get(ref.storageKey);await put([{...storedSnapshot,value:{...storedSnapshot.value,savedData:{corrupt:true}}}]);await assert.rejects(run('snapshot',{batch:latest.batches[1]}),/fingerprint/);
+ const ref=latest.batches[1].beforeSnapshotRef,storedSnapshot=await get(ref.storageKey);await put([{...storedSnapshot,value:{...storedSnapshot.value,savedData:{corrupt:true}}}]);await assert.rejects(run('snapshot',{batch:latest.batches[1]}),/fingerprint|encoding/);
  const controller=new AbortController();controller.abort();await assert.rejects(run('current',{signal:controller.signal}),/abort/i);
  assert(isSplitHistory((await get(key)).value));
  console.log('PASS split import history: complete73batches/193sources/13051lineage, immutable hashrefs, scoped zero provenance, lazy pages, preference isolation, revision conflicts, atomic publication/rollback, corruption denial, cancellation and retained legacy evidence');

@@ -16,7 +16,7 @@ try{
   IDBObjectStore.prototype.get=function(name){if(name===key&&this.transaction.mode==='readwrite')rootComparisons++;return originalGet.call(this,name);};
   assert.equal(await historyHash(source),expectedHash,'The existing SHA-256(JSON.stringify) fingerprint is unchanged');
   const current=await run('current');assert.equal(current.historyStorage.counts.batches,4);assert.equal(rootComparisons,1);
-  const retained=(await io('readonly',store=>store.get(historyNamespace(key)+'legacy:'+expectedHash))).value;
+  const retained=await run('legacy',{hash:expectedHash});
   assert.deepEqual(retained,source,'The complete original source remains retained under its existing fingerprint');
   const full=await run('load');assert.equal(full.batches.length,4);assert(full.batches.every(batch=>batch.beforeSnapshotRef?.sha256));
   // A protected record may change after its fingerprint is accepted but before

@@ -9199,8 +9199,8 @@
   }
 
   function renewalSheetLooksLikeTemplate(sheetName = "") {
-    const key = normalizeKey(sheetName);
-    return key.includes("template") || key.includes("setup") || key.includes("instruction") || key.includes("legend");
+    if (typeof window.renewalWorkbookSheetIsReference === "function") return window.renewalWorkbookSheetIsReference(sheetName);
+    return /^(setup|templates?|examples?|samples?|instructions?|legend|read[ _-]?me)(?:\b|_)/i.test(cleanString(sheetName));
   }
 
   function normalizeSpreadsheetColor(value) {
@@ -9270,7 +9270,7 @@
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, cellStyles: true });
       workbook.SheetNames.forEach(sheetName => {
         const sheetMonthIdx = parseMonthIndexValue(sheetName);
-        if (sheetMonthIdx === null && renewalSheetLooksLikeTemplate(sheetName)) return;
+        if (renewalSheetLooksLikeTemplate(sheetName)) return;
         const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });
         const sheetRows = typeof window !== "undefined" && typeof window.annotateRenewalRowsWithWorkbookVisualStatus === "function"
           ? window.annotateRenewalRowsWithWorkbookVisualStatus(rawRows, workbook.Sheets[sheetName])

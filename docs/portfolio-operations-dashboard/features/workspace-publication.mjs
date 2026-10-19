@@ -1,4 +1,4 @@
-import {sourceIdentity,projectionKey,publishProjection} from './workspace-bootstrap.mjs?v=dc0f1662271fe2f2';
+import {sourceIdentity,projectionKey,publishProjection} from './workspace-bootstrap.mjs?v=def9f708c09aca8f';
 
 // Called only after an explicit parent archive publication or its exact retry.
 // A failed second step must never masquerade as a failed parent write: the UI

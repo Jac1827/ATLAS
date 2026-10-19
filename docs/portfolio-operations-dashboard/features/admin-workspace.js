@@ -210,6 +210,7 @@ function renderAtlasCentralPlatformPanel() {
   const magicLinkBusy = atlasCentralAuthActionState.magicLink;
   const passwordSignInBusy = atlasCentralAuthActionState.passwordSignIn;
   const passwordSignUpBusy = atlasCentralAuthActionState.passwordSignUp;
+  const legacyEvidence=getAtlasLegacyEvidenceRecoveryState();
   const documentVersion = atlasCentralRuntimeMeta.lastDocumentVersion
     ? `Local browser is aligned to central version ${atlasCentralRuntimeMeta.lastDocumentVersion}.`
     : "This browser has not been aligned to a central document version yet.";
@@ -302,6 +303,13 @@ function renderAtlasCentralPlatformPanel() {
           <button class="btn btn-gray btn-sm" onclick="testAtlasCentralRollbackSnapshot()">Test Rollback Snapshot</button>
           <button class="btn btn-gray btn-sm" onclick="disableAtlasLegacySharedBundle()" ${autosaveReady ? "" : "disabled"}>Disable Legacy Shared Bundle</button>
         </div>
+        ${profile?.role === "admin" && atlasWorkspaceAccess.validated ? `<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+          <div style="font-size:.72rem;font-weight:600">Older Local Import Evidence</div>
+          <div style="font-size:.66rem;margin:6px 0">Downloads original import history, source files and saved community data from this browser's older ATLAS storage. It does not merge, restore or publish data.</div>
+          <button id="atlas-legacy-evidence-preview" class="btn btn-gray btn-sm" onclick="inspectAtlasLegacyLocalEvidence()" ${["checking","exporting"].includes(legacyEvidence.phase) ? "disabled" : ""}>Preview Older Local Evidence</button>
+          <button id="atlas-legacy-evidence-download" class="btn btn-gray btn-sm" onclick="exportAtlasLegacyLocalEvidence()" ${legacyEvidence.phase !== "ready" ? "disabled" : ""}>Download Original Evidence</button>
+          <div id="atlas-legacy-evidence-status" role="status" style="font-size:.66rem;margin-top:6px">${escapeHtml(legacyEvidence.message)}</div>
+        </div>` : ""}
         <div style="font-size:0.62rem;color:#d29922;margin-top:8px">Pulling central state downloads a rollback snapshot before changing this browser. Saving central state is blocked if the central version changed since this browser last pulled or saved. Autosave unlocks only after snapshot upload, reconciliation review, and rollback testing.</div>
       </div>
       <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">

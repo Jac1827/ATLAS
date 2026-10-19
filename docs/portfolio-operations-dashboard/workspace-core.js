@@ -6915,6 +6915,7 @@ function normalizeOpsGlobalData(data) {
     portfolioReportMode: input.portfolioReportMode === "regional" ? "regional" : "owner",
     atlasWorkbookImportMode: input.atlasWorkbookImportMode === "merge_scope" ? "merge_scope" : "replace_scope",
     portfolioMonthScopeByPeriod: normalizePortfolioMonthScopeByPeriod(input.portfolioMonthScopeByPeriod),
+    reportHubRecipientKeys: Array.isArray(input.reportHubRecipientKeys) ? [...new Set(input.reportHubRecipientKeys.filter(key => typeof key === "string"))] : [],
     reportHubType: normalizeReportHubType(input.reportHubType),
     reportHubPerspective: normalizeReportHubPerspective(input.reportHubPerspective),
     reportHubMonth: Number.isInteger(input.reportHubMonth) ? clampNumber(input.reportHubMonth, 0, 11) : DEFAULT_CURRENT_MONTH,
@@ -6975,6 +6976,7 @@ function applyOpsGlobalData(data) {
   portfolioReportMode = normalized.portfolioReportMode;
   atlasWorkbookImportMode = normalized.atlasWorkbookImportMode;
   portfolioMonthScopeByPeriod = normalized.portfolioMonthScopeByPeriod;
+  reportHubRecipientKeys = normalized.reportHubRecipientKeys;
   reportHubType = normalized.reportHubType;
   reportHubPerspective = normalized.reportHubPerspective;
   reportHubMonth = normalized.reportHubMonth;
@@ -7093,6 +7095,7 @@ function persistOpsGlobalData(options = {}) {
     portfolioReportMode,
     atlasWorkbookImportMode,
     portfolioMonthScopeByPeriod,
+    reportHubRecipientKeys,
     reportHubType,
     reportHubPerspective,
     reportHubMonth,
@@ -8490,6 +8493,7 @@ function defaultDlrDeliverySettings() {
     autoDraftOnOpen: false,
     toInvestorContacts: true,
     roleRecipients: [],
+    employeeRecipientIds: [],
     cc: "",
     bcc: "",
     sendOnWeekends: false,
@@ -8562,6 +8566,7 @@ function normalizeDlrDeliverySettings(input = {}) {
     autoDraftOnOpen: Boolean(input.autoDraftOnOpen),
     toInvestorContacts: input.toInvestorContacts !== undefined ? Boolean(input.toInvestorContacts) : defaults.toInvestorContacts,
     roleRecipients: Array.from(new Set(roleRecipients)),
+    employeeRecipientIds: Array.isArray(input.employeeRecipientIds) ? [...new Set(input.employeeRecipientIds.map(id => String(id || "").trim()).filter(Boolean))] : [],
     cc: normalizeEmailListInput(String(input.cc || defaults.cc)),
     bcc: normalizeEmailListInput(String(input.bcc || defaults.bcc)),
     sendOnWeekends: Boolean(input.sendOnWeekends),
@@ -10749,10 +10754,10 @@ function renderPropGrid() {
       : Number(summary?.occupancyBaseUnits ?? totalUnitsForCurrent) || 0;
     const occupiedPct = occupancyBaseUnits > 0
       ? ((occupiedUnits / occupancyBaseUnits) * 100)
-      : 0;
+      : null;
     const leasedPct = occupancyBaseUnits > 0
       ? ((leasedUnits / occupancyBaseUnits) * 100)
-      : 0;
+      : null;
     const applicationsMtd = isPortfolioWorkspaceSelected() ? Math.round(aggregate.applications ?? 0) : Math.round(appMetrics.applications || 0);
     const approvalsMtd = isPortfolioWorkspaceSelected() ? Math.round(aggregate.applicationsApproved ?? 0) : Math.round(appMetrics.approvals || 0);
     const pendingMtd = isPortfolioWorkspaceSelected()
@@ -10771,14 +10776,14 @@ function renderPropGrid() {
       </div>
       <button type="button" class="workspace-snapshot-tile" onmousedown="return queueCurrentWorkspaceTab(2)">
         <div class="workspace-snapshot-label">Physical Occupancy</div>
-        <div class="workspace-snapshot-value">${occupiedPct.toFixed(1)}%</div>
-        <div class="workspace-snapshot-sub">${occupiedUnits} occupied of ${occupancyBaseUnits || 0} comparable units</div>
+        <div class="workspace-snapshot-value">${communityCommandFormatPct(occupiedPct)}</div>
+        <div class="workspace-snapshot-sub">${occupiedPct === null ? "Verified inventory is required to calculate occupancy" : `${occupiedUnits} occupied of ${occupancyBaseUnits} comparable units`}</div>
         <div class="workspace-snapshot-link">Open Community Command</div>
       </button>
       <button type="button" class="workspace-snapshot-tile" onmousedown="return queueCurrentWorkspaceTab(2)">
         <div class="workspace-snapshot-label">Leased Occupancy</div>
-        <div class="workspace-snapshot-value">${leasedPct.toFixed(1)}%</div>
-        <div class="workspace-snapshot-sub">${leasedUnits} leased units in the current snapshot</div>
+        <div class="workspace-snapshot-value">${communityCommandFormatPct(leasedPct)}</div>
+        <div class="workspace-snapshot-sub">${leasedPct === null ? "Verified inventory is required to calculate occupancy" : `${leasedUnits} leased units in the current snapshot`}</div>
         <div class="workspace-snapshot-link">Review pacing</div>
       </button>
       <button type="button" class="workspace-snapshot-tile" onmousedown="return queueCurrentWorkspaceTab(3)">
@@ -16917,6 +16922,40 @@ function buildAtlasCentralUploadSnapshot(snapshot = {}) {
   };
 }
 
+let atlasLegacyEvidenceRecovery = null;
+let atlasLegacyEvidenceRecoveryCentral = null;
+function getAtlasLegacyEvidenceRecoveryState() {
+  return atlasLegacyEvidenceRecovery?.snapshot() || {phase:"idle",message:"Preview and download older local import evidence without changing this workspace."};
+}
+function renderAtlasLegacyEvidenceRecoveryStatus(state) {
+  const status=document.getElementById("atlas-legacy-evidence-status");if(status)status.textContent=state.message;
+  const busy=["checking","exporting"].includes(state.phase);
+  const inspect=document.getElementById("atlas-legacy-evidence-preview"),download=document.getElementById("atlas-legacy-evidence-download");
+  if(inspect)inspect.disabled=busy;if(download)download.disabled=state.phase!=="ready";
+}
+async function atlasLegacyEvidenceRecoveryController() {
+  const central=window.ATLAS_CENTRAL;
+  if(atlasLegacyEvidenceRecovery&&atlasLegacyEvidenceRecoveryCentral===central)return atlasLegacyEvidenceRecovery;
+  atlasLegacyEvidenceRecovery?.cancel();
+  const module=await import('./features/legacy-evidence-recovery.mjs?v=70cd49135f2f5a05');
+  if(central!==window.ATLAS_CENTRAL)throw new Error("The current ATLAS account changed.");
+  atlasLegacyEvidenceRecoveryCentral=central;
+  atlasLegacyEvidenceRecovery=module.createLegacyEvidenceRecovery({central,getContext:()=>({validated:atlasWorkspaceAccess.validated,current:central===window.ATLAS_CENTRAL&&getAtlasCentralStatus().configured&&getAtlasCentralStatus().signedIn&&!atlasWorkspaceAccess.controller?.signal.aborted,database:ATLAS_STATE_DB_NAME,epoch:atlasWorkspaceAccess.epoch}),onState:renderAtlasLegacyEvidenceRecoveryStatus});
+  return atlasLegacyEvidenceRecovery;
+}
+async function inspectAtlasLegacyLocalEvidence() {
+  try{await (await atlasLegacyEvidenceRecoveryController()).inspect();}catch(error){renderAtlasLegacyEvidenceRecoveryStatus({phase:"error",message:error.message});}
+}
+async function exportAtlasLegacyLocalEvidence() {
+  try{
+    const result=await (await atlasLegacyEvidenceRecoveryController()).exportCopy();if(!result||!result.isCurrent())return;
+    const url=URL.createObjectURL(result.blob),link=document.createElement("a");link.href=url;link.download=`atlas_legacy_import_evidence_${new Date().toISOString().slice(0,10)}_${result.sha256.slice(0,12)}.json`;
+    if(!result.isCurrent()){URL.revokeObjectURL(url);return;}document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(error){renderAtlasLegacyEvidenceRecoveryStatus({phase:"error",message:error.message});}
+}
+window.addEventListener("atlas-central-auth-change",()=>atlasLegacyEvidenceRecovery?.accessChanged());
+window.addEventListener("pagehide",()=>atlasLegacyEvidenceRecovery?.cancel(),{once:true});
+
 async function downloadAtlasCentralMigrationSnapshot() {
   try {
     const snapshot = await collectAtlasCentralMigrationSnapshot();
@@ -19237,7 +19276,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
     return false;
   }
   const operation = (async () => {
-  const knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
+  let knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
   const saveContext = captureAtlasSaveContext();
   const actor = atlasWorkspaceActorKey(), database = ATLAS_STATE_DB_NAME;
   const replayGeneration = Number(window.AtlasReplayGeneration || 0);
@@ -19246,6 +19285,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
   const pendingKey = "atlas_workspace_projection_pending_v1";
   let committedParent = null;
   let publicationCacheCapture = null;
+  let publicationBaseline = null;
   try {
     const access = atlasCentralCanUseDatabase();
     if (!access.ok) throw new Error(access.message);
@@ -19253,7 +19293,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
       throw new Error("Complete the read-only snapshot upload, reconciliation review, and rollback snapshot test before saving Atlas state to central.");
     }
     const documentKey = getAtlasCentralDocumentKey();
-    const {ensureWorkspaceProjection} = await import("./features/workspace-publication.mjs?v=c9b57d648d819930");
+    const {ensureWorkspaceProjection} = await import("./features/workspace-publication.mjs?v=53ea91fb9ac74941");
     const cacheModule = await import("./features/workspace-publication-cache.mjs");
     const finishProjection = async (document, archive) => {
       if (!current()) throw new DOMException("Workspace changed", "AbortError");
@@ -19280,7 +19320,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
       if (!current()) throw new DOMException("Workspace changed", "AbortError");
       if (publicationCacheCapture) {
         try {
-          const bootstrap = await import("./features/workspace-bootstrap.mjs?v=dc0f1662271fe2f2");
+          const bootstrap = await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
           const workspace = await bootstrap.readWorkspace(window.ATLAS_CENTRAL,{signal:atlasWorkspaceAccess.controller?.signal});
           if (await cacheModule.acknowledgePublicationCache(withAtlasStateStore,publicationCacheCapture,workspace,bootstrap.sourceIdentity(document),current,bootstrap.stableJson)) {
             atlasWorkspaceAccess.source = {...workspace.source,verifiedAt:new Date().toISOString(),cached:false,localChanges:false};
@@ -19311,6 +19351,17 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
       }
       return await finishProjection(saved);
     }
+    if (!knownVersion) {
+      const existing = await window.ATLAS_CENTRAL.readDocument(documentKey);
+      if (!current()) throw new DOMException('Workspace changed','AbortError');
+      if (existing) {
+        const {capturePublicationBaseline} = await import('./features/workspace-publication-baseline.mjs?v=c429aebdfdb27182');
+        publicationBaseline = await capturePublicationBaseline(window.ATLAS_CENTRAL,{documentKey,dbName:database,
+          readSource:()=>atlasStateGetValue('atlas_workspace_source_v2'),current,signal:atlasWorkspaceAccess.controller?.signal});
+        await publicationBaseline.assertRemote(existing);
+        knownVersion = publicationBaseline.version;
+      }
+    }
     const localPayload = await buildAtlasCentralAppStatePayload({onCaptured:async bundle => {
       const baseline = await cacheModule.capturePublicationCache(withAtlasStateStore,
         [ATLAS_STATE_COMMUNITY_KEY,OPS_GLOBAL_STORAGE_KEY,DATA_IMPORT_2_STATE_KEY,"atlas_workspace_source_v2"],current);
@@ -19331,6 +19382,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
     if (!current()) throw new DOMException("Workspace changed", "AbortError");
     const remote = await window.ATLAS_CENTRAL.readDocument(documentKey);
     if (!current()) throw new DOMException("Workspace changed", "AbortError");
+    if (publicationBaseline) await publicationBaseline.assertRemote(remote);
     if (remote && remote.payload_hash === localHash) return await finishProjection(remote,preparedArchive);
     if (remote && !knownVersion) throw new Error(`Central Atlas already has version ${remote.version}. Pull and reconcile it before saving from this browser.`);
     if (remote && knownVersion !== Number(remote.version || 0)) throw new Error(`Central Atlas changed from version ${knownVersion} to ${remote.version}. Pull and reconcile before saving so no one else's work is overwritten.`);
@@ -19405,7 +19457,7 @@ async function pullAtlasCentralAppState({ silent = false } = {}) {
     downloadAtlasJsonFile(rollbackSnapshot, `atlas_local_rollback_before_central_pull_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
     suppressAtlasCentralAutosave = true;
     try {
-      const {sourceIdentity} = await import("./features/workspace-bootstrap.mjs?v=dc0f1662271fe2f2");
+      const {sourceIdentity} = await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
       check();
       await applyDashboardStorageBundle(remote.payload.bundle,{canonicalSource:sourceIdentity(remote)});check();
     } finally {
@@ -20535,7 +20587,7 @@ async function applyDashboardStorageBundle(bundle, {canonicalSource = null} = {}
     checkRestore();
     if (canonicalSource) {
       if (canonicalSource.archiveHash !== bundle.sha256) throw new Error("The requested canonical restore source does not match this archive.");
-      const {sourceIdentity,stableJson}=await import("./features/workspace-bootstrap.mjs?v=dc0f1662271fe2f2");
+      const {sourceIdentity,stableJson}=await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
       checkRestore();
       const latest=await window.ATLAS_CENTRAL.readDocument(canonicalSource.documentKey,{signal:restoreSignal});checkRestore();
       if(stableJson(sourceIdentity(latest))!==stableJson(canonicalSource))throw new Error("The central source changed while restoring. Refresh before continuing.");
@@ -20548,7 +20600,7 @@ async function applyDashboardStorageBundle(bundle, {canonicalSource = null} = {}
         if (record.value?.__atlasImportHistory === 2 || record.value?.historyStorage?.view) throw new Error("This archive does not contain complete portable import evidence.");
         let existing = await atlasStateGetValue(record.key);checkRestore();
         if (existing?.__atlasImportHistory === 2) {
-          const {historyOperation} = await import('./features/import-history.mjs?v=763abc10ad1c35a8');
+          const {historyOperation} = await import('./features/import-history.mjs?v=7db7a83280571f55');
           checkRestore();
           existing = await historyOperation({operation:'load',dbName:restoreDatabase,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal:restoreSignal});checkRestore();
         }
@@ -20620,7 +20672,7 @@ async function applyDashboardStorageBundle(bundle, {canonicalSource = null} = {}
   let committedCommunityData = intendedCommunityData;
   const importRecord = retainedRecords.find(record => record.key === DATA_IMPORT_2_STATE_KEY);
   if (importRecord) {
-    const {historyOperation} = await import('./features/import-history.mjs?v=763abc10ad1c35a8');
+    const {historyOperation} = await import('./features/import-history.mjs?v=7db7a83280571f55');
     checkRestore();
     const options = {dbName:restoreDatabase,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal:restoreSignal};
     const current = await historyOperation({...options,operation:'load'});checkRestore();
@@ -23267,8 +23319,8 @@ function buildCommunityCommandModel(propName = getProp().name, sourceRecord = ge
     occupancyBaseUnits,
     occupied,
     leased,
-    physicalPct: summary.occPct ?? (occupancyBaseUnits > 0 ? (occupied / occupancyBaseUnits) * 100 : null),
-    leasedPct: summary.leasedPct ?? (occupancyBaseUnits > 0 ? (leased / occupancyBaseUnits) * 100 : null),
+    physicalPct: occupancyBaseUnits > 0 ? summary.occPct ?? (occupied / occupancyBaseUnits) * 100 : null,
+    leasedPct: occupancyBaseUnits > 0 ? summary.leasedPct ?? (leased / occupancyBaseUnits) * 100 : null,
     budgetOccPct: getRecordSavedBudgetOccPct(record, monthIdx, year),
     budgetLeasedPct: Number(summary.budgetLeasedPct ?? 0) || 0,
     trendingUnits,
@@ -23306,7 +23358,7 @@ function buildCommunityCommandAlerts(model) {
       status: severity === "critical" ? "Action Required" : severity === "watch" ? "Watch" : "Opportunity"
     });
   };
-  const occGap = model.budgetOccPct > 0 ? model.physicalPct - model.budgetOccPct : null;
+  const occGap = model.budgetOccPct > 0 && Number.isFinite(model.physicalPct) ? model.physicalPct - model.budgetOccPct : null;
   if (occGap !== null && occGap < -1.5) {
     add("occ_budget_risk", "critical", "Occupancy materially below budget", `${model.propName} is ${Math.abs(occGap).toFixed(1)} points under the locked budget line for ${model.monthLabel}.`, communityCommandFormatPct(model.physicalPct), communityCommandFormatPct(model.budgetOccPct), "Budget Builder", 12, "Use the leasing plan below to protect move-ins and close approved files.");
   } else if (occGap !== null && occGap < -0.5) {
@@ -23632,8 +23684,8 @@ function renderCommunityCommandHealthSnapshot(model) {
     ? "Renewal expirations or signed renewals are missing for this month."
     : `${Math.round(model.renewal.signed)} signed of ${Math.round(model.renewal.expirations)} expirations`;
   return `<div class="community-command-grid-4">
-    ${renderCommunityCommandKpi(model, "physical_occupancy", "Physical Occupancy", model.physicalPct, value => communityCommandFormatPct(value), `${Math.round(model.occupied)} occupied of ${Math.round(model.occupancyBaseUnits || model.totalUnits)} comparable units`, model.budgetOccPct > 0 && model.physicalPct < model.budgetOccPct ? "critical" : "good", 2)}
-    ${renderCommunityCommandKpi(model, "leased_occupancy", "Leased Occupancy", model.leasedPct, value => communityCommandFormatPct(value), `${Math.round(model.leased)} leased units in the current snapshot`, model.budgetLeasedPct > 0 && model.leasedPct < model.budgetLeasedPct ? "watch" : "good", 2)}
+    ${renderCommunityCommandKpi(model, "physical_occupancy", "Physical Occupancy", model.physicalPct, value => communityCommandFormatPct(value), model.physicalPct === null ? "Verified inventory is required to calculate occupancy" : `${Math.round(model.occupied)} occupied of ${Math.round(model.occupancyBaseUnits || model.totalUnits)} comparable units`, model.physicalPct === null ? "watch" : model.budgetOccPct > 0 && model.physicalPct < model.budgetOccPct ? "critical" : "good", 2)}
+    ${renderCommunityCommandKpi(model, "leased_occupancy", "Leased Occupancy", model.leasedPct, value => communityCommandFormatPct(value), model.leasedPct === null ? "Verified inventory is required to calculate occupancy" : `${Math.round(model.leased)} leased units in the current snapshot`, model.leasedPct === null ? "watch" : model.budgetLeasedPct > 0 && model.leasedPct < model.budgetLeasedPct ? "watch" : "good", 2)}
     ${renderCommunityCommandKpi(model, "economic_occupancy", "Closed-Month Economic Occupancy", model.economic.closedPct, value => value === null || value === undefined || value === "" ? "Missing" : communityCommandFormatPct(value), economicSub, model.economic.closedPct === null ? "watch" : "info", 15)}
     ${renderCommunityCommandKpi(model, "trending_occupancy", "Trending Occupancy", model.trendingPct, value => value === null ? "Missing" : communityCommandFormatPct(value), model.trendingLabel, model.trendingPct !== null && model.budgetOccPct > 0 && model.trendingPct < model.budgetOccPct ? "watch" : "good", 2)}
     ${renderCommunityCommandKpi(model, "budget_occupancy", "Budget Occupancy", model.budgetOccPct || null, value => value ? communityCommandFormatPct(value) : "Missing", "Locked Budget Builder or approved reforecast source.", model.budgetOccPct ? "info" : "watch", 12)}
@@ -24062,8 +24114,8 @@ function renderPortfolioScopedCommunityCommandTab() {
       const severityRank = item => item.suggestion?.severity === "critical" ? 0 : item.suggestion ? 1 : 2;
       return rank(a) - rank(b) || severityRank(a) - severityRank(b) || a.detail.name.localeCompare(b.detail.name);
     });
-  const belowBudgetCount = rosterItems.filter(item => item.model.budgetOccPct > 0 && Number(item.model.physicalPct || 0) + 0.5 < item.model.budgetOccPct).length;
-  const onTrackCount = rosterItems.filter(item => item.model.budgetOccPct > 0 && Number(item.model.physicalPct || 0) + 0.5 >= item.model.budgetOccPct).length;
+  const belowBudgetCount = rosterItems.filter(item => item.model.budgetOccPct > 0 && Number.isFinite(item.model.physicalPct) && item.model.physicalPct + 0.5 < item.model.budgetOccPct).length;
+  const onTrackCount = rosterItems.filter(item => item.model.budgetOccPct > 0 && Number.isFinite(item.model.physicalPct) && item.model.physicalPct + 0.5 >= item.model.budgetOccPct).length;
   const cardsHtml = `<div class="grid-4">
     ${statBox("Accessible Communities", details.length, "Active communities available to this role.", "#4493f8")}
     ${renderCommunityCommandPlanSummaryStat(rosterItems)}
@@ -24083,7 +24135,7 @@ function renderPortfolioScopedCommunityCommandTab() {
   const rows = visibleRosterItems
     .map((item, rowIndex) => {
       const { detail, model, suggestion } = item;
-      const gap = model.budgetOccPct > 0 ? model.physicalPct - model.budgetOccPct : null;
+      const gap = model.budgetOccPct > 0 && Number.isFinite(model.physicalPct) ? model.physicalPct - model.budgetOccPct : null;
       const planHtml = model.activePerformancePlan
         ? `<span class="community-command-status info">${escapeHtml(model.activePerformancePlan.status)}</span>`
         : suggestion
@@ -25353,9 +25405,23 @@ function extractRenewalSheetSummary(rows) {
   return detailSummary.expirations > 0 && detailTotal >= labeledTotal ? detailSummary : labeledSummary;
 }
 
+function renewalWorkbookSheetIsReference(sheetName = "") {
+  return /^(setup|templates?|examples?|samples?|instructions?|legend|read[ _-]?me)(?:\b|_)/i.test(String(sheetName).trim());
+}
+
+function renewalWorkbookSheetYear(sheetName = "", fallbackYear = new Date().getFullYear()) {
+  const raw = String(sheetName).trim();
+  const full = raw.match(/\b((?:19|20)\d{2})\b/);
+  if (full) return Number(full[1]);
+  const short = raw.match(/^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*[-_/ ]\s*['’]?(\d{2})$/i);
+  if (short) return Number(short[1]) >= 70 ? 1900 + Number(short[1]) : 2000 + Number(short[1]);
+  return fallbackYear;
+}
+
 function getRenewalWorkbookHeaderPropertyName(workbook) {
-  const firstMonthSheet = workbook?.SheetNames?.find(sheetName => parseMonthIndexValue(sheetName) !== null)
-    || workbook?.SheetNames?.find(sheetName => !/^(setup|instructions|summary)$/i.test(sheetName));
+  const dataSheets = workbook?.SheetNames?.filter(sheetName => !renewalWorkbookSheetIsReference(sheetName)) || [];
+  const firstMonthSheet = dataSheets.find(sheetName => parseMonthIndexValue(sheetName) !== null)
+    || dataSheets.find(sheetName => !/^summary$/i.test(sheetName));
   if (!firstMonthSheet || !workbook?.Sheets?.[firstMonthSheet] || typeof XLSX === "undefined") return "";
   const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstMonthSheet], { header: 1, defval: "", raw: false });
   const titleCell = String(rows?.[0]?.[0] ?? "").trim();
@@ -25386,7 +25452,7 @@ function getRenewalWorkbookIdentity(workbook, fileName = "") {
   const candidates = [];
   if (String(setupPropertyName || "").trim()) candidates.push({value:setupPropertyName,source:"Setup · Property Name"});
   for (const sheetName of workbook?.SheetNames || []) {
-    if (/^(setup|template|instructions?|summary)$/i.test(sheetName.trim())) continue;
+    if (renewalWorkbookSheetIsReference(sheetName) || /^summary$/i.test(sheetName.trim())) continue;
     const title = String(workbook.Sheets[sheetName]?.A1?.v || "").trim();
     if (/renewals?$/i.test(title)) candidates.push({value:title.replace(/\s*[-–—]\s*.*renewals?$/i, "").trim(),source:`${sheetName} · title`});
   }
@@ -25655,9 +25721,10 @@ async function handleRenewalWorkbook(file, options = {}) {
   };
   let appliedMonths = 0;
   workbook.SheetNames.forEach(sheetName => {
+    if (renewalWorkbookSheetIsReference(sheetName)) return;
     const namedMonth = parseMonthIndexValue(sheetName);
     const monthIdx = namedMonth ?? 0;
-    const sheetYear = parseYearFromValue(sheetName, setupYear);
+    const sheetYear = renewalWorkbookSheetYear(sheetName, setupYear);
     const rows = annotateRenewalRowsWithWorkbookVisualStatus(
       XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", blankrows: true }),
       workbook.Sheets[sheetName]
@@ -28532,7 +28599,7 @@ function clearCurrentCommunityMarketSurvey() {
   clearImportReadinessForCommunities([getProp().name], "current community");
 }
 
-async function processMarketSurveyFiles(files) {
+async function processMarketSurveyFiles(files, { deferPersistence = false } = {}) {
   if (marketSurveyImportOperation?.isCurrent()) return false;
   const isCurrent = captureAtlasSaveContext();
   const operation = { isCurrent };
@@ -28558,8 +28625,10 @@ async function processMarketSurveyFiles(files) {
     if (!isCurrent()) return false;
     if (touchedProps.size > 0) {
       try {
-        const savedResult = persistSaved();
-        await awaitAtlasPersistenceResults([{ result: savedResult, label: "Market survey data" }]);
+        if (!deferPersistence) {
+          const savedResult = persistSaved();
+          await awaitAtlasPersistenceResults([{ result: savedResult, label: "Market survey data" }]);
+        }
       } catch (error) {
         if (isCurrent()) {
           marketSurveyImportSourceLabel = "";
@@ -28572,6 +28641,7 @@ async function processMarketSurveyFiles(files) {
       marketSurveyImportSourceLabel = touchedProps.size === 1
         ? `${[...touchedProps][0]} market survey updated`
         : `${touchedProps.size} community market surveys updated`;
+      if (deferPersistence) marketSurveyImportSourceLabel = `${touchedProps.size} market survey prepared for approval`;
       renderPropGrid();
     }
     renderTab();
@@ -31347,10 +31417,10 @@ function atlasBonusBuildCalculationRows(options = {}) {
 }
 
 function atlasBonusSummary(rows = atlasBonusBuildCalculationRows()) {
-  const totalPotential = rows.some(row => row.maximumPotential === null) ? null : rows.reduce((sum, row) => sum + row.maximumPotential, 0);
-  const projected = rows.some(row => row.projectedPayout === null) ? null : rows.reduce((sum, row) => sum + row.projectedPayout, 0);
-  const final = rows.some(row => row.finalPayout === null) ? null : rows.reduce((sum, row) => sum + row.finalPayout, 0);
-  const approved = rows.filter(row => row.canonicalPayable === true && ["Regional Approved", "HR Ready", "Paid", "Locked"].includes(row.approvalStatus)).reduce((sum, row) => sum + row.finalPayout, 0);
+  const totalPotential = !rows.length || rows.some(row => row.maximumPotential === null) ? null : rows.reduce((sum, row) => sum + row.maximumPotential, 0);
+  const projected = !rows.length || rows.some(row => row.projectedPayout === null) ? null : rows.reduce((sum, row) => sum + row.projectedPayout, 0);
+  const final = !rows.length || rows.some(row => row.finalPayout === null) ? null : rows.reduce((sum, row) => sum + row.finalPayout, 0);
+  const approved = rows.length ? rows.filter(row => row.canonicalPayable === true && ["Regional Approved", "HR Ready", "Paid", "Locked"].includes(row.approvalStatus)).reduce((sum, row) => sum + row.finalPayout, 0) : null;
   const budget = totalPotential === null || projected === null ? null : Math.max(totalPotential * 0.9, projected * 1.05, 1);
   return {
     employeeCount: rows.length,
@@ -35152,48 +35222,68 @@ function resetReportRecommendationOverride(name) {
   renderTab();
 }
 
+function getCurrentReportRosterContacts(propName) {
+  // Use only the current authorized report scope and authoritative People roster.
+  if (!getReportableCommunityNames(getReportHubMonthIndex()).includes(propName)) return [];
+  const shared = normalizeAtlasSharedData(atlasSharedData);
+  const contacts = new Map();
+  getSharedAssignmentsForCommunity(propName, { normalizedSharedData: shared, asOfDate: getAtlasTodayISODate() }).forEach(assignment => {
+    const employee = shared.employees[assignment.employeeId];
+    if (!employee || employee.source !== "atlas_central_people" || employee.active === false || !isSharedPeopleEmployeeActive(employee)) return;
+    const email = atlasNormalizeSharedEmail(employee.email);
+    const name = String(employee.name || "").trim();
+    const valid = Boolean(email && atlasIsValidSharedEmail(email) && atlasEmployeeEmailIsInternal(email));
+    contacts.set(employee.employeeId, { key: `${propName}::employee::${employee.employeeId}`, employeeId: employee.employeeId,
+      type: "employee", community: propName, name, email,
+      roleKey: assignment.bonusRoleType || (/^regional\s+manager$/i.test(String(assignment.title || "").trim()) ? "regional_manager" : ""),
+      eligible: valid, issue: valid ? "" : "Review work email in Employee Roster" });
+  });
+  return [...contacts.values()];
+}
+
 function getWorkspaceScopedRecipientContacts(details = getReportBuilderScopedDetails()) {
   const contacts = [];
-  const seen = new Set();
   (Array.isArray(details) ? details : []).forEach(detail => {
-    normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).forEach((entry, idx) => {
-      const email = String(entry.email || "").trim();
-      if (!email) return;
-      const key = `${detail.name}::${email.toLowerCase()}::${idx}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      contacts.push({
-        key,
-        community: detail.name,
-        name: String(entry.name || "").trim(),
-        email
-      });
+    normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).forEach(entry => {
+      const email = atlasNormalizeSharedEmail(entry.email);
+      if (!email || !atlasIsValidSharedEmail(email)) return;
+      contacts.push({ key: `${detail.name}::investor::${email}`, type: "investor", eligible: true,
+        community: detail.name, name: String(entry.name || "").trim(), email });
     });
+    contacts.push(...getCurrentReportRosterContacts(detail.name));
   });
   return contacts;
 }
 
 function ensureReportHubRecipientSelection() {
-  const contacts = getWorkspaceScopedRecipientContacts(getReportBuilderScopedDetails());
-  const validKeys = new Set(contacts.map(contact => contact.key));
-  reportHubRecipientKeys = (Array.isArray(reportHubRecipientKeys) ? reportHubRecipientKeys : []).filter(key => validKeys.has(key));
-  if (reportHubRecipientKeys.length === 0 && contacts.length > 0) {
-    reportHubRecipientKeys = contacts.map(contact => contact.key);
-  }
-  return contacts;
+  // Selections survive roster email changes and scope changes. An empty choice
+  // stays empty; resolving recipients never silently selects anyone.
+  return getWorkspaceScopedRecipientContacts(getReportBuilderScopedDetails());
+}
+
+function getReportHubSelectedRecipientEmails() {
+  return [...new Set(ensureReportHubRecipientSelection()
+    .filter(contact => contact.eligible && reportHubRecipientKeys.includes(contact.key))
+    .map(contact => atlasNormalizeSharedEmail(contact.email)))];
 }
 
 function toggleReportHubRecipient(key) {
+  const contact = ensureReportHubRecipientSelection().find(item => item.key === key);
+  if (!contact?.eligible) return;
   const current = new Set(reportHubRecipientKeys);
   if (current.has(key)) current.delete(key);
   else current.add(key);
   reportHubRecipientKeys = [...current];
+  persistOpsGlobalData();
   renderTab();
 }
 
 function setAllReportHubRecipients(enabled) {
   const contacts = getWorkspaceScopedRecipientContacts();
-  reportHubRecipientKeys = enabled ? contacts.map(contact => contact.key) : [];
+  const keys = new Set(reportHubRecipientKeys);
+  contacts.forEach(contact => enabled && contact.eligible ? keys.add(contact.key) : keys.delete(contact.key));
+  reportHubRecipientKeys = [...keys];
+  persistOpsGlobalData();
   renderTab();
 }
 
@@ -37974,8 +38064,7 @@ function ensureValidReportHubAction() {
 
 function buildReportHubEmailDraft(type = reportHubType) {
   const normalizedType = normalizeReportHubType(type);
-  const selectedRecipients = ensureReportHubRecipientSelection().filter(contact => reportHubRecipientKeys.includes(contact.key));
-  const to = selectedRecipients.map(contact => contact.email).join("; ");
+  const to = getReportHubSelectedRecipientEmails().join("; ");
   const scopeLabel = getWorkspaceScopeDisplayName();
   if (normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE) {
     const report = buildRisePortfolioLeasingWeeklyReportData();
@@ -38722,6 +38811,11 @@ function renderDlrReportingWorkspace() {
             <div style="display:flex;flex-wrap:wrap;gap:10px">${getDlrInternalRecipientRoleOptions().map(role => `<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${deliverySettings.roleRecipients.includes(role.key) ? "checked" : ""} onchange="updateDlrDeliveryRoleRecipient(${JSON.stringify(communityName)}, '${role.key}', this.checked)"><span>${escapeHtml(role.label)}</span></label>`).join("")}</div>
           </div>
           <div style="grid-column:1/-1">
+            <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Employee Roster recipients</div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px">${getCurrentReportRosterContacts(communityName).map(contact => `<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${deliverySettings.employeeRecipientIds.includes(contact.employeeId) ? "checked" : ""} ${!contact.eligible ? "disabled" : ""} onchange='updateDlrEmployeeRecipient(${escapeHtml(JSON.stringify(communityName))}, ${escapeHtml(JSON.stringify(contact.employeeId))}, this.checked)'><span>${escapeHtml(contact.name || contact.employeeId)} · ${escapeHtml(contact.eligible ? contact.email : contact.issue)}</span></label>`).join("") || `<span style="font-size:0.72rem;color:var(--muted)">No active employee contacts are available for this community.</span>`}</div>
+            ${deliverySettings.employeeRecipientIds.filter(id => !getCurrentReportRosterContacts(communityName).some(contact => contact.employeeId === id && contact.eligible)).map(id => `<div style="font-size:0.72rem;color:var(--muted)">Selected employee unavailable or needs email review; delivery will skip this contact. <button class="btn btn-gray btn-sm" onclick='updateDlrEmployeeRecipient(${escapeHtml(JSON.stringify(communityName))}, ${escapeHtml(JSON.stringify(id))}, false)'>Remove selection</button></div>`).join("")}
+          </div>
+          <div style="grid-column:1/-1">
             <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Charts included in email</div>
             <div style="display:flex;flex-wrap:wrap;gap:10px">${["forward_occupancy","application_trend","application_outcomes"].map(chartKey => `<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${deliverySettings.emailCharts.includes(chartKey) ? "checked" : ""} onchange="updateDlrEmailChartSelection(${JSON.stringify(communityName)}, '${chartKey}', this.checked)"><span>${escapeHtml(getDlrEmailChartLabel(chartKey))}</span></label>`).join("")}</div>
           </div>
@@ -38736,7 +38830,7 @@ function renderDlrReportingWorkspace() {
           <div style="font-size:0.64rem;color:var(--muted)">Status:<br><strong style="color:var(--text)">${escapeHtml(currentQueueItem?.statusLabel || "Manual only")}</strong></div>
           <div style="font-size:0.64rem;color:var(--muted)">Recipients:<br><strong style="color:var(--text)">${escapeHtml(recipientPreview || "No recipients configured")}</strong></div>
         </div>
-        <div style="font-size:0.64rem;color:var(--muted);margin-top:8px">Recipients resolve from Community Setup investor contacts plus any role-based community assignments selected here.</div>
+        <div style="font-size:0.64rem;color:var(--muted);margin-top:8px">Choose investor contacts from Community Setup or employees from the current roster, or both. Publish the server snapshot to update its recipient selections. Scheduled delivery resolves current saved contacts; unavailable employees are skipped. Frequency stays optional.</div>
       </div>
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -41332,34 +41426,14 @@ function getDlrInternalRecipientRoleOptions() {
 
 function getDlrInvestorRecipientsForCommunity(propName) {
   return normalizeInvestorEmailContacts(getPersistedCommunityRecordForScope(propName)?.investorEmailContacts)
-    .filter(entry => entry.email);
+    .filter(entry => entry.email && atlasIsValidSharedEmail(entry.email));
 }
 
 function resolveDlrRoleRecipientEntries(propName, settings = {}) {
-  const record = getPersistedCommunityRecordForScope(propName, { allowCurrentFallback: true });
-  if (!record) return [];
-  const normalized = normalizeDlrDeliverySettings(settings);
-  const wanted = new Set(Array.isArray(normalized.roleRecipients) ? normalized.roleRecipients : []);
-  const entries = [];
-  if (wanted.has("general_manager") && record.generalManagerEmail) {
-    entries.push({
-      type: "role",
-      roleKey: "general_manager",
-      label: "General Manager",
-      email: atlasNormalizeSharedEmail(record.generalManagerEmail),
-      name: String(record.generalManagerName || "General Manager").trim()
-    });
-  }
-  if (wanted.has("regional_manager") && record.regionalManagerEmail) {
-    entries.push({
-      type: "role",
-      roleKey: "regional_manager",
-      label: "Regional Manager",
-      email: atlasNormalizeSharedEmail(record.regionalManagerEmail),
-      name: String(record.regionalManagerName || "Regional Manager").trim()
-    });
-  }
-  return entries.filter(entry => entry.email);
+  const wanted = new Set(normalizeDlrDeliverySettings(settings).roleRecipients);
+  return getCurrentReportRosterContacts(propName).filter(entry => entry.eligible &&
+    ((wanted.has("general_manager") && entry.roleKey === "gm") ||
+     (wanted.has("regional_manager") && ["regional", "rm", "regional_manager"].includes(entry.roleKey))));
 }
 
 function resolveDlrRecipientsForCommunity(propName, settings = {}) {
@@ -41376,6 +41450,7 @@ function resolveDlrRecipientsForCommunity(propName, settings = {}) {
     });
   }
   resolveDlrRoleRecipientEntries(propName, normalized).forEach(entry => recipients.push(entry));
+  getCurrentReportRosterContacts(propName).filter(entry => entry.eligible && normalized.employeeRecipientIds.includes(entry.employeeId)).forEach(entry => recipients.push(entry));
   const unique = new Map();
   recipients.forEach(entry => {
     const email = atlasNormalizeSharedEmail(entry?.email);
@@ -41423,6 +41498,15 @@ function updateDlrDeliveryRoleRecipient(propName, roleKey, enabled) {
   if (enabled) nextRoles.add(roleKey);
   else nextRoles.delete(roleKey);
   persistDlrDeliverySettingsForCommunity(propName, { roleRecipients: [...nextRoles] });
+  renderTab();
+}
+
+function updateDlrEmployeeRecipient(propName, employeeId, enabled) {
+  const current = getDlrDeliverySettingsForCommunity(propName);
+  const selected = new Set(current.employeeRecipientIds);
+  if (enabled && !getCurrentReportRosterContacts(propName).some(entry => entry.employeeId === employeeId && entry.eligible)) return;
+  if (enabled) selected.add(employeeId); else selected.delete(employeeId);
+  persistDlrDeliverySettingsForCommunity(propName, { employeeRecipientIds: [...selected] });
   renderTab();
 }
 
@@ -44869,10 +44953,7 @@ function draftCommunityProgressEmail() {
   const report = buildCommunityProgressReportData({ silent: true });
   if (!report) return;
   const toLine = normalizeEmailListInput(
-    ensureReportHubRecipientSelection()
-      .filter(contact => reportHubRecipientKeys.includes(contact.key))
-      .map(contact => contact.email)
-      .join("; ")
+    getReportHubSelectedRecipientEmails().join("; ")
   );
   openOutlookComposeDraft({
     to: toLine,
@@ -45481,10 +45562,7 @@ function draftMarketComparisonEmail() {
   const report = buildMarketComparisonReportData({ silent: true });
   if (!report) return;
   const toLine = normalizeEmailListInput(
-    ensureReportHubRecipientSelection()
-      .filter(contact => reportHubRecipientKeys.includes(contact.key))
-      .map(contact => contact.email)
-      .join("; ")
+    getReportHubSelectedRecipientEmails().join("; ")
   );
   openOutlookComposeDraft({
     to: toLine,
@@ -45921,7 +45999,7 @@ async function dataImportHistoryOperation(operation, extra = {}) {
   for(const sourceSignal of sourceSignals){if(sourceSignal.aborted)abort();else sourceSignal.addEventListener('abort',abort,{once:true});}
   try {
     check();
-    const {historyOperation} = await import("./features/import-history.mjs?v=763abc10ad1c35a8");check();
+    const {historyOperation} = await import("./features/import-history.mjs?v=7db7a83280571f55");check();
     if(dataImport2State.historyStorage?.view==='remote'&&!['preferences','preferenceValues','records'].includes(operation)){
       if(typeof ensureAtlasCanonicalImportEvidence!=='function')throw new Error('Complete canonical import evidence is not available yet.');
       await ensureAtlasCanonicalImportEvidence({signal});check();
@@ -46009,7 +46087,7 @@ function persistDataImport2State(options = {}) {
     if(context!==getAtlasRenderContextKey())throw new Error('Workspace changed before import history could be saved.');
     if(options.reviewBatch && options.reviewRevision !== dataImportHistoryRevision) throw new Error('Import history changed. Refresh the review before saving your answer.');
     if(!base)throw new Error('Load verified import history before saving changes.');
-    const {historyChanges}=await import('./features/import-history-store.mjs?v=0ca84d5c090aa001');
+    const {historyChanges}=await import('./features/import-history-store.mjs?v=4c23a92990579aaa');
     const changes=historyChanges(value,base);
     if(value.historyStorage?.view==='full'&&(Object.keys(changes.set).length||Object.keys(changes.upsert).length)){
       const receipt=await dataImportHistoryOperation('save',{value,expectedRevision:dataImportHistoryRevision});
@@ -46965,7 +47043,7 @@ function dataImportApplySelectedPeriod(plan, selected) {
     next.renewalPeriods = (plan.sampleSummary?.sheets || []).flatMap(sheet => {
       const monthIdx = parseMonthIndexValue(sheet.sheetName);
       if (monthIdx === null) return [];
-      const year = parseYearFromValue(sheet.sheetName, next.reportingYear);
+      const year = renewalWorkbookSheetYear(sheet.sheetName, next.reportingYear);
       return [buildPeriodKey(monthIdx, year)];
     }).filter((period, i, all) => all.indexOf(period) === i).sort();
     return next;
@@ -47111,9 +47189,20 @@ async function dataImportPreviewRenewalWorkbook(file, plan) {
   plan.reportingYear = setupYear;
   const details = [];
   for (const sheetName of workbook.SheetNames) {
+    if (renewalWorkbookSheetIsReference(sheetName)) continue;
     const rows = annotateRenewalRowsWithWorkbookVisualStatus(XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1,defval:"",blankrows:true}), workbook.Sheets[sheetName]);
-    const context = {propertyName:plan.communities[0] || "Unassigned", monthIdx:parseMonthIndexValue(sheetName) ?? 0, year:parseYearFromValue(sheetName,setupYear), sourceSheetName:sheetName};
-    details.push(...(window.atlasCsPreviewRenewalSheetRows?.(rows,context) || []));
+    const context = {propertyName:plan.communities[0] || "Unassigned", monthIdx:parseMonthIndexValue(sheetName) ?? 0, year:renewalWorkbookSheetYear(sheetName,setupYear), sourceSheetName:sheetName};
+    const sheetDetails = window.atlasCsPreviewRenewalSheetRows?.(rows,context) || [];
+    const namedMonth = parseMonthIndexValue(sheetName);
+    if (namedMonth !== null) {
+      const namedPeriod = buildPeriodKey(namedMonth, context.year);
+      const otherPeriods = [...new Set(sheetDetails.map(row => getImportedRenewalPeriod(row, namedMonth, context.year).periodKey).filter(period => period !== namedPeriod))].sort();
+      if (otherPeriods.length) {
+        plan.issues.push({type:"reconciliation",severity:"medium",title:"Renewal dates differ from the month tab",detail:`${sheetName} contains expiration dates in ${otherPeriods.join(", ")}. Each agreement remains in its source expiration month; duplicate agreements are updated once.`});
+        if (plan.status === "ready") plan.status = "review";
+      }
+    }
+    details.push(...sheetDetails);
   }
   const unique = mergeImportedRenewalDetails([], details);
   plan.renewalCoverage = groupImportedRenewalDetailRowsByPeriod(unique, 0, setupYear).map(period => ({period:period.periodKey,...period.summary}));
@@ -47132,7 +47221,7 @@ function dataImportFindDuplicateArchiveMatch(plan) {
     item.reportType === plan.reportType &&
     String(item.reportingPeriodLabel || "") === String(plan.reportingPeriodLabel || "") &&
     (item.communities || []).join("|") === communitiesKey &&
-    item.importStatus !== "Rolled Back"
+    !["Rolled Back", "Failed", "Needs Review"].includes(item.importStatus)
   );
 }
 
@@ -47275,7 +47364,9 @@ async function dataImportStageFiles(filesLike) {
   }
 }
 
-async function dataImportArchiveApprovedFile(file, plan, batch) {
+async function dataImportArchiveApprovedFile(file, plan, batch, isCurrent = captureAtlasSaveContext()) {
+  const checkCurrent = () => { if (!isCurrent()) throw new DOMException("Workspace changed during source approval", "AbortError"); };
+  checkCurrent();
   const archiveId = dataImportMakeId("src");
   const entry = {
     id: archiveId,
@@ -47311,8 +47402,10 @@ async function dataImportArchiveApprovedFile(file, plan, batch) {
       blob: file.slice(0, file.size),
       savedAt: entry.uploadedAt
     });
+    checkCurrent();
     entry.storageStatus = "Stored";
   } catch (error) {
+    checkCurrent();
     entry.storageStatus = "Metadata only";
     entry.storageError = String(error?.message || error || "");
     markAtlasPersistenceError(error, "ATLAS could not archive one uploaded source file.");
@@ -47468,7 +47561,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
   if (plan.reportType === "renewal_tracker" && !window.atlasCsPreviewRenewalSheetRows) await window.AtlasFeatures.load("centralServices");
   if (typeof XLSX === "undefined") await window.AtlasFeatures.load("xlsx");
   if (typeof XLSX === "undefined") throw new Error("The spreadsheet reader is unavailable in this ATLAS session.");
-  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false, cellStyles: plan.reportType === "renewal_tracker" });
   const sheets = [];
   const occupancySourceParser = ["box_score", "rent_roll", "delinquency"].includes(plan.reportType)
     ? (await import("./features/occupancy-source-evidence.mjs?v=36f147710db65c57")).parseOccupancySheet : null;
@@ -47478,6 +47571,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
     ? XLSX.utils.sheet_to_json(workbook.Sheets[occupancyParameterSheet], {header:1,defval:null,raw:true,range:0}) : [];
   (workbook.SheetNames || []).forEach(sheetName => {
     if (dataImportIsMetadataSheetName(sheetName)) return;
+    if (plan.reportType === "renewal_tracker" && renewalWorkbookSheetIsReference(sheetName)) return;
     // Preserve absolute occupancy source rows; other readers retain their existing row-origin contract.
     const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true, ...(occupancySourceParser ? { range: 0 } : {}) });
     if (occupancySourceParser) {
@@ -47504,7 +47598,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
     if (plan.reportType === "renewal_tracker" && window.atlasCsPreviewRenewalSheetRows) {
       const prepared = window.atlasCsPreviewRenewalSheetRows(annotateRenewalRowsWithWorkbookVisualStatus(rawRows,workbook.Sheets[sheetName]), {
         propertyName:(plan.selectedCommunities || plan.communities || [])[0] || "", monthIdx:parseMonthIndexValue(sheetName) ?? 0,
-        year:parseYearFromValue(sheetName,plan.reportingYear || new Date().getFullYear()), sourceSheetName:sheetName
+        year:renewalWorkbookSheetYear(sheetName,plan.reportingYear || new Date().getFullYear()), sourceSheetName:sheetName
       });
       if (!prepared.length && /^template$/i.test(sheetName.trim())) return;
       if (prepared.length) {
@@ -47762,10 +47856,20 @@ function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {
   for (const candidate of candidates) {
     const raw = String(candidate ?? "").trim();
     if (!raw) continue;
+    // An expiration is a calendar date. Parsing ISO midnight as UTC can move a
+    // first-of-month renewal into the previous month in western time zones.
+    const renewalDate = plan.reportType === "renewal_tracker" && raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (renewalDate) {
+      const [, yearText, monthText, dayText] = renewalDate;
+      const year = Number(yearText), monthIdx = Number(monthText) - 1, day = Number(dayText);
+      const date = new Date(Date.UTC(year, monthIdx, day));
+      if (year > 1990 && date.getUTCFullYear() === year && date.getUTCMonth() === monthIdx && date.getUTCDate() === day) return {monthIdx, year, periodKey:buildPeriodKey(monthIdx, year)};
+      return {monthIdx:null,year:null,periodKey:""};
+    }
     if (plan.reportType === "renewal_tracker" && candidate === sourceRow.sourceSheet) {
       const monthIdx = parseMonthIndexValue(raw);
       if (monthIdx !== null) {
-        const year = parseYearFromValue(raw, plan.reportingYear || new Date().getFullYear());
+        const year = renewalWorkbookSheetYear(raw, plan.reportingYear || new Date().getFullYear());
         return {monthIdx, year, periodKey:buildPeriodKey(monthIdx, year)};
       }
     }
@@ -47819,6 +47923,14 @@ function dataImportBeginApprovalRuntime() {
     if (!dataImportRuntimeCurrentLineageIndex.has(key)) dataImportRuntimeCurrentLineageIndex.set(key, item);
   });
   dataImportRuntimeLineageBuffer = [];
+  return {canonicalIndex:dataImportRuntimeCanonicalIndex, currentLineageIndex:dataImportRuntimeCurrentLineageIndex, lineageBuffer:dataImportRuntimeLineageBuffer};
+}
+
+function dataImportDiscardApprovalRuntime(runtime) {
+  if (!runtime) return;
+  if (dataImportRuntimeCanonicalIndex === runtime.canonicalIndex) dataImportRuntimeCanonicalIndex = null;
+  if (dataImportRuntimeCurrentLineageIndex === runtime.currentLineageIndex) dataImportRuntimeCurrentLineageIndex = null;
+  if (dataImportRuntimeLineageBuffer === runtime.lineageBuffer) dataImportRuntimeLineageBuffer = null;
 }
 
 function dataImportBufferLineage(entries = []) {
@@ -48378,9 +48490,12 @@ function openDataImportExceptionMapping(issueId) {
   return false;
 }
 
-async function dataImportRouteStructuredFile(file, plan, batchId) {
+async function dataImportRouteStructuredFile(file, plan, batchId, assertCurrent = () => {}) {
+  assertCurrent();
   if (plan.reportType === "box_score") await refreshDataImportSharedLeadMappings();
+  assertCurrent();
   const sheets = await dataImportReadStructuredRows(file, plan);
+  assertCurrent();
   plan.assertReplayCurrent?.();
   const actualRowsReviewed = sheets.reduce((total, sheet) => total + sheet.rows.length, 0);
   const previewRowsReviewed = Number(plan.rowCount || 0);
@@ -48440,6 +48555,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
           fileName: plan.name
         });
         await dataImportYieldToBrowser();
+        assertCurrent();
         plan.assertReplayCurrent?.();
       }
       if (plan.reportType === "delinquency" && Object.values(sourceRow.values || {}).slice(0, 2).some(value => /^(?:grand\s+)?(?:sub)?total\s*:?$/i.test(String(value || "").trim()))) continue;
@@ -48544,6 +48660,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
   });
   if (plan.reportType === "box_score" && !blockStaleDownstream && !result.issues.some(issue => issue.title === "Source section is outside the selected period")) {
     await atlasCaptureBoxScoreFile(file, {floorPlansOnly:true, allowedNames:plan.selectedCommunities || plan.communities || Array.from(result.communities)});
+    assertCurrent();
   }
   if (plan.reportType === "delinquency" && result.centralRows.length && typeof window.atlasCsIngestDelinquencyRows === "function") {
       const firstCommunity = Array.from(result.communities)[0] || "Multiple properties";
@@ -48582,34 +48699,47 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
   return result;
 }
 
-async function dataImportRouteApprovedFile(file, plan, batchId = "") {
+async function dataImportRouteApprovedFile(file, plan, batchId = "", assertCurrent = () => {}) {
+  assertCurrent();
   if (!window.atlasCsPreviewRenewalSheetRows) await window.AtlasFeatures.load("centralServices");
+  assertCurrent();
   if (typeof XLSX === "undefined") await window.AtlasFeatures.load("xlsx");
+  assertCurrent();
   const extension = dataImportGetFileExtension(file.name);
   if (plan.reportType === "renewal_tracker") {
     const communities = plan.selectedCommunities || plan.communities || [];
     if (communities.length !== 1 || !getAllCommunityNames().includes(communities[0])) throw new Error("Choose one saved community for this renewal tracker before approval.");
-    const workbook = XLSX.read(await file.arrayBuffer(), {type:"array",cellDates:true});
+    const sourceBuffer = await file.arrayBuffer();
+    assertCurrent();
+    const workbook = XLSX.read(sourceBuffer, {type:"array",cellDates:true});
     const detected = resolveRenewalWorkbookPropertyName(workbook, file.name, {prompt:false});
     if (detected && detected !== communities[0]) throw new Error("The renewal workbook property conflicts with the approved community.");
   }
-  const exactDuplicate = (dataImport2State.sourceArchive || []).find(entry => entry.fileHash && entry.fileHash === plan.fileHash && entry.batchId !== batchId && entry.importStatus !== "Rolled Back");
+  const exactDuplicate = (dataImport2State.sourceArchive || []).find(entry => entry.fileHash && entry.fileHash === plan.fileHash && entry.batchId !== batchId && !["Rolled Back", "Failed", "Needs Review"].includes(entry.importStatus));
   if (exactDuplicate) {
     return { message: `Exact duplicate retained in the archive; current data was not rewritten. Original batch ${exactDuplicate.batchId}.`, rowsReviewed: plan.rowCount || 0, rowsInserted: 0, rowsUpdated: 0, rowsUnchanged: 0, rowsRejected: 0, rowsHeld: 0, duplicatesIgnored: plan.rowCount || 1, issues: [], destinations: [], communities: plan.communities || [], formulas: [], coverage: [] };
   }
   let result = [".csv", ".txt", ".pdf", ".xlsx", ".xls", ".xlsm"].includes(extension)
-    ? await dataImportRouteStructuredFile(file, plan, batchId)
+    ? await dataImportRouteStructuredFile(file, plan, batchId, assertCurrent)
     : { rowsReviewed: plan.rowCount || 0, rowsInserted: 0, rowsUpdated: 0, rowsUnchanged: 0, rowsRejected: 0, rowsHeld: 0, duplicatesIgnored: 0, issues: [], destinations: [], communities: plan.communities || [], formulas: [], coverage: [] };
+  assertCurrent();
   if (plan.reportType === "leasing_resident_data" && [".xlsx", ".xls", ".xlsm"].includes(extension)) {
     await processApplicationResidentDataFiles([file], { reportMonthIdx: plan.reportingMonthIdx, reportYear: plan.reportingYear });
+    assertCurrent();
     result.destinations = Array.from(new Set([...(result.destinations || []), "Resident lifecycle", "Application Performance"]));
   }
   if (plan.reportType === "renewal_tracker") {
     await processRenewalFiles([file], {communityName:(plan.selectedCommunities || plan.communities || [])[0], reportingYear:plan.reportingYear});
+    assertCurrent();
     result.destinations = Array.from(new Set([...(result.destinations || []), "Renewal Management", "Exposure Forecast"]));
   }
   if (plan.reportType === "marketing_iq") {
-    await processMarketSurveyFiles([file]);
+    // Approval publishes community data and source receipts atomically below.
+    // A parser refusal must not become an Approved duplicate that blocks retry.
+    const applied = await processMarketSurveyFiles([file], {deferPersistence:true});
+    assertCurrent();
+    if (applied !== true) throw new Error("Market survey could not be prepared for approval. Review its parser or storage message and retry the source.");
+    assertCurrent();
     result.destinations = Array.from(new Set([...(result.destinations || []), "Marketing Performance"]));
   }
   if (plan.reportType === "box_score" && typeof processDlrBoxScoreFiles === "function") {
@@ -48625,13 +48755,16 @@ async function dataImportRouteApprovedFile(file, plan, batchId = "") {
       try {
         await processDlrBoxScoreFiles([file]);
       } finally {
+        assertCurrent();
         historicalImportTarget = previousTarget;
         persistOpsGlobalData();
       }
-      result.destinations = Array.from(new Set([...(result.destinations || []), "DLR", "Weekly Leasing Report"]));
+      assertCurrent();
+    result.destinations = Array.from(new Set([...(result.destinations || []), "DLR", "Weekly Leasing Report"]));
     }
   }
   if (!dataImportGetReportDef(plan.reportType)) await processLegacyOperationalImportFiles([file]);
+  assertCurrent();
   result.message = `${result.rowsInserted || 0} inserted, ${result.rowsUpdated || 0} updated, ${result.rowsUnchanged || 0} unchanged, ${result.rowsRejected || 0} rejected, ${result.rowsHeld || 0} held; refreshed ${(result.destinations || []).join(", ") || "the source archive"}.`;
   return result;
 }
@@ -48667,10 +48800,27 @@ function dataImportBuildExceptionsForApprovedFiles(files = [], batchId = "") {
   })));
 }
 
+async function persistDataImportFailedReceipts(entries, checkCurrent = () => {}) {
+  checkCurrent();
+  await persistDataImport2State();
+  checkCurrent();
+  // The shared queue reports errors without rejecting its promise. Confirm
+  // these exact failed originals from native history before claiming retention.
+  const stored = await dataImportHistoryOperation("load");
+  checkCurrent();
+  for (const entry of entries) {
+    const receipt = (stored.sourceArchive || []).find(row => row.id === entry.id);
+    if (!receipt || receipt.importStatus !== "Failed" || receipt.fileHash !== entry.fileHash) throw new Error("The failed source receipt could not be verified. Its original file remains retained; keep this preview open and retry.");
+  }
+}
+
 async function approveDataImportBatch() {
   if (dataImportApprovalInProgress || dataImportApprovalPreflight) return;
+  const approvalCurrent = captureAtlasSaveContext();
+  const checkApprovalCurrent = () => { if (!approvalCurrent()) throw new DOMException("Workspace changed during source approval", "AbortError"); };
   dataImportApprovalPreflight = true;
-  try { await ensureDataImportFullState(); } catch(error) { alert(error.message); return; } finally { dataImportApprovalPreflight = false; }
+  try { await ensureDataImportFullState(); } catch(error) { if (approvalCurrent()) alert(error.message); return; } finally { dataImportApprovalPreflight = false; }
+  if (!approvalCurrent()) return;
   const beforeSaved=JSON.stringify(savedData);
   const beforeImport=JSON.stringify(dataImport2State);
   const batch = dataImport2State.pendingBatch;
@@ -48732,26 +48882,34 @@ async function approveDataImportBatch() {
 
   const routeMessages = [];
   const archivedEntries = [];
+  let marketRouteFailed = false;
+  let approvalRuntime = null;
   try {
+    checkApprovalCurrent();
     batch.beforeSnapshot = dataImportBuildBeforeSnapshot();
-    dataImportBeginApprovalRuntime();
+    approvalRuntime = dataImportBeginApprovalRuntime();
     for (let index = 0; index < approvedPlans.length; index += 1) {
       const plan = approvedPlans[index];
       const rowsAtFileStart = Number(dataImportApprovalProgress.rowsDone || 0);
       dataImportUpdateApprovalProgress({ stage: "Archiving source", fileName: plan.name });
       await dataImportYieldToBrowser();
+      checkApprovalCurrent();
       const file = dataImportFileHandles.get(plan.fileId);
       if (!file) {
         routeMessages.push(`${plan.name}: restage required before this source can be approved.`);
         plan.issues = [...(plan.issues || []), { type: "invalid", severity: "high", title: "Source file is no longer staged", detail: "Choose the source again before approving it." }];
         plan.status = "review";
       } else {
-        const archiveEntry = await dataImportArchiveApprovedFile(file, plan, batch);
+        checkApprovalCurrent();
+        const archiveEntry = await dataImportArchiveApprovedFile(file, plan, batch, approvalCurrent);
+        checkApprovalCurrent();
         archivedEntries.push(archiveEntry);
         try {
           dataImportUpdateApprovalProgress({ stage: "Applying mapped data", fileName: plan.name });
           await dataImportYieldToBrowser();
-          const importResult = await dataImportRouteApprovedFile(file, plan, batch.id);
+          checkApprovalCurrent();
+          const importResult = await dataImportRouteApprovedFile(file, plan, batch.id, checkApprovalCurrent);
+          checkApprovalCurrent();
           plan.importResult = importResult;
           plan.issues = [...(plan.issues || []), ...(importResult.issues || [])];
           plan.communities = Array.from(new Set([...(plan.communities || []), ...(importResult.communities || [])]));
@@ -48769,10 +48927,15 @@ async function approveDataImportBatch() {
           archiveEntry.coverageGaps = importResult.coverageGaps || [];
           routeMessages.push(`${plan.name}: ${importResult.message || "Import route completed."}`);
         } catch (error) {
+          checkApprovalCurrent();
           const message = String(error?.message || error || "Import route failed.");
           routeMessages.push(`${plan.name}: ${message}`);
           plan.issues = [...(plan.issues || []), { type: "invalid", severity: "high", title: "Import route failed", detail: message }];
           plan.status = "review";
+          if (plan.reportType === "marketing_iq") {
+            marketRouteFailed = true;
+            throw error;
+          }
         }
       }
       dataImportUpdateApprovalProgress({
@@ -48782,10 +48945,12 @@ async function approveDataImportBatch() {
         fileName: plan.name
       });
       await dataImportYieldToBrowser();
+      checkApprovalCurrent();
     }
 
     dataImportUpdateApprovalProgress({ stage: "Refreshing ATLAS", fileName: "" });
     await dataImportYieldToBrowser();
+    checkApprovalCurrent();
     dataImportFinishApprovalRuntime();
     const downstreamAudit = dataImportBuildDownstreamAudit(approvedPlans, routeMessages).map(audit => ({ ...audit, batchId: batch.id }));
     const historyEntry = {
@@ -48842,7 +49007,6 @@ async function approveDataImportBatch() {
       ...(dataImport2State.exceptions || [])
     ];
     dataImport2State.pendingBatch = null;
-    dataImportFileHandles.clear();
     dataImport2State.activeView = "overview";
     csvLog = [
       `${historyEntry.id} approved and routed through ATLAS.`,
@@ -48853,20 +49017,42 @@ async function approveDataImportBatch() {
         ? "ATLAS has questions before every downstream page can be trusted."
         : "Dependent dashboards and reports verified usable destination data."
     ];
-    await persistDataImportPublication();
+    checkApprovalCurrent();
+    await persistDataImportPublication({assertCurrent:checkApprovalCurrent});
+    checkApprovalCurrent();
+    const marketSurveyCount = approvedPlans.filter(plan => plan.reportType === "marketing_iq").length;
+    if (marketSurveyCount) marketSurveyImportSourceLabel = `${marketSurveyCount} market survey${marketSurveyCount === 1 ? "" : "s"} updated`;
+    dataImportFileHandles.clear();
     publishAtlasApprovedDataNotices(historyEntry).catch(error => console.warn("ATLAS employee upload notices were not published.", error));
   } catch (error) {
+    if (!approvalCurrent()) return;
+    dataImportDiscardApprovalRuntime(approvalRuntime);
     const message = String(error?.message || error || "The selected batch could not be applied.");
+    let receiptError = "";
     savedData=JSON.parse(beforeSaved);
     dataImport2State=JSON.parse(beforeImport);
-    csvError = `ATLAS stopped this approval before completion: ${message}`;
+    if (marketRouteFailed) {
+      // These originals were stored before parsing. Retain honest failed
+      // receipts while restoring all uncommitted facts and keeping the preview.
+      dataImport2State.sourceArchive = [...archivedEntries.map(entry => ({...entry,importStatus:"Failed",importError:message,rowsInserted:0,rowsUpdated:0,destinations:[],coverage:[]})),...(dataImport2State.sourceArchive || [])];
+      try { await persistDataImportFailedReceipts(archivedEntries,checkApprovalCurrent); } catch (failure) { receiptError = String(failure?.message || failure); }
+    }
+    if (!approvalCurrent()) return;
+    marketSurveyImportSourceLabel = "";
+    csvError = `ATLAS stopped this approval before completion: ${message}${receiptError ? " " + receiptError : ""}`;
     csvLog = [`${batch.id} remains in Import Preview so it can be reviewed or retried.`, ...routeMessages.slice(0, 5)];
 
   } finally {
+    if (!approvalCurrent()) {
+      dataImportDiscardApprovalRuntime(approvalRuntime);
+      dataImportApprovalInProgress = false;
+      return;
+    }
     dataImportFinishApprovalRuntime();
     dataImportApprovalInProgress = false;
     dataImportUpdateApprovalProgress({ stage: "", fileName: "" });
     await atlasStateWritePromise;
+    if (!approvalCurrent()) return;
     loadPropertyData(getProp().name);
     renderPropGrid();
     renderTab();
@@ -49687,7 +49873,7 @@ function dataImportLatestArchiveFor(communityName, reportType) {
   const normalizedCommunity = dataImportNormalizeText(communityName);
   const accounting = reportType === "approved_accounting" ? dataImportAccountingSourceFor(communityName) : null;
   return [...(dataImport2State.sourceArchive || []), ...(accounting ? [accounting] : [])]
-    .filter(entry => entry.reportType === reportType && entry.importStatus !== "Rolled Back")
+    .filter(entry => entry.reportType === reportType && !["Rolled Back", "Failed", "Needs Review"].includes(entry.importStatus))
     .filter(entry => (entry.communities || []).some(name => dataImportNormalizeText(name) === normalizedCommunity))
     .sort((a, b) => new Date(b.dataDateIso || b.uploadedAt || 0) - new Date(a.dataDateIso || a.uploadedAt || 0))[0] || null;
 }
@@ -54746,7 +54932,7 @@ async function refreshAtlasCanonicalWorkspace({force=false} = {}) {
   const current = () => generation === atlasCanonicalWorkspaceGeneration && !signal?.aborted && epoch === atlasWorkspaceAccess.epoch && actor === atlasWorkspaceActorKey() && dbName === ATLAS_STATE_DB_NAME
     && !window.AtlasReplayWriteFence && replayGeneration===Number(window.AtlasReplayGeneration||0);
   const task = (async () => {
-    const module = await import("./features/workspace-bootstrap.mjs?v=dc0f1662271fe2f2");
+    const module = await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
     if (!current()) return false;
     const {source,projection,binding} = await module.readWorkspace(window.ATLAS_CENTRAL,{signal});
     if (!current()) return false;
@@ -54802,9 +54988,9 @@ async function refreshAtlasCanonicalWorkspace({force=false} = {}) {
 let atlasCanonicalImportEvidencePromise = null;
 async function stageAtlasCanonicalImportEvidence(signal,check) {
   // Keep the complete archive and decoded records out of the caller's frame.
-  // They can be collected after the atomic copy, before history migration reads
-  // its own IndexedDB clone in a worker.
-  const module=await import('./features/workspace-bootstrap.mjs?v=dc0f1662271fe2f2');check();
+  // Split and compress immutable history before the atomic copy so neither the
+  // complete legacy root nor expanded snapshots cross an IndexedDB clone boundary.
+  const module=await import('./features/workspace-bootstrap.mjs?v=def9f708c09aca8f');check();
   const remote=await window.ATLAS_CENTRAL.readDocument(getAtlasCentralDocumentKey(),{signal});check();
   const source=module.sourceIdentity(remote),binding=await atlasStateGetValue('atlas_workspace_source_v2');check();
   if(module.stableJson(source)!==module.stableJson(binding?.identity))throw new Error('The central archive changed. Refresh before loading its evidence.');
@@ -54812,12 +54998,22 @@ async function stageAtlasCanonicalImportEvidence(signal,check) {
   const archive=await window.AtlasMigrationArchive.hydrate(remote.payload.bundle,window.ATLAS_CENTRAL,{signal});check();
   const {records}=await window.AtlasMigrationArchive.unpack(archive,JSZip);check();
   for(const record of records)if(!(record.key===DATA_IMPORT_2_STATE_KEY||record.key.startsWith(DATA_IMPORT_FILE_ARCHIVE_PREFIX)||record.key.startsWith('occupancy_replay_backup:')))throw new Error('Unexpected archive evidence record.');
-  const db=await openAtlasStateDb();check();if(!db)throw new Error('Canonical ATLAS storage is unavailable.');
-  await new Promise((resolve,reject)=>{
-    const tx=db.transaction(ATLAS_STATE_STORE_NAME,'readwrite'),store=tx.objectStore(ATLAS_STATE_STORE_NAME),rootRead=store.getKey(DATA_IMPORT_2_STATE_KEY),sourceRead=store.get('atlas_workspace_source_v2');let remaining=2,failure;
-    const finish=()=>{if(--remaining)return;try{check();if(rootRead.result || module.stableJson(sourceRead.result?.value?.identity)!==module.stableJson(source))throw new Error('Retained import evidence or its source changed. Reload before continuing.');for(const record of records)store.put(record);store.put({key:'atlas_import_archive_receipt_v2',value:{archiveHash:source.archiveHash,version:source.version,parentDocument:source.documentKey,records:records.length,verifiedAt:new Date().toISOString()}});}catch(error){failure=error;tx.abort();}};
-    rootRead.onsuccess=sourceRead.onsuccess=finish;tx.oncomplete=resolve;tx.onabort=tx.onerror=()=>reject(failure||tx.error||new Error('Archive evidence transaction failed.'));
-  });
+  const importRecord=records.find(record=>record.key===DATA_IMPORT_2_STATE_KEY);
+  if(!importRecord||records.filter(record=>record.key===DATA_IMPORT_2_STATE_KEY).length!==1)throw new Error('Canonical archive requires exactly one complete import history record.');
+  const {executeHistory}=await import('./features/import-history-store.mjs?v=4c23a92990579aaa');check();
+  const options={dbName:ATLAS_STATE_DB_NAME,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal};
+  const receiptKey='atlas_import_archive_receipt_v2',sourceKey='atlas_workspace_source_v2';
+  const retained=records.filter(record=>record.key!==DATA_IMPORT_2_STATE_KEY);
+  const captured=(await executeHistory({...options,operation:'records',keys:[sourceKey,receiptKey,...retained.map(record=>record.key)],raw:true})).records;check();
+  if(module.stableJson(captured[0].value?.value?.identity)!==module.stableJson(source))throw new Error('Retained import evidence or its source changed. Reload before continuing.');
+  // An absent history root is not permission to replace other local evidence.
+  if(captured.slice(1).some(row=>row.value!==null))throw new Error('This browser has retained archive evidence. Reconcile before replacing it.');
+  const protectedRecords=[
+    {key:sourceKey,record:captured[0].value,expectedHash:captured[0].hash},
+    {key:receiptKey,value:{archiveHash:source.archiveHash,version:source.version,parentDocument:source.documentKey,records:records.length,verifiedAt:new Date().toISOString()},expectedHash:captured[1].hash},
+    ...retained.map((record,index)=>({key:record.key,record,expectedHash:captured[index+2].hash}))
+  ];
+  await executeHistory({...options,operation:'initialize',value:importRecord.value,updatedAt:importRecord.updatedAt,records:protectedRecords});
   check();
 }
 async function ensureAtlasCanonicalImportEvidence({signal:externalSignal} = {}) {
@@ -54837,12 +55033,12 @@ async function ensureAtlasCanonicalImportEvidence({signal:externalSignal} = {}) 
     if(existing){
       const receipt=await atlasStateGetValue('atlas_import_archive_receipt_v2');check();
       if(receipt?.archiveHash!==projectionSource.archiveHash)throw new Error('This browser has retained import evidence from another source version. Reconcile before replacing it.');
-      const {historyOperation}=await import('./features/import-history.mjs?v=763abc10ad1c35a8');check();
+      const {historyOperation}=await import('./features/import-history.mjs?v=7db7a83280571f55');check();
       const state=await historyOperation({operation:'current',dbName,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal});check();
       window.AtlasStartupImportProjection=null;dataImport2State=normalizeDataImport2State(state);rememberDataImportHistoryState();return;
     }
     await stageAtlasCanonicalImportEvidence(signal,check);check();
-    const {historyOperation}=await import('./features/import-history.mjs?v=763abc10ad1c35a8');check();
+    const {historyOperation}=await import('./features/import-history.mjs?v=7db7a83280571f55');check();
     const state=await historyOperation({operation:'current',dbName,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal});check();
     window.AtlasStartupImportProjection=null;dataImport2State=normalizeDataImport2State(state);rememberDataImportHistoryState();
   })();
@@ -54870,7 +55066,7 @@ async function initializeAtlasDashboard() {
     if (getAtlasCentralStatus().configured) {
       if (!central?.getSession()?.user) {finishAtlasStartupLoadingState(); renderTab(); return;}
       const profile = await measureAtlasStartupStage("authorization",()=>central.fetchProfile({claim:false,signal:atlasWorkspaceAccess.controller.signal}));
-      const module = await import("./features/workspace-bootstrap.mjs?v=dc0f1662271fe2f2");
+      const module = await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
       const namespace = await module.accessNamespace(central,profile);
       if (epoch !== atlasWorkspaceAccess.epoch) return;
       if (!await switchAtlasWorkspaceStorage(namespace,()=>epoch === atlasWorkspaceAccess.epoch) || epoch !== atlasWorkspaceAccess.epoch) return;
@@ -54958,7 +55154,7 @@ async function verifyAtlasWorkspaceAccess() {
   const epoch=atlasWorkspaceAccess.epoch;
   atlasAccessVerificationPromise=(async()=>{
     const profile=await window.ATLAS_CENTRAL.fetchProfile({claim:false,signal:atlasWorkspaceAccess.controller?.signal});
-    const module=await import("./features/workspace-bootstrap.mjs?v=dc0f1662271fe2f2");
+    const module=await import("./features/workspace-bootstrap.mjs?v=def9f708c09aca8f");
     const namespace=await module.accessNamespace(window.ATLAS_CENTRAL,profile);
     if(epoch!==atlasWorkspaceAccess.epoch)return;
     if(namespace!==ATLAS_STATE_DB_NAME){

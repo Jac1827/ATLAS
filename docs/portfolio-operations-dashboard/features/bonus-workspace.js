@@ -117,7 +117,7 @@ function renderBonusOverviewSection(rows) {
     ${renderBonusEngineKpi("Projected Payout", atlasBonusCurrency(summary.projected), "Live projection from current ATLAS data", "green", "projected")}
     ${renderBonusEngineKpi("Approved Payout", atlasBonusCurrency(summary.approved), "Regional/HR approved amount", "", "approvals")}
     ${renderBonusEngineKpi("Bonus Budget", atlasBonusCurrency(summary.budget), "Current approved bonus pool", "gold", "forecast")}
-    ${renderBonusEngineKpi("Variance To Budget", atlasBonusCurrency(summary.variance), summary.variance >= 0 ? "Projected under budget" : "Projected over budget", summary.variance >= 0 ? "green" : "red", "forecast")}
+    ${renderBonusEngineKpi("Variance To Budget", atlasBonusCurrency(summary.variance), summary.variance === null ? "Projection and budget are required" : summary.variance >= 0 ? "Projected under budget" : "Projected over budget", summary.variance === null ? "" : summary.variance >= 0 ? "green" : "red", "forecast")}
     ${renderBonusEngineKpi("Regional Approval", summary.awaitingRegional, "Payouts awaiting Regional review", "", "approvals", "approvalStatus", "Calculated")}
     ${renderBonusEngineKpi("HR Approval", summary.awaitingHr, "Payouts awaiting HR review", "", "approvals", "approvalStatus", "Regional Approved")}
     ${renderBonusEngineKpi("Exceptions", summary.criticalExceptions, "Critical exceptions block final approval", summary.criticalExceptions ? "red" : "green", "exceptions")}
@@ -281,9 +281,9 @@ function renderBonusForecastSection(rows) {
   return `<div class="bonus-engine-grid">
     ${renderBonusEngineKpi("Portfolio Projection", atlasBonusCurrency(summary.projected), "Current projected portfolio payout", "green", "projected")}
     ${renderBonusEngineKpi("Budgeted Bonus Pool", atlasBonusCurrency(summary.budget), "Approved bonus budget", "gold", "forecast")}
-    ${renderBonusEngineKpi("Budget Variance", atlasBonusCurrency(summary.variance), "Positive means remaining budget capacity", summary.variance >= 0 ? "green" : "red", "forecast")}
+    ${renderBonusEngineKpi("Budget Variance", atlasBonusCurrency(summary.variance), "Positive means remaining budget capacity", summary.variance === null ? "" : summary.variance >= 0 ? "green" : "red", "forecast")}
     ${renderBonusEngineKpi("Approved Payout", atlasBonusCurrency(summary.approved), "Approved through current workflow", "", "approvals")}
-    ${renderBonusEngineKpi("Remaining Exposure", atlasBonusCurrency(Math.max(summary.budget - summary.approved, 0)), "Budget remaining after approved payouts", "gold", "forecast")}
+    ${renderBonusEngineKpi("Remaining Exposure", atlasBonusCurrency(summary.budget === null || summary.approved === null ? null : Math.max(summary.budget - summary.approved, 0)), "Budget remaining after approved payouts", "gold", "forecast")}
   </div>
   <div class="bonus-engine-grid three">
     ${renderBonusEngineBarChart(rows, row => atlasBonusEmployeeRegionLabel(row.employee), "Forecast by Region")}
@@ -373,8 +373,8 @@ function renderBonusTab() {
       <p>Use shared approvals for verified plan terms, employee eligibility, calculations, review and payroll confirmations. The planning sections below retain draft projections and examples.</p>
       <div class="bonus-engine-toolbar">
         <span class="bonus-engine-pill good">${escapeHtml(period.periodKey)}</span>
-        <span class="bonus-engine-pill">${summary.employeeCount} people in planning view</span>
-        <span class="bonus-engine-pill ${summary.criticalExceptions ? "bad" : "good"}">${summary.criticalExceptions} critical exceptions</span>
+        <span class="bonus-engine-pill">${summary.employeeCount ? `${summary.employeeCount} people in planning view` : "No employees in the current planning scope"}</span>
+        ${summary.employeeCount ? `<span class="bonus-engine-pill ${summary.criticalExceptions ? "bad" : "good"}">${summary.criticalExceptions} critical exceptions</span>` : ""}
         <span class="bonus-engine-pill info">Projected ${atlasBonusCurrency(summary.projected)}</span>
         ${atlasBonusCan("run_calculations") ? `<button type="button" class="btn btn-blue btn-sm" onclick="atlasBonusRunCalculations()">Run Calculations</button>` : ""}
         ${atlasBonusSectionVisible("reports") ? `<button type="button" class="btn btn-gray btn-sm" onclick='atlasBonusSetSection("reports")'>Reports</button>` : ""}

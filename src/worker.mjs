@@ -1,3 +1,4 @@
+import {resolveCurrentDlrRecipients} from './dlr-current-recipients.mjs';
 import {handleMoveOutState} from './moveout-state.mjs';
 import {handleMoveOutIntegration} from './moveout-integrations.mjs';
 import {handleResidentCommunications, createCommunicationService} from './resident-communications.mjs';
@@ -431,6 +432,7 @@ function normalizeDlrDeliverySettingsForServer(input = {}, env = {}) {
     sendOnHolidays: Boolean(source.sendOnHolidays),
     toInvestorContacts: source.toInvestorContacts !== undefined ? Boolean(source.toInvestorContacts) : true,
     roleRecipients: Array.isArray(source.roleRecipients) ? source.roleRecipients.map(item => cleanText(item)).filter(Boolean) : [],
+    employeeRecipientIds: Array.isArray(source.employeeRecipientIds) ? [...new Set(source.employeeRecipientIds.filter(isUuid))] : [],
     cc: normalizeEmailList(source.cc),
     bcc: normalizeEmailList(source.bcc),
     emailContentMode: cleanText(source.emailContentMode || "executive_snapshot_commentary"),
@@ -761,6 +763,8 @@ async function upsertDlrDeliverySubscription(config, snapshot, savedSnapshot, ac
   const settings = snapshot.settings;
   const recipientConfig = {
     to: snapshot.recipients,
+    resolverVersion: 1,
+    employeeRecipientIds: settings.employeeRecipientIds,
     cc: settings.cc,
     bcc: settings.bcc,
     toInvestorContacts: settings.toInvestorContacts,
@@ -1132,7 +1136,9 @@ async function processDlrSubscriptionCadence(config, subscription, cadence, loca
     });
     return { communityName: subscription.community_name, cadence, status: "awaiting_approval", history };
   }
-  const recipients = resolveDeliveryRecipients(snapshot, subscription);
+  const recipients = subscription.recipient_config?.resolverVersion === 1
+    ? await resolveCurrentDlrRecipients(subscription, path => supabaseRequest(config, path, { service: true }), local.dateOnly)
+    : resolveDeliveryRecipients(snapshot, subscription);
   if (!recipients.to.length) {
     const history = await recordDlrDelivery(config, subscription, cadence, local, "no_recipients", {
       snapshot,

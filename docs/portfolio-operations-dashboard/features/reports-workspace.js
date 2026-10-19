@@ -422,7 +422,7 @@ function renderReportingTabContent() {
   const reportBuilderDetails = isCommunitySelectionReport ? [] : atlasReportPortfolioDetails(getReportHubMonthIndex());
   const reportableCommunityNames = isCommunitySelectionReport ? getReportableCommunityNames(getReportHubMonthIndex()) : [];
   const communityProgressSelectionNames = isCommunitySelectionReport ? getCommunityProgressReportCommunityNames() : [];
-  const selectedRecipientCount = reportHubContacts.filter(contact => reportHubRecipientKeys.includes(contact.key)).length;
+  const selectedRecipientCount = reportHubContacts.filter(contact => contact.eligible !== false && reportHubRecipientKeys.includes(contact.key)).length;
   const isLvrReport = normalizedType === "leasing_velocity";
   const currentScopeName = isCommunitySelectionReport
     ? getCommunityProgressReportScopeLabel()
@@ -440,9 +440,9 @@ function renderReportingTabContent() {
     ? reportHubContacts.map(contact => {
         const isActive = reportHubRecipientKeys.includes(contact.key);
         const label = contact.name ? `${contact.name} · ${contact.community}` : `${contact.email} · ${contact.community}`;
-        return `<button type="button" class="bonus-community-chip${isActive ? " active" : ""}" onclick='toggleReportHubRecipient(${JSON.stringify(contact.key)})'>
+        return `<button type="button" class="bonus-community-chip${isActive ? " active" : ""}" ${contact.eligible === false ? "disabled" : ""} onclick='toggleReportHubRecipient(${JSON.stringify(contact.key)})'>
           ${escapeHtml(label)}
-          <span>${escapeHtml(contact.email)}</span>
+          <span>${escapeHtml(contact.issue || contact.email)} · ${contact.type === "employee" ? "Employee Roster" : "Investor Contact"}</span>
         </button>`;
       }).join("")
     : `<div style="font-size:0.72rem;color:var(--muted)">No saved community contacts are available in the current scope yet.</div>`;
@@ -648,7 +648,7 @@ function renderReportingTabContent() {
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div>
           <h3 style="font-size:0.85rem;font-weight:700;margin-bottom:6px">Recipient Selection</h3>
-          <p style="font-size:0.72rem;color:var(--muted)">Use the saved community contact list for the current scope. Select one, many, or all before using the email draft action.</p>
+          <p style="font-size:0.72rem;color:var(--muted)">Choose Community Setup investor contacts or active Employee Roster contacts for this report scope. Email drafts are manual; optional scheduled delivery is available in the Daily Leasing Report workspace.</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-gray btn-sm" onclick="setAllReportHubRecipients(true)">Select All</button>

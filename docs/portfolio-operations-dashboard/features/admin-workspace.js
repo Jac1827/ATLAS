@@ -291,6 +291,7 @@ function renderAtlasCentralPlatformPanel() {
       </div>
       <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
         <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">Migration-Safe Central Data</div>
+        ${renderAtlasArchiveProgress()}
         <div style="font-size:0.66rem;color:var(--muted);line-height:1.5;margin-bottom:8px">${escapeHtml(documentVersion)} ${escapeHtml(lastActivity)}</div>
         <div style="font-size:0.64rem;color:${autosaveReady ? "#3fb950" : "#d29922"};line-height:1.5;margin-bottom:8px">${safetyItems.map(item => escapeHtml(item)).join(" · ")}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -300,7 +301,7 @@ function renderAtlasCentralPlatformPanel() {
           <button class="btn btn-gray btn-sm" onclick="uploadAtlasCentralMigrationSnapshot({ silent:false })" ${status.signedIn && !atlasCentralSnapshotUploadInProgress ? "" : "disabled"}>${atlasCentralSnapshotUploadInProgress ? "Uploading Snapshot..." : "Upload Read-Only Snapshot"}</button>
           <button class="btn btn-gray btn-sm" onclick="downloadAtlasCentralMigrationSnapshot()">Export Snapshot JSON</button>
           <button class="btn btn-gray btn-sm" onclick="markAtlasCentralReconciliationReviewed()">Mark Reconciliation Reviewed</button>
-          <button class="btn btn-gray btn-sm" onclick="testAtlasCentralRollbackSnapshot()">Test Rollback Snapshot</button>
+          <button class="btn btn-gray btn-sm" data-atlas-rollback-test onclick="testAtlasCentralRollbackSnapshot()" ${testAtlasCentralRollbackSnapshot.inFlight ? "disabled" : ""}>Test Rollback Snapshot</button>
           <button class="btn btn-gray btn-sm" onclick="disableAtlasLegacySharedBundle()" ${autosaveReady ? "" : "disabled"}>Disable Legacy Shared Bundle</button>
         </div>
         ${profile?.role === "admin" && atlasWorkspaceAccess.validated ? `<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
@@ -462,6 +463,7 @@ function renderAtlasSettingsMemoryPanel() {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
         <div class="card-title" style="margin-bottom:6px">Memory + Recovery</div>
+        ${renderAtlasArchiveProgress()}
         <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Manage browser-state memory, rollback exports, and backup coverage from one place before changing central behavior.</div>
       </div>
       <button class="btn btn-gray btn-sm" onclick="setTab(7)">Open Import / Restore Tools</button>
@@ -475,7 +477,7 @@ function renderAtlasSettingsMemoryPanel() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       <button class="btn btn-gray btn-sm" onclick="downloadAtlasSettingsMemoryBundle()">Export Browser Memory Bundle</button>
       <button class="btn btn-gray btn-sm" onclick="downloadAtlasCentralMigrationSnapshot()">Export Central Snapshot</button>
-      <button class="btn btn-gray btn-sm" onclick="testAtlasCentralRollbackSnapshot()">Run Rollback Test</button>
+      <button class="btn btn-gray btn-sm" data-atlas-rollback-test onclick="testAtlasCentralRollbackSnapshot()" ${testAtlasCentralRollbackSnapshot.inFlight ? "disabled" : ""}>Run Rollback Test</button>
     </div>
   </div>`;
 }

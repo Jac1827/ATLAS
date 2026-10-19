@@ -1,12 +1,14 @@
-import {executeHistory} from './import-history-store.mjs?v=4c23a92990579aaa';
-const READS=new Set(['legacy','load','current','page','snapshot','records','export','exportPacked','preferenceValues']);
+import {executeHistory} from './import-history-store.mjs?v=e310a5426db3487e';
+const READS=new Set(['legacy','load','current','page','snapshot','records','export','exportPacked','recordExportPacked','preferenceValues']);
 export async function historyOperation(request) {
-  const {signal,...payload}=request;
+  const {signal,onProgress,onArchiveProgress,...payload}=request;
+  const progress=event=>{if(signal?.aborted)return;const value={...event,phase:event?.phase||'packing'};onProgress?.(value);onArchiveProgress?.(value);};
+  const local=()=>executeHistory({...request,onArchiveProgress:progress});
   if(signal?.aborted)throw signal.reason||new DOMException('Import history read cancelled','AbortError');
-  if(typeof Worker==='undefined')return executeHistory(request);
+  if(typeof Worker==='undefined')return local();
   let worker;
-  try {worker=new Worker(new URL('./import-history-worker.mjs?v=19fa5ab1e33cf8cd',import.meta.url),{type:'module'});}
-  catch {return executeHistory(request);}
+  try {worker=new Worker(new URL('./import-history-worker.mjs?v=818892ed7f8a5f40',import.meta.url),{type:'module'});}
+  catch {return local();}
   return new Promise((resolve,reject)=>{
     let settled=false;
     const read=READS.has(request.operation);
@@ -15,7 +17,8 @@ export async function historyOperation(request) {
     const timeout=()=>finish(Object.assign(new Error(read?'Import history storage timed out. Retry loading.':'Import history save could not be confirmed. Reload before making another change.'),{code:read?'history_read_timeout':'history_write_uncertain',uncertain:!read}));
     let timer=setTimeout(timeout,120000);
     worker.onmessage=({data})=>{
-      if(request.operation==='exportPacked'&&data.progress===true){clearTimeout(timer);timer=setTimeout(timeout,120000);return;}
+      if(settled)return;
+      if(['exportPacked','recordExportPacked'].includes(request.operation)&&data.progress===true){clearTimeout(timer);timer=setTimeout(timeout,120000);progress(data.detail);return;}
       finish(data.ok?null:Object.assign(new Error(data.error),{code:data.code}),data.value);
     };
     // Accepted writes must settle. Cancelling a view never cancels or retries its pending commit.
@@ -27,7 +30,7 @@ export async function historyOperation(request) {
       // the existing bounded storage implementation can process them in place.
       if(error?.name==='DataCloneError'&&/out of memory/i.test(error.message||'')){
         settled=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);worker.terminate();
-        executeHistory(request).then(resolve,reject);
+        local().then(resolve,reject);
       }else finish(error);
     }
   });

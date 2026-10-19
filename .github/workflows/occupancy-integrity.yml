@@ -143,6 +143,14 @@ jobs:
           node tools/staffing-turnover.test.cjs
           node tools/occupancy-replay-browser-performance.test.cjs
           node tools/archive-performance.test.cjs
+          node tools/archive-progress-ui.test.cjs
+          node tools/import-history-progress.test.mjs
+          node tools/canonical-evidence-streaming.test.mjs
+          node tools/canonical-evidence-worker-bridge.test.mjs
+          node tools/canonical-archive-restore-flow.test.mjs
+          node tools/import-evidence-staging.test.cjs
+          node tools/import-history-stream-export.test.mjs
+          node tools/migration-archive-bounded-restore.test.cjs
           node tools/workbook-performance.test.cjs
           node tools/financial-close-report.test.mjs
           node tools/canonical-budget-report.test.mjs

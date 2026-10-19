@@ -1,5 +1,5 @@
 // The worker reads only the fixed legacy database. It never opens live scoped storage.
-importScripts('../vendor/jszip.min.js?v=acc7e41455a80765','../migration-archive.js?v=98a40a0bb65e0c38');
+importScripts('../vendor/jszip.min.js?v=acc7e41455a80765','../migration-archive.js?v=feebb32ebbdf48d8');
 self.onmessage=async({data})=>{
   try{
     const store=await import('./legacy-evidence-store.mjs?v=1f61a04b91f92357');

@@ -787,6 +787,40 @@
       ]
     ]
   },
+  "features/bounded-json-integrity.mjs": {
+    "sha256": "a4ea8821996c3b57",
+    "bytes": 11077,
+    "references": [
+      [
+        "features/import-history-store.mjs",
+        "./bounded-json-integrity.mjs"
+      ],
+      [
+        "workspace-core.js",
+        "./features/bounded-json-integrity.mjs"
+      ],
+      [
+        "features/canonical-evidence-store.mjs",
+        "./bounded-json-integrity.mjs"
+      ],
+      [
+        "features/archive-operational-restore.mjs",
+        "./bounded-json-integrity.mjs"
+      ],
+      [
+        "features/legacy-evidence-store.mjs",
+        "./bounded-json-integrity.mjs"
+      ],
+      [
+        "features/migration-token-stream.mjs",
+        "./bounded-json-integrity.mjs"
+      ],
+      [
+        "features/canonical-evidence-worker.js",
+        "./bounded-json-integrity.mjs"
+      ]
+    ]
+  },
   "features/financial-workbook-governance.mjs": {
     "sha256": "ce3982266f91118e",
     "bytes": 8713,
@@ -1025,23 +1059,9 @@
       ]
     ]
   },
-  "features/bounded-json-integrity.mjs": {
-    "sha256": "a4ea8821996c3b57",
-    "bytes": 11077,
-    "references": [
-      [
-        "features/import-history-store.mjs",
-        "./bounded-json-integrity.mjs"
-      ],
-      [
-        "features/legacy-evidence-store.mjs",
-        "./bounded-json-integrity.mjs"
-      ]
-    ]
-  },
   "migration-archive.js": {
-    "sha256": "98a40a0bb65e0c38",
-    "bytes": 34976,
+    "sha256": "feebb32ebbdf48d8",
+    "bytes": 40320,
     "references": [
       [
         "performance/feature-loader.js",
@@ -1058,12 +1078,16 @@
       [
         "features/legacy-evidence-worker.js",
         "../migration-archive.js"
+      ],
+      [
+        "features/canonical-evidence-worker.js",
+        "../migration-archive.js"
       ]
     ]
   },
   "features/import-history-store.mjs": {
-    "sha256": "4c23a92990579aaa",
-    "bytes": 31676,
+    "sha256": "e310a5426db3487e",
+    "bytes": 37706,
     "references": [
       [
         "features/import-history.mjs",
@@ -1078,14 +1102,18 @@
         "./features/import-history-store.mjs"
       ],
       [
+        "features/canonical-evidence-store.mjs",
+        "./import-history-store.mjs"
+      ],
+      [
         "features/workspace-projection-worker.js",
         "./import-history-store.mjs"
       ]
     ]
   },
   "features/import-history-worker.mjs": {
-    "sha256": "19fa5ab1e33cf8cd",
-    "bytes": 479,
+    "sha256": "818892ed7f8a5f40",
+    "bytes": 521,
     "references": [
       [
         "features/import-history.mjs",
@@ -1094,8 +1122,8 @@
     ]
   },
   "features/import-history.mjs": {
-    "sha256": "7db7a83280571f55",
-    "bytes": 2622,
+    "sha256": "30981952c2c17e0e",
+    "bytes": 2931,
     "references": [
       [
         "workspace-core.js",
@@ -1132,11 +1160,15 @@
       [
         "features/legacy-evidence-worker.js",
         "../vendor/jszip.min.js"
+      ],
+      [
+        "features/canonical-evidence-worker.js",
+        "../vendor/jszip.min.js"
       ]
     ]
   },
   "features/legacy-evidence-worker.js": {
-    "sha256": "6e3df0087b19bdd0",
+    "sha256": "90331cbc5d62e0b0",
     "bytes": 756,
     "references": [
       [
@@ -1146,7 +1178,7 @@
     ]
   },
   "features/legacy-evidence-recovery.mjs": {
-    "sha256": "70cd49135f2f5a05",
+    "sha256": "2d3675c8a2cc9a85",
     "bytes": 5192,
     "references": [
       [
@@ -1234,7 +1266,7 @@
     ]
   },
   "features/workspace-projection-worker.js": {
-    "sha256": "c83a3daceb3520cb",
+    "sha256": "4e0a0addd6527cf6",
     "bytes": 4227,
     "references": [
       [
@@ -1244,12 +1276,16 @@
     ]
   },
   "features/workspace-bootstrap.mjs": {
-    "sha256": "def9f708c09aca8f",
+    "sha256": "99b459d64e31f2cb",
     "bytes": 8930,
     "references": [
       [
         "workspace-core.js",
         "./features/workspace-bootstrap.mjs"
+      ],
+      [
+        "features/canonical-evidence-store.mjs",
+        "./workspace-bootstrap.mjs"
       ],
       [
         "features/workspace-publication.mjs",
@@ -1266,7 +1302,7 @@
     ]
   },
   "features/workspace-publication-baseline.mjs": {
-    "sha256": "c429aebdfdb27182",
+    "sha256": "2e2c6f207da18a60",
     "bytes": 2092,
     "references": [
       [
@@ -1276,7 +1312,7 @@
     ]
   },
   "features/workspace-publication.mjs": {
-    "sha256": "53ea91fb9ac74941",
+    "sha256": "0fb9d6bd296e145c",
     "bytes": 959,
     "references": [
       [
@@ -1290,8 +1326,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "202915f13359ba78",
-    "bytes": 3135993,
+    "sha256": "5a576ba2731349fe",
+    "bytes": 3146325,
     "references": [
       [
         "index.html",
@@ -2332,7 +2368,7 @@
     ]
   },
   "occupancy-replay-browser.js": {
-    "sha256": "fa01bedd8f29fbb0",
+    "sha256": "cc908f4fda2b1291",
     "bytes": 14553,
     "references": [
       [
@@ -2382,8 +2418,8 @@
     ]
   },
   "features/admin-workspace.js": {
-    "sha256": "34c8f7b9b5e86064",
-    "bytes": 60011,
+    "sha256": "238bee335635e78e",
+    "bytes": 60267,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2442,7 +2478,7 @@
     ]
   },
   "features/workspace-activation.mjs": {
-    "sha256": "5722481f74ac9850",
+    "sha256": "e29c780f8ffd8aea",
     "bytes": 12828,
     "references": [
       [
@@ -2452,7 +2488,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "221b232709ce43d9",
+    "sha256": "a66c637ab19ea230",
     "bytes": 3962,
     "references": [
       [

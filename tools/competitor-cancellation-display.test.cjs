@@ -106,7 +106,7 @@ if (process.env.ATLAS_CANCELLATION_CELL_FIXTURE) {
 
 // Execute the real file reader and workbook adapter; stubs only isolate unrelated
 // floor-plan/property publication. cellNF must survive this production entry point.
-for (const name of ['getWorkbookSheetRows','findWorksheetCellMatch','extractMarketSurveyWorkbookData','handleMarketSurveyWorkbook']) {
+for (const name of ['dataImportAptiqWorkbookSource','getWorkbookSheetRows','findWorksheetCellMatch','extractMarketSurveyWorkbookData','handleMarketSurveyWorkbook']) {
   vm.runInContext(core.match(new RegExp('^(?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}', 'm'))[0],parser);
 }
 let applied;

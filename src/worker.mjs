@@ -1,4 +1,5 @@
 import {resolveCurrentDlrRecipients} from './dlr-current-recipients.mjs';
+import {handleReportAutomation,processReportSchedules} from './report-automation.mjs';
 import {handleMoveOutState} from './moveout-state.mjs';
 import {handleMoveOutIntegration} from './moveout-integrations.mjs';
 import {handleResidentCommunications, createCommunicationService} from './resident-communications.mjs';
@@ -2256,6 +2257,11 @@ export default {
       return handleCommunityPlanEmail(request,env,{requireAtlasAccessUser,apiResponse,supabaseRequest,callAtlasRpcAsUser});
     }
 
+    if (url.pathname === "/api/atlas/reports/delivery") {
+      if (request.method === "OPTIONS") return noContent();
+      return handleReportAutomation(request,env,{requireAtlasAccessUser,apiResponse,supabaseRequest,community:propertySpecialsCommunity});
+    }
+
     if (url.pathname === "/api/atlas/dlr/status") {
       if (request.method === "OPTIONS") return noContent();
       if (request.method !== "GET") {
@@ -2329,8 +2335,11 @@ export default {
 
   async scheduled(controller, env) {
     if (controller?.cron === '* * * * *') {
-      try { await createCommunicationService(env, {config:getAtlasSupabaseConfig, db:supabaseRequest}).refreshReminders(); }
-      catch { console.log({event:'atlas_communication_reminder_error'}); }
+      const results=await Promise.allSettled([
+        createCommunicationService(env, {config:getAtlasSupabaseConfig, db:supabaseRequest}).refreshReminders(),
+        processReportSchedules(env,{getAtlasSupabaseConfig,supabaseRequest},new Date(controller.scheduledTime || Date.now()))
+      ]);
+      results.forEach((result,index)=>{if(result.status==='rejected')console.log({event:index?'atlas_report_scheduler_error':'atlas_communication_reminder_error'});});
       return;
     }
     try {

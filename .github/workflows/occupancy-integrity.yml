@@ -106,6 +106,10 @@ jobs:
           node tools/investor-packet.test.cjs
           node tools/investor-packet-sources.test.cjs
           node tools/investor-packet-ui.test.cjs
+          node tools/scheduled-report-content.test.mjs
+          node tools/report-automation.test.mjs
+          node tools/report-automation-ui.test.mjs
+          node tools/report-automation-db.test.mjs
           node tools/reforecast-consumers.test.mjs
           node tools/scout-reforecast.test.mjs
           node tools/reforecast-community-reports-db.test.cjs

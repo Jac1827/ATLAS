@@ -5,7 +5,7 @@
     "functions": {
       "renderDataImportHero": "511529a55027563ee2fd550062c86801e1e80bfca7256d526a2897a9642801f1",
       "renderDataImportTabs": "f20ee7a3c4e62c446590ccc5209de55d5a37505e73d8e86e25b648fdb0e003ed",
-      "renderDataImportDropzone": "65c13c76ee3b3c174e6dcf96e34c9162029e8a702c32c252c32e1fc247a80854",
+      "renderDataImportDropzone": "c87ae401d52ed48984ccdb5d261f24f88a91317b4dcce388d080600401390110",
       "renderDataImportRecommendations": "80bf21ac29a4a1ea1a59d3b26bc597da090eb64d9b6d6e2e22fa1e43508d6f8d",
       "renderDataImportMatrix": "bf23d090c5c40e0e15a8d25c2f2cf43f1051bad3f354cbebd0b63c5362bac4cd",
       "renderDataImportHealthDetail": "9b4406917cf44f67be051004d5d7229258f3ddb33748649b5a5f7202fe0ffdc9",
@@ -19,7 +19,7 @@
       "renderDataImportBatchQuestions": "0174b82c3bc77671a8af660b9625c3706217977985c14454dcf836cd8f3464cc",
       "renderDataImportPlannedDownstreamAudit": "a600c9c865ca0a2b161f49a3d9abefc1351d4cb5e655dc1080c0f66030452409",
       "renderDataImportDownstreamAudit": "cf2e1c608df1fb4f9ea425c92625896d5b982c71ab56cde149495ca43deb0345",
-      "renderDataImportPendingBatch": "ec1b55077037d56ed995ed064200edc851c00e5dc07cfaa10fb6073d0345dc41",
+      "renderDataImportPendingBatch": "70d11c3f30e7d5c2b1475ad21720dc325f3a0f60d64bacd945e7c6ac3f5a37a6",
       "renderDataImportOverview": "ccd23afade51185aecb088993bd94f5c20adf5ac7b86b1ae7faa669de65b9d36",
       "renderDataImportRecentActivity": "8f0b7ef58db17c9065b84bc6113e93cf73e9323a09f21881f7b5e27dd47ca2a5",
       "renderDataImportUploadCenter": "e43f577741719c896f4dd4287ee18588c918d4a687ca7097f9622e1207e79525",

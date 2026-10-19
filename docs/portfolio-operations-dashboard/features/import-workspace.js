@@ -33,6 +33,7 @@ function renderDataImportTabs() {
 }
 
 function renderDataImportDropzone() {
+  const uploadBlocked = dataImportApprovalInProgress || dataImportApprovalPreflight;
   const period = getDataImportUploadPeriod();
   const currentYear = new Date().getFullYear();
   const years = Array.from(new Set([period.year, ...Array.from({length:22}, (_, i) => currentYear + 1 - i)])).sort((a,b) => b-a);
@@ -49,15 +50,15 @@ function renderDataImportDropzone() {
     </div>
     <p class="data-import2-drop-copy">Single-month reports use the selected month and year. Renewal trackers are automatically reviewed across all expiration months for one community, including future months and years. An advance renewal stays with its agreement’s expiration month. The selected year is used only for month tabs without a year; explicit source dates take precedence. Changing this selection affects new uploads only.</p>
   </fieldset>
-  <label class="data-import2-dropzone" ondrop="handleDataImport2Drop(event)" ondragover="event.preventDefault()" ondragenter="event.preventDefault()">
+  <label class="data-import2-dropzone" aria-disabled="${uploadBlocked ? "true" : "false"}" ondrop="handleDataImport2Drop(event)" ondragover="event.preventDefault()" ondragenter="event.preventDefault()">
     <div class="data-import2-drop-icon"><i class="ph ph-upload-simple"></i></div>
     <div class="data-import2-drop-title">Upload Raw Reports</div>
-    <div class="data-import2-drop-copy">Drop operational reports or ZIP batches here. ATLAS will detect report type, source system, communities, reporting period, fields, and downstream impact before anything is approved.</div>
+    <div class="data-import2-drop-copy">${uploadBlocked ? "Finishing the current approval. New uploads will be available after its saved result is verified." : "Drop operational reports or ZIP batches here. ATLAS will detect report type, source system, communities, reporting period, fields, and downstream impact before anything is approved."}</div>
     <div class="data-import2-supported">
       ${DATA_IMPORT_REPORT_ORDER.map(type => `<span class="data-import2-chip">${escapeHtml(dataImportReportLabel(type))}</span>`).join("")}
       <span class="data-import2-chip info">ZIP</span>
     </div>
-    <input type="file" id="csv-input" accept=".csv,.txt,.pdf,.xlsx,.xls,.xlsm,.zip" multiple>
+    <input type="file" id="csv-input" accept=".csv,.txt,.pdf,.xlsx,.xls,.xlsm,.zip" multiple ${uploadBlocked ? "disabled" : ""}>
   </label>`;
 }
 
@@ -400,11 +401,11 @@ function renderDataImportPendingBatch() {
     .concat(DATA_IMPORT_REPORT_ORDER.map(type => `<option value="${type}">${escapeHtml(dataImportReportLabel(type))}</option>`))
     .join("");
   const assignableCommunities = dataImportGetHealthCommunityNames();
-  const approvalDisabled = dataImportApprovalInProgress ? "disabled" : "";
+  const approvalDisabled = dataImportApprovalInProgress || dataImportApprovalPreflight ? "disabled" : "";
   const fileRows = (batch.files || []).map(plan => `<div class="data-import2-file">
     <div>
       <label style="display:flex;align-items:flex-start;gap:8px">
-        <input type="checkbox" ${plan.selected ? "checked" : ""} ${plan.status === "blocked" || dataImportApprovalInProgress ? "disabled" : ""} onchange='toggleDataImportFileApproval(${JSON.stringify(plan.fileId)}, this.checked)' style="margin-top:2px">
+        <input type="checkbox" ${plan.selected ? "checked" : ""} ${plan.status === "blocked" || dataImportApprovalInProgress || dataImportApprovalPreflight ? "disabled" : ""} onchange='toggleDataImportFileApproval(${JSON.stringify(plan.fileId)}, this.checked)' style="margin-top:2px">
         <span>
           <div class="data-import2-file-name">${escapeHtml(plan.name)}</div>
           <div class="data-import2-file-meta">${escapeHtml(dataImportFormatBytes(plan.size))}${plan.originalZipName ? ` · from ${escapeHtml(plan.originalZipName)}` : ""} · ${escapeHtml(plan.rowCount || 0)} rows reviewed</div>

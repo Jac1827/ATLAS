@@ -31,6 +31,11 @@ const append = (name, rows) => XLSX.utils.book_append_sheet(workbook, XLSX.utils
 append('SETUP', [['Property Name', 'Example'], ['Month/Year', 'October 2026']]);
 append('example', [['Other - 2026 Renewals'], headers, ['Synthetic Example', '999', '2026-05-01', 'Undecided', '']]);
 append('TEMPLATE Jan 2027', [headers, ['Synthetic Template', '998', '2027-01-01', 'Undecided', '']]);
+for (const name of ['January Example', 'Renewal Template', 'May Instructions', '2027 Reference', 'Jan_Setup']) {
+  append(name, [headers, ['Synthetic Reference', '997', '2027-03-01', 'Undecided', '']]);
+  assert.equal(c.renewalWorkbookSheetIsReference(name), true, `Reference marker anywhere in ${name} is excluded`);
+}
+for (const name of ['January 2027', 'Jan 27', 'Annual agreements']) assert.equal(c.renewalWorkbookSheetIsReference(name), false);
 append('Jan 27', [headers, agreement]);
 append('Feb 2027', [headers, agreement]); // copied tab: dates, not its label, govern the cohort
 append('Annual agreements', [headers, annual[2]]);

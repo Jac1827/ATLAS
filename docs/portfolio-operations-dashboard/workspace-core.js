@@ -6059,6 +6059,12 @@ function normalizeAtlasSharedData(data = {}) {
     schemaVersion: ATLAS_SHARED_DATA_SCHEMA_VERSION,
     employees,
     assignments: (Array.isArray(input.assignments) ? input.assignments : []).map(normalizeSharedAssignmentRecord).filter(item => item.employeeId && item.communityName && item.bonusRoleType),
+    // Reporting roles have no effect on bonus assignments or payout inputs.
+    reportingAssignments: [...new Map([
+      ...(Array.isArray(input.reportingAssignments) ? input.reportingAssignments : []),
+      ...(Array.isArray(input.assignments) ? input.assignments : [])
+    ].map(normalizeSharedAssignmentRecord).map(item => [item.assignmentId, item])).values()]
+      .filter(item => item.employeeId && item.communityName && !item.bonusRoleType && item.source === "atlas_central_people"),
     employeeChangeEvents: Array.isArray(input.employeeChangeEvents) ? input.employeeChangeEvents.slice(0, 500) : [],
     migrationBatches: Array.isArray(input.migrationBatches) ? input.migrationBatches.slice(0, 100) : [],
     marketingBonusSnapshots: Array.isArray(input.marketingBonusSnapshots) ? input.marketingBonusSnapshots.slice(0, 100) : [],
@@ -18300,6 +18306,11 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false,
         }));
       });
       sharedData.employees = employees;
+      // A refreshed scope replaces its reporting roles, including removals.
+      sharedData.reportingAssignments = [
+        ...(scope ? (sharedData.reportingAssignments || []).filter(a => !scope.includes(a.employeeId)) : []),
+        ...assignments.filter(a => !a.bonusRoleType)
+      ];
       sharedData.assignments = assignments;
       sharedData.historyBacked = true;
       sharedData.lastPeopleSource = "atlas_central_people";
@@ -25406,7 +25417,7 @@ function extractRenewalSheetSummary(rows) {
 }
 
 function renewalWorkbookSheetIsReference(sheetName = "") {
-  return /^(setup|templates?|examples?|samples?|instructions?|legend|read[ _-]?me)(?:\b|_)/i.test(String(sheetName).trim());
+  return /(setup|templates?|examples?|samples?|instructions?|legend|read[ _-]?me|references?)/i.test(String(sheetName).trim());
 }
 
 function renewalWorkbookSheetYear(sheetName = "", fallbackYear = new Date().getFullYear()) {
@@ -35226,8 +35237,9 @@ function getCurrentReportRosterContacts(propName) {
   // Use only the current authorized report scope and authoritative People roster.
   if (!getReportableCommunityNames(getReportHubMonthIndex()).includes(propName)) return [];
   const shared = normalizeAtlasSharedData(atlasSharedData);
+  const reportingShared = { ...shared, assignments: [...shared.assignments, ...(shared.reportingAssignments || [])] };
   const contacts = new Map();
-  getSharedAssignmentsForCommunity(propName, { normalizedSharedData: shared, asOfDate: getAtlasTodayISODate() }).forEach(assignment => {
+  getSharedAssignmentsForCommunity(propName, { normalizedSharedData: reportingShared, asOfDate: getAtlasTodayISODate() }).forEach(assignment => {
     const employee = shared.employees[assignment.employeeId];
     if (!employee || employee.source !== "atlas_central_people" || employee.active === false || !isSharedPeopleEmployeeActive(employee)) return;
     const email = atlasNormalizeSharedEmail(employee.email);

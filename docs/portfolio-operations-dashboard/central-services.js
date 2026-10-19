@@ -9200,7 +9200,7 @@
 
   function renewalSheetLooksLikeTemplate(sheetName = "") {
     if (typeof window.renewalWorkbookSheetIsReference === "function") return window.renewalWorkbookSheetIsReference(sheetName);
-    return /^(setup|templates?|examples?|samples?|instructions?|legend|read[ _-]?me)(?:\b|_)/i.test(cleanString(sheetName));
+    return /(setup|templates?|examples?|samples?|instructions?|legend|read[ _-]?me|references?)/i.test(cleanString(sheetName));
   }
 
   function normalizeSpreadsheetColor(value) {

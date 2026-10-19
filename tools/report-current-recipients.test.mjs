@@ -68,5 +68,46 @@ vm.runInContext(extract('resolveDlrRoleRecipientEntries'),context);
 assert.equal(context.resolveDlrRoleRecipientEntries('Test A',{roleRecipients:['regional_manager']})[0].email,'updated@risere.com');
 rows=[{employee_id:employeeId,community_id:id,employment_status:'Active',effective_start:'2026-01-01',atlas_employees:{employee_id:employeeId,email:'updated@risere.com',status:'Active'},atlas_roles:{bonus_role_type:null,role_code:'regional_manager'}}];
 assert.deepEqual((await resolveCurrentDlrRecipients({...subscription,recipient_config:{employeeRecipientIds:[],roleRecipients:['regional_manager'],toInvestorContacts:false}},query,'2026-10-19')).to,['updated@risere.com']);
+// Exercise the real central-load -> persist -> apply -> normalize path. Regional
+// reporting roles must survive repeated hydration without entering bonus input.
+const regionalId='00000000-0000-0000-0000-000000000004';
+const centralRow=(who,title,bonusRoleType)=>({assignment_id:who+'-assignment',effective_start:'2026-01-01',employment_status:'Active',title,
+  atlas_employees:{employee_id:who,full_name:title,email:who===regionalId?'regional@risere.com':'gm@risere.com',status:'Active'},
+  atlas_communities:{community_id:id,display_name:'Test A'},atlas_roles:{title,bonus_role_type:bonusRoleType}});
+let loadedRows=[centralRow(employeeId,'General Manager','gm'),centralRow(regionalId,'Regional Manager',null)],persistedRoster;
+const pipeline={...persistedContext,Date,DOMException,Map,Set,ATLAS_SHARED_DATA_SCHEMA_VERSION:1,SHARED_BONUS_ROLE_LABELS:{gm:'General Manager'},
+  SHARED_ASSIGNMENT_END_DATE_FIELDS:['effectiveEnd','assignmentEndDate','endDate'],PROPERTY_TEAM_ROLE_ORDER:['gm'],BONUS_QUARTERS:['Q1','Q2','Q3','Q4'],
+  currentMonth:9,DEFAULT_CURRENT_MONTH:9,ATLAS_STATE_DB_NAME:'test-scope',atlasWorkspaceAccess:{validated:true,epoch:1},atlasCentralPeopleLoadPromise:null,
+  window:{ATLAS_CENTRAL:{getAccessContextKey:()=> 'actor',getSession:()=>({user:{id:'actor'}}),fetchJson:async()=>structuredClone(loadedRows)}},
+  getAtlasRenderContextKey:()=> 'scope',getAtlasCentralStatus:()=>({configured:true,signedIn:true}),getAtlasTodayISODate:()=> '2026-10-19',
+  getBonusQuarterForMonth:()=> 'Q4',getReportHubMonthIndex:()=>9,getReportableCommunityNames:()=>['Test A'],findCanonicalCommunityName:x=>x,
+  getBonusAssignmentAsOfDate:()=> '2026-10-19',validateAtlasSharedData:()=>[],syncAllCommunityStaffingFromPeopleRoster:()=>{},syncMonthlyTemplateImportTarget:()=>{},
+  clampNumber:(v,min,max)=>Math.min(max,Math.max(min,v)),serializeJacsTeamBonus:x=>x,atlasNormalizeSharedEmail:context.atlasNormalizeSharedEmail,
+  atlasIsValidSharedEmail:context.atlasIsValidSharedEmail,atlasEmployeeEmailIsInternal:context.atlasEmployeeEmailIsInternal,
+  persistOpsGlobalSnapshot:value=>{persistedRoster=JSON.parse(JSON.stringify(value));return {ok:true};},renderTab:()=>{}};
+for(const name of ['normalizeBonusEngineState','normalizeJacsTeamBonus','normalizeRegionalAssignments','normalizeSalarySecurity','normalizeMonthlyPresentationCommunities','normalizeCommunityProgressReportCommunities','normalizeWeeklyExecutiveEmailSettings','normalizePortfolioReportSections','normalizePortfolioMonthScopeByPeriod','normalizeReportHubType','normalizeReportHubPerspective','normalizeReportRecommendationOverrides','normalizeApplicationResidentDataState','normalizeCommunityCommandState','normalizeWindowshadeState'])pipeline[name]=v=>v||{};
+pipeline.defaultPortfolioReportFilters=()=>({});
+vm.createContext(pipeline);
+vm.runInContext(['simpleHash','normalizeSharedDate','sharedDateTime','getSharedDateFromEmployee','inferSharedBonusRoleType','defaultAtlasSharedData','normalizeAtlasBonusBoolean','normalizeSharedEmployeeRecord','normalizeSharedAssignmentRecord','normalizeAtlasSharedData','makeSharedAssignmentId','isSharedPeopleEmployeeActive','isSharedAssignmentActiveOnDate','getSharedAssignmentsForCommunity','normalizeOpsGlobalData','applyOpsGlobalData','persistOpsGlobalData','loadAtlasCentralPeopleAssignments','getCurrentReportRosterContacts'].map(extract).join('\n'),pipeline);
+pipeline.atlasSharedData=pipeline.defaultAtlasSharedData();
+assert.equal((await pipeline.loadAtlasCentralPeopleAssignments({employeeIds:[employeeId,regionalId]})).employees,2);
+assert.deepEqual(Array.from(pipeline.getCurrentReportRosterContacts('Test A'),x=>x.roleKey).sort(),['gm','regional_manager']);
+assert.equal(pipeline.atlasSharedData.assignments.length,1);assert.equal(pipeline.atlasSharedData.assignments[0].bonusRoleType,'gm');
+assert.equal(pipeline.atlasSharedData.reportingAssignments.length,1);assert.equal(pipeline.atlasSharedData.reportingAssignments[0].bonusRoleType,'');
+const bonusBefore=JSON.stringify(pipeline.atlasSharedData.assignments);
+pipeline.applyOpsGlobalData(persistedRoster);pipeline.persistOpsGlobalData();pipeline.applyOpsGlobalData(persistedRoster);
+assert.equal(JSON.stringify(pipeline.atlasSharedData.assignments),bonusBefore,'persist and hydration do not expand bonus input');
+assert.equal(pipeline.getSharedAssignmentsForCommunity('Test A').length,1,'bonus/staffing readers still exclude roleless reporting assignments');
+assert.equal(pipeline.getCurrentReportRosterContacts('Test A').find(x=>x.employeeId===regionalId).email,'regional@risere.com');
+for(const change of [a=>a.status='Inactive',a=>a.recordStatus='superseded',a=>a.effectiveEnd='2026-10-18',a=>a.effectiveStart='2026-10-20',a=>a.communityName='Test B']){
+  const prior=structuredClone(pipeline.atlasSharedData.reportingAssignments);change(pipeline.atlasSharedData.reportingAssignments[0]);
+  assert.equal(pipeline.getCurrentReportRosterContacts('Test A').some(x=>x.employeeId===regionalId),false);pipeline.atlasSharedData.reportingAssignments=prior;
+}
+loadedRows=[];await pipeline.loadAtlasCentralPeopleAssignments({employeeIds:[regionalId]});
+assert.equal(pipeline.atlasSharedData.reportingAssignments.length,0,'scoped central removal clears the old reporting role');
+assert.equal(JSON.stringify(pipeline.atlasSharedData.assignments),bonusBefore,'scoped reporting removal preserves other bonus assignments');
+loadedRows=[centralRow(regionalId,'Regional Manager',null)];await pipeline.loadAtlasCentralPeopleAssignments({employeeIds:[regionalId]});
+loadedRows=[];await pipeline.loadAtlasCentralPeopleAssignments();
+assert.equal(pipeline.atlasSharedData.reportingAssignments.length,0,'full central refresh removes missing reporting roles');
 const worker=fs.readFileSync(new URL('../src/worker.mjs',import.meta.url),'utf8');assert.match(worker,/resolverVersion === 1[\s\S]*?await resolveCurrentDlrRecipients/);
 console.log('PASS current roster email changes, active/authorized community scope, missing/invalid contacts, exact current investor setup, case-insensitive dedupe, stable persisted selections, empty stays empty, manual defaults');

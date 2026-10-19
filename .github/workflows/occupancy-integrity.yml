@@ -35,6 +35,8 @@ jobs:
         run: node tools/migration-restore.test.cjs
       - name: Validate recommendation occupancy
         run: node tools/occupancy-recommendations.test.cjs
+      - name: Validate approval and upload sequencing
+        run: node --test tools/import-upload-sequencing.test.cjs tools/market-survey-approval.test.cjs
       - name: Validate historical upload period selection
         run: node tools/import-period-selection.test.cjs
       - name: Validate multi-month renewal refresh

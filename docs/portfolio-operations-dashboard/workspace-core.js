@@ -47532,6 +47532,9 @@ function cancelDataImportPreview() {
 }
 
 async function dataImportStageFiles(filesLike) {
+  // Approval owns the import state and its handles through durable publication
+  // and final refresh. A new picker/drop must not replace that pending work.
+  if (dataImportApprovalInProgress || dataImportApprovalPreflight) return;
   const files = Array.from(filesLike || []).filter(Boolean);
   if (!files.length) return;
   cancelDataImportPreview();
@@ -47565,6 +47568,7 @@ async function dataImportStageFiles(filesLike) {
       }
     }
     controller.signal.throwIfAborted();
+    if (dataImportApprovalInProgress || dataImportApprovalPreflight) return;
     for (const previous of dataImport2State.pendingBatch?.files || []) dataImportFileHandles.delete(previous.fileId);
     dataImport2State.pendingBatch = {
       id: batchId,
@@ -49077,6 +49081,7 @@ async function approveDataImportBatch() {
   const approvalCurrent = captureAtlasSaveContext();
   const checkApprovalCurrent = () => { if (!approvalCurrent()) throw new DOMException("Workspace changed during source approval", "AbortError"); };
   dataImportApprovalPreflight = true;
+  cancelDataImportPreview();
   try { await ensureDataImportFullState(); } catch(error) { if (approvalCurrent()) alert(error.message); return; } finally { dataImportApprovalPreflight = false; }
   if (!approvalCurrent()) return;
   const beforeSaved=JSON.stringify(savedData);
@@ -49144,6 +49149,9 @@ async function approveDataImportBatch() {
 
   const routeMessages = [];
   const archivedEntries = [];
+  let completionLog = null;
+  let publicationHistoryEntry = null;
+  let publicationCommitted = false;
   let marketRouteFailed = false;
   let approvalRuntime = null;
   try {
@@ -49270,7 +49278,7 @@ async function approveDataImportBatch() {
     ];
     dataImport2State.pendingBatch = null;
     dataImport2State.activeView = "overview";
-    csvLog = [
+    const approvedLog = [
       `${historyEntry.id} approved and routed through ATLAS.`,
       ...routeMessages.slice(0, 6),
       `${historyEntry.learningSummary.mappingDecisionsConfirmed} mapping decision(s) confirmed, ${historyEntry.learningSummary.newAtlasFieldsCreated} field(s) created, and ${historyEntry.learningSummary.fieldsIgnoredForImport} field(s) skipped for this import.`,
@@ -49279,17 +49287,31 @@ async function approveDataImportBatch() {
         ? "ATLAS has questions before every downstream page can be trusted."
         : "Dependent dashboards and reports verified usable destination data."
     ];
+    csvLog = [`${historyEntry.id}: saving and verifying the approved data. Keep this page open.`, ...routeMessages.slice(0, 6)];
+    dataImportUpdateApprovalProgress({ stage: "Saving and verifying", fileName: "" });
     checkApprovalCurrent();
+    publicationHistoryEntry = historyEntry;
     await persistDataImportPublication({assertCurrent:checkApprovalCurrent});
+    publicationCommitted = true;
     checkApprovalCurrent();
+    completionLog = approvedLog;
     const marketSurveyCount = approvedPlans.filter(plan => plan.reportType === "marketing_iq").length;
     if (marketSurveyCount) marketSurveyImportSourceLabel = `${marketSurveyCount} market survey${marketSurveyCount === 1 ? "" : "s"} updated`;
-    dataImportFileHandles.clear();
-    publishAtlasApprovedDataNotices(historyEntry).catch(error => console.warn("ATLAS employee upload notices were not published.", error));
+    for (const plan of batch.files) dataImportFileHandles.delete(plan.fileId);
   } catch (error) {
     if (!approvalCurrent()) return;
     dataImportDiscardApprovalRuntime(approvalRuntime);
     const message = String(error?.message || error || "The selected batch could not be applied.");
+    if (error?.publicationCommitted) {
+      publicationCommitted = true;
+      // The native transaction succeeded. Never restore an old preview or ask
+      // for reapproval because a subsequent display/cache refresh failed.
+      for (const plan of batch.files) dataImportFileHandles.delete(plan.fileId);
+      csvError = `This import was saved, but its final display could not be refreshed: ${message}. Open Import History to verify the saved batch before uploading again.`;
+      csvLog = [`${batch.id} has a committed publication. Do not approve the same preview again.`];
+      completionLog = null;
+      return;
+    }
     let receiptError = "";
     savedData=JSON.parse(beforeSaved);
     dataImport2State=JSON.parse(beforeImport);
@@ -49310,18 +49332,37 @@ async function approveDataImportBatch() {
       dataImportApprovalInProgress = false;
       return;
     }
-    dataImportFinishApprovalRuntime();
-    dataImportApprovalInProgress = false;
-    dataImportUpdateApprovalProgress({ stage: "", fileName: "" });
-    await atlasStateWritePromise;
-    if (!approvalCurrent()) return;
-    loadPropertyData(getProp().name);
-    renderPropGrid();
-    renderTab();
+    try {
+      // Both normal success and acknowledged-commit refresh errors share this
+      // one attempt. Notice event keys remain tied to the committed batch.
+      if (publicationCommitted && publicationHistoryEntry) {
+        publishAtlasApprovedDataNotices(publicationHistoryEntry).catch(error => console.warn("ATLAS employee upload notices were not published.", error));
+      }
+      dataImportFinishApprovalRuntime();
+      await atlasStateWritePromise;
+      if (!approvalCurrent()) return;
+      loadPropertyData(getProp().name);
+      renderPropGrid();
+      if (completionLog) csvLog = completionLog;
+    } catch (error) {
+      if (approvalCurrent()) {
+        const message = String(error?.message || error || "The final display refresh failed.");
+        csvError = completionLog
+          ? `This import was saved, but its final display could not be refreshed: ${message}. Open Import History to verify the saved batch.`
+          : `${csvError ? csvError + " " : ""}The final display could not be refreshed: ${message}`;
+      }
+    } finally {
+      dataImportApprovalInProgress = false;
+      if (approvalCurrent()) {
+        dataImportUpdateApprovalProgress({ stage: "", fileName: "" });
+        renderTab();
+      }
+    }
   }
 }
 
 function toggleDataImportFileApproval(fileId, selected) {
+  if (dataImportApprovalInProgress || dataImportApprovalPreflight) return;
   const batch = dataImport2State.pendingBatch;
   if (!batch?.files) return;
   batch.files = batch.files.map(file => file.fileId === fileId ? { ...file, selected: !!selected } : file);
@@ -49331,6 +49372,7 @@ function toggleDataImportFileApproval(fileId, selected) {
 }
 
 function toggleDataImportCommunityApproval(fileId, communityName, selected) {
+  if (dataImportApprovalInProgress || dataImportApprovalPreflight) return;
   const batch = dataImport2State.pendingBatch;
   if (!batch?.files) return;
   batch.files = batch.files.map(file => {
@@ -49346,6 +49388,7 @@ function toggleDataImportCommunityApproval(fileId, communityName, selected) {
 }
 
 function assignDataImportPlanCommunity(fileId, communityName) {
+  if (dataImportApprovalInProgress || dataImportApprovalPreflight) return;
   const batch = dataImport2State.pendingBatch;
   if (!batch?.files || !communityName) return;
   batch.files = batch.files.map(file => file.fileId === fileId ? {
@@ -49361,6 +49404,7 @@ function assignDataImportPlanCommunity(fileId, communityName) {
 }
 
 async function overrideDataImportReportType(fileId, reportType) {
+  if (dataImportApprovalInProgress || dataImportApprovalPreflight) return;
   const batch = dataImport2State.pendingBatch;
   if (!batch?.files) return;
   const current = captureAtlasSaveContext();
@@ -49369,7 +49413,7 @@ async function overrideDataImportReportType(fileId, reportType) {
   if (reportType === "marketing_iq" && prior && [".xlsx", ".xls", ".xlsm"].includes(dataImportGetFileExtension(prior.name)) && !aptiqSource) {
     const sourceFile = dataImportFileHandles.get(fileId);
     if (sourceFile) aptiqSource = (await dataImportReadFileSample(sourceFile)).aptiqSource || null;
-    if (!current() || dataImport2State.pendingBatch !== batch || batch.files.find(file => file.fileId === fileId) !== prior) return;
+    if (!current() || dataImportApprovalInProgress || dataImportApprovalPreflight || dataImport2State.pendingBatch !== batch || batch.files.find(file => file.fileId === fileId) !== prior) return;
   }
   batch.files = batch.files.map(file => {
     if (file.fileId !== fileId) return file;
@@ -49448,6 +49492,7 @@ async function overrideDataImportReportType(fileId, reportType) {
 }
 
 function clearDataImportPendingBatch() {
+  if (dataImportApprovalInProgress || dataImportApprovalPreflight) return;
   cancelDataImportPreview();
   dataImport2State.pendingBatch = null;
   dataImportFileHandles = new Map();
@@ -50842,6 +50887,7 @@ function updateDataImportClosedPeriod(action) {
 
 
 function setDataImportBatchSelection(selected) {
+  if (dataImportApprovalInProgress || dataImportApprovalPreflight) return;
   const batch = dataImport2State.pendingBatch;
   if (!batch?.files) return;
   batch.files = batch.files.map(file => ({ ...file, selected: file.status !== "blocked" ? !!selected : false }));

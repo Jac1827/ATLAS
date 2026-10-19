@@ -88,11 +88,11 @@
       stream.on('end',()=>{if(!failed)resolve(joinBytes(parts,total));});stream.resume();
     });
   }
-  async function addRecord(zip,manifest,name,value,limit){
-    if(legacyFits(value,limit)){
+  async function addRecord(zip,manifest,name,value,limit,forceSegmented=false){
+    if(!forceSegmented&&legacyFits(value,limit)){
       const text=JSON.stringify(await encode(value));if(text===undefined)throw Error('Undefined migration record');const bytes=utf8.encode(text);
       if(bytes.length>limit)throw Error('Migration record exceeded its verified size');
-      manifest.entries.push({name,sha256:await digest(bytes),bytes:bytes.length});zip.file(name,bytes);return;
+      manifest.entries.push({name,sha256:await digest(bytes),bytes:bytes.length});await zip.file(name,bytes);return;
     }
     // Deliberately omit the logical name: v1-only readers must fail before
     // applying any record, rather than misinterpreting a descriptor as data.
@@ -100,7 +100,7 @@
     for await(const bytes of recordSegments(value,limit)){
       const stored=await boundedTransform(bytes,'compress',limit+65536);
       const part={name:segmentName(name,entry.segments.length),encoding:'deflate',bytes:bytes.length,sha256:await digest(bytes),storedBytes:stored.length,storedSha256:await digest(stored)};
-      zip.file(part.name,stored,{compression:'STORE'});entry.segments.push(part);entry.bytes+=bytes.length;
+      await zip.file(part.name,stored,{compression:'STORE'});entry.segments.push(part);entry.bytes+=bytes.length;
     }
     entry.sha256=await entryFingerprint(entry);manifest.entries.push(entry);
   }
@@ -168,7 +168,7 @@
       finish(){if(stack.length||!complete)throw Error('Incomplete migration record');return result;}
     };
   }
-  async function visitSegmentTokens(zip,entry,accept){
+  async function visitSegmentTokens(zip,entry,accept,readBytes){
     segmentLimit(entry.segmentBytes);
     if(zip.file(entry.name)||!Array.isArray(entry.segments)||!entry.segments.length||await entryFingerprint(entry)!==entry.sha256)throw Error('Migration segment manifest fingerprint mismatch');
     let total=0;
@@ -176,16 +176,16 @@
       const part=entry.segments[i];if(part.name!==segmentName(entry.name,i)||!Number.isSafeInteger(part.bytes)||part.bytes<1||part.bytes>entry.segmentBytes)throw Error('Invalid migration segment manifest');
       if(part.encoding!=='deflate'||!Number.isSafeInteger(part.storedBytes)||part.storedBytes<1||part.storedBytes>entry.segmentBytes+65536)throw Error('Unsupported migration segment encoding or size');
       const file=zip.file(part.name);if(!file)throw Error('Migration segment is missing');
-      const stored=await boundedZipMember(file,part.storedBytes);if(stored.length!==part.storedBytes||await digest(stored)!==part.storedSha256)throw Error('Migration stored segment fingerprint mismatch');
+      const stored=readBytes?await readBytes(part.name,part.storedBytes):await boundedZipMember(file,part.storedBytes);if(stored.length!==part.storedBytes||await digest(stored)!==part.storedSha256)throw Error('Migration stored segment fingerprint mismatch');
       const bytes=await boundedTransform(stored,'decompress',part.bytes);if(bytes.length!==part.bytes||await digest(bytes)!==part.sha256)throw Error('Migration segment fingerprint mismatch');
       const tokens=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));if(!Array.isArray(tokens))throw Error('Invalid migration segment tokens');for(const token of tokens)accept(token);total+=bytes.length;
     }
     if(total!==entry.bytes)throw Error('Migration record byte count mismatch');
   }
-  async function readRecord(zip,entry){
+  async function readRecord(zip,entry,readBytes){
     supportedLayout(entry);
-    if(entry.layout===undefined){const file=zip.file(entry.name);if(!file)throw Error('Migration record is missing');const bytes=await file.async('uint8array');if(bytes.length!==entry.bytes||await digest(bytes)!==entry.sha256)throw Error('Migration record fingerprint mismatch');return decode(JSON.parse(new TextDecoder().decode(bytes)));}
-    const reader=tokenReader();await visitSegmentTokens(zip,entry,token=>reader.accept(token));return reader.finish();
+    if(entry.layout===undefined){const file=zip.file(entry.name);if(!file)throw Error('Migration record is missing');const bytes=readBytes?await readBytes(entry.name,entry.bytes):await file.async('uint8array');if(bytes.length!==entry.bytes||await digest(bytes)!==entry.sha256)throw Error('Migration record fingerprint mismatch');return decode(JSON.parse(new TextDecoder().decode(bytes)));}
+    const reader=tokenReader();await visitSegmentTokens(zip,entry,token=>reader.accept(token),readBytes);return reader.finish();
   }
   // Projection readers visit every token, including omitted subtrees, without
   // constructing those subtrees. Grammar and segment integrity stay mandatory.
@@ -375,9 +375,26 @@
         // Keep only one decoded logical record alive. Its verified storage copy
         // is read after the write commits and the source reference is released.
         let value=await readArchiveRecord(zip,manifest.entries[i]);
-        await new Promise((resolve,reject)=>{const tx=db.transaction('records','readwrite');tx.objectStore('records').put(value,i);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});
-        value=null;
-        let readback=await new Promise((resolve,reject)=>{const r=db.transaction('records').objectStore('records').get(i);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+        const write=(key,item)=>new Promise((resolve,reject)=>{const tx=db.transaction('records','readwrite');try{tx.objectStore('records').put(item,key);}catch(error){tx.abort();reject(error);return;}tx.oncomplete=()=>resolve();tx.onerror=tx.onabort=()=>reject(tx.error);});
+        const read=key=>new Promise((resolve,reject)=>{const r=db.transaction('records').objectStore('records').get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+        let readback;
+        if(legacyFits(value,512*1024)){
+          await write(i,value);value=null;readback=await read(i);
+        }else{
+          // Native IndexedDB must never clone the expanded retained corpus.
+          // Restore bounded compressed members, then reconstruct only from
+          // their committed native readbacks and verify the original record.
+          const restored={entries:[]},names=[];
+          await addRecord({file:async(member,bytes)=>{await write(member,bytes);names.push(member);}},restored,'restore-'+i+'.json',value,manifest.entries[i].segmentBytes||DEFAULT_SEGMENT_BYTES,true);
+          value=null;
+          await write(i,{entry:restored.entries[0],names});
+          const descriptor=await read(i),available=new Set(descriptor.names);
+          readback=await readRecord({file:member=>available.has(member)},descriptor.entry,async(member,limit)=>{
+            const bytes=await read(member);
+            if(!(bytes instanceof Uint8Array)||bytes.length>limit)throw Error('Rollback stored member is missing or exceeds its byte limit');
+            return bytes;
+          });
+        }
         try{await verifyRecord(readback,manifest.entries[i]);}catch(error){throw new Error('Migration rollback readback failed (record '+i+'): '+error.message,{cause:error});}
         readback=null;
       }

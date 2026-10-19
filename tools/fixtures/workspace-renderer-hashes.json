@@ -52,7 +52,7 @@
       "renderBonusEngineKpi": "77c5fb28be69debeba57964a811faeb5b5a1d6a640c988483101e926269eff82",
       "renderBonusEngineFilters": "daf4c38dfeb0a210c425849ab6fd3198a5922653d36b16f2ecd9a8f7a8c14568",
       "renderBonusEngineBarChart": "202f4022b1385f40bd1bc557a596a87c5c21a44e41a84e851a1f0c6dfde1ed6a",
-      "renderBonusOverviewSection": "e6eb0b839fd18d2ce8a5688bcbca197aedfb7f24b42d165293b3cc0eb1d19077",
+      "renderBonusOverviewSection": "12c3a18fb43a05a2084b576a76c439bc2b340c26254a49e913c7b4157dd13fc4",
       "renderBonusMyBonusSection": "bca2af17ff35897c442ccb7ec5fbce0165e7b57e79d1456568e8464af7948d61",
       "renderBonusPlanBuilderSection": "98968776af3d7bd94646db7d112eb10e14e9a658ad2bcfe9dfd80e65bbfb08e2",
       "renderBonusAssignmentsSection": "433c176a7b2b0988f205a4be183b592628af92bfdea3dbd340985127e1753e3c",
@@ -61,13 +61,13 @@
       "renderBonusProjectedSection": "79b523ae882641e303f68dfad748fbb2619140dc45511baa2445bd304a1c325b",
       "renderBonusApprovalsSection": "1fb87337ccd8d8b649e80ec03cd6533bec85e8f2296259bdc8df8ba9845c921f",
       "renderBonusExceptionsSection": "d9c6166744423b545fa4ff52ae671e0b463e9eb20de63f3c9f9037a1c84d0b44",
-      "renderBonusForecastSection": "df42d79b5cba892c8dd1b00381d4e33809c06d67f611478081f003c644b2df3a",
+      "renderBonusForecastSection": "bfb7416500600dd28bc6c8324323a5558b79f499cbfddd53195a5e2bf4e5a121",
       "renderBonusReportsSection": "3b0c5ad1dcdc2f5f8bfc05bc07170bf6940123eed46b6730c83a81837acdd915",
       "renderBonusHistorySection": "8e36e802797ab70ff24a4d514582051749dee7fa019d9bc59f61cbbcb3b85246",
       "renderBonusAuditSection": "ad8be15d1bd325681b74105883784ab9fd76c647da2a67af6f0a06ed2ca0052e",
       "renderBonusSettingsSection": "08404621bb0cffdfda803ac3a8575b93f60915b2981dba024de1920bc752fca9",
       "renderBonusEngineSection": "0f2528720b795e9d1d111b8101af535d1687aae02faf52dc091f43c1d1a4a7d6",
-      "renderBonusTab": "3ecd834528183e9f705002a7e9f6bbf049d10b3f8735104b7f7bba0ff75b1bad"
+      "renderBonusTab": "144249a42cbc331227b6f060f13ea2bf1d82397172d34edb78cfd0ac0e258416"
     }
   },
   "admin": {
@@ -77,7 +77,7 @@
       "renderAtlasAccessCheckboxes": "9294eb6b98403397cdb8fc40577b820da51136571c6bb6b607f907aa4c78ac34",
       "renderAtlasEmployeeAccessRows": "cff2850193c8fb93ca1e7c247376a50f0d3c33413f8ffaaab22559f024166c42",
       "renderAtlasEmployeeAccessPanel": "757143358fd5d8273fccf80cc6fb19f4eeac9de31461fba947f4dee81b2fb090",
-      "renderAtlasCentralPlatformPanel": "443e02ad11adab0828718ea9fd121052cba31c9d78bcd7b7f88cc6f80aa93748",
+      "renderAtlasCentralPlatformPanel": "a3d40dbdc1ad18f903f7e32b56ee83256d74b512af5fa7f6a5f57793ef902416",
       "renderAtlasRegionManagementPanel": "bfd4ec89f2d048e0ec34b72b3980504d185a2e50eb9d78dad4a103f8ff22394e",
       "renderAtlasSettingsSetupPanel": "d2f6c947fd45b163e99f29de4c88e6194d27b35d1118b21df97c208da0783ab7",
       "renderAtlasSettingsIntegrationsPanel": "0dd4f6a73458ba655b38f2cf0d74c4d3be4f15898ef5148d250fc8a825f39990",

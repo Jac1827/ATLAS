@@ -400,7 +400,7 @@ function renderReportingTab() {
 function renderReportingTabContent() {
   if (reportHubType === "investor_community_packet") {
     reportHubPerspective = "investor";
-    return `<div style="margin-bottom:14px"><button class="btn btn-gray btn-sm" onclick="setReportHubType('monthly_investor_deck')">All reporting options</button></div>${AtlasPacketUI.render()}`;
+    return `<div style="margin-bottom:14px"><button class="btn btn-gray btn-sm" onclick="setReportHubType('monthly_investor_deck')">All reporting options</button></div>${AtlasPacketUI.render()}${renderReportAutomationSettings(reportHubType)}`;
   }
   ensureValidReportHubAction();
   reportHubType = normalizeReportHubType(reportHubType);
@@ -422,7 +422,7 @@ function renderReportingTabContent() {
   const reportBuilderDetails = isCommunitySelectionReport ? [] : atlasReportPortfolioDetails(getReportHubMonthIndex());
   const reportableCommunityNames = isCommunitySelectionReport ? getReportableCommunityNames(getReportHubMonthIndex()) : [];
   const communityProgressSelectionNames = isCommunitySelectionReport ? getCommunityProgressReportCommunityNames() : [];
-  const selectedRecipientCount = reportHubContacts.filter(contact => reportHubRecipientKeys.includes(contact.key)).length;
+  const selectedRecipientCount = reportHubContacts.filter(contact => contact.eligible !== false && reportHubRecipientKeys.includes(contact.key)).length;
   const isLvrReport = normalizedType === "leasing_velocity";
   const currentScopeName = isCommunitySelectionReport
     ? getCommunityProgressReportScopeLabel()
@@ -440,9 +440,9 @@ function renderReportingTabContent() {
     ? reportHubContacts.map(contact => {
         const isActive = reportHubRecipientKeys.includes(contact.key);
         const label = contact.name ? `${contact.name} · ${contact.community}` : `${contact.email} · ${contact.community}`;
-        return `<button type="button" class="bonus-community-chip${isActive ? " active" : ""}" onclick='toggleReportHubRecipient(${JSON.stringify(contact.key)})'>
+        return `<button type="button" class="bonus-community-chip${isActive ? " active" : ""}" ${contact.eligible === false ? "disabled" : ""} onclick='toggleReportHubRecipient(${JSON.stringify(contact.key)})'>
           ${escapeHtml(label)}
-          <span>${escapeHtml(contact.email)}</span>
+          <span>${escapeHtml(contact.issue || contact.email)} · ${contact.type === "employee" ? "Employee Roster" : "Investor Contact"}</span>
         </button>`;
       }).join("")
     : `<div style="font-size:0.72rem;color:var(--muted)">No saved community contacts are available in the current scope yet.</div>`;
@@ -648,7 +648,7 @@ function renderReportingTabContent() {
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div>
           <h3 style="font-size:0.85rem;font-weight:700;margin-bottom:6px">Recipient Selection</h3>
-          <p style="font-size:0.72rem;color:var(--muted)">Use the saved community contact list for the current scope. Select one, many, or all before using the email draft action.</p>
+          <p style="font-size:0.72rem;color:var(--muted)">Choose Community Setup investor contacts or active Employee Roster contacts for manual email drafts. Optional automated delivery has its own saved recipient choices below.</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-gray btn-sm" onclick="setAllReportHubRecipients(true)">Select All</button>
@@ -657,6 +657,7 @@ function renderReportingTabContent() {
       </div>
       <div class="bonus-assignment-chip-wrap">${reportHubRecipientsHtml}</div>
     </div>
+    ${renderReportAutomationSettings(normalizedType)}
     ${recommendationsEditorHtml}
   </div>
   ${renderReportHubInlinePreview(normalizedType, selectedReportSections)}`;
@@ -679,6 +680,109 @@ function renderReportHubPreviewFrame(title, description, documentHtml, controlsH
       ${controlsHtml ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${controlsHtml}</div>` : ""}
     </div>
     <iframe title="${escapeHtml(title)} Preview" srcdoc="${escapeHtml(documentHtml)}" style="width:100%;min-height:980px;border:1px solid var(--border);border-radius:16px;background:#fff"></iframe>
+  </div>`;
+}
+
+// Delivery settings live in the central service. These local values are an
+// unsaved editor only; rendering or previewing never enables a schedule.
+var atlasReportAutomationEditor = { accessKey: '', community: '', entries: {} };
+function reportAutomationEditorContext(type = normalizeReportHubType(reportHubType)) {
+  const accessKey=window.ATLAS_CENTRAL?.getAccessContextKey?.() || '';
+  if(atlasReportAutomationEditor.accessKey!==accessKey)atlasReportAutomationEditor={accessKey,community:'',entries:{}};
+  const names=type==='investor_community_packet'?getReportableCommunityNames(getReportHubMonthIndex()):getReportBuilderScopedDetails().map(detail=>detail.name);
+  const selected=atlasReportAutomationEditor.community;
+  const community=names.includes(selected)?selected:(names[0]||'');
+  const key=`${community}::${type}`;
+  const state=atlasReportAutomationEditor.entries[key] ||= {loaded:false,busy:false,version:0,mode:'manual',frequency:type==='investor_community_packet'?'monthly':'weekly',weekday:1,monthDay:1,sendTime:'08:00',timezone:'America/New_York',periodPolicy:type==='investor_community_packet'?'previous_month':'current_month',maxSourceAgeDays:7,toInvestorContacts:false,employeeRecipientIds:[],history:[]};
+  return {key,type,community,names,state,accessKey};
+}
+
+function setReportAutomationField(field,value) {
+  if(field==='community'){atlasReportAutomationEditor.community=value;renderTab();return;}
+  const {state}=reportAutomationEditorContext();
+  if(!['mode','frequency','weekday','monthDay','sendTime','timezone','periodPolicy','maxSourceAgeDays','toInvestorContacts'].includes(field))return;
+  state[field]=value;state.dirty=true;state.preview=null;renderTab();
+}
+
+function toggleReportAutomationEmployee(id,enabled) {
+  const {state,community}=reportAutomationEditorContext();
+  if(!getCurrentReportRosterContacts(community).some(person=>person.employeeId===id&&person.eligible))return;
+  const ids=new Set(state.employeeRecipientIds);
+  enabled?ids.add(id):ids.delete(id);state.employeeRecipientIds=[...ids];state.dirty=true;state.preview=null;renderTab();
+}
+
+async function runReportAutomationAction(action,deliveryId='') {
+  const context=reportAutomationEditorContext(),{state,community,type,key,accessKey}=context;
+  if(state.busy||!community)return;
+  if(!window.ATLAS_CENTRAL?.reportDelivery){state.error='Central report delivery is unavailable. Manual report actions remain available.';renderTab();return;}
+  if(['save','retry_held'].includes(action)&&!state.loaded)return;
+  if(action==='retry_held'&&(state.dirty||state.mode!=='automated'))return;
+  state.busy=true;state.error='';state.message='';renderTab();
+  try {
+    const property=getPropertyByName(community);
+    const payload={communityName:community,communityId:property?.atlasCommunityId||property?.sourceIds?.atlasCommunityId||'',reportType:type,
+      mode:state.mode,frequency:state.frequency,weekday:Number(state.weekday),monthDay:Number(state.monthDay),sendTime:state.sendTime,timezone:state.timezone,
+      periodPolicy:state.periodPolicy,maxSourceAgeDays:Number(state.maxSourceAgeDays),toInvestorContacts:state.toInvestorContacts,employeeRecipientIds:state.employeeRecipientIds,expectedVersion:state.version,deliveryId};
+    const result=await window.ATLAS_CENTRAL.reportDelivery(action,payload);
+    if(atlasReportAutomationEditor.accessKey!==accessKey||atlasReportAutomationEditor.entries[key]!==state)return;
+    if(result?.ok===false)throw Error(result.error||'The server could not complete this request.');
+    if(action==='retry_held')state.message=`Held delivery rechecked: ${result.result?.status||'unknown'}. ${result.result?.reason||''} Load history to refresh the outcome.`;
+    else if(action==='preview')state.preview=result;
+    else {
+      const saved=result.subscription;
+      if(!saved)Object.assign(state,{version:0,mode:'manual',frequency:type==='investor_community_packet'?'monthly':'weekly',weekday:1,monthDay:1,sendTime:'08:00',timezone:'America/New_York',periodPolicy:type==='investor_community_packet'?'previous_month':'current_month',maxSourceAgeDays:7,toInvestorContacts:false,employeeRecipientIds:[]});
+      if(saved)Object.assign(state,{version:saved.version,mode:saved.mode,frequency:saved.frequency,weekday:saved.weekday,monthDay:saved.month_day,sendTime:saved.send_time,timezone:saved.timezone,periodPolicy:saved.period_policy,maxSourceAgeDays:saved.max_source_age_days,toInvestorContacts:saved.recipient_config?.toInvestorContacts===true,employeeRecipientIds:saved.recipient_config?.employeeRecipientIds||[]});
+      state.loaded=true;state.dirty=false;state.preview=null;
+      if(result.history)state.history=result.history;
+      if(result.capabilities)state.capabilities=result.capabilities;
+      state.message=action==='save'?(state.mode==='manual'?'Manual delivery saved. Automated delivery is off.':'Automated delivery saved. Each due report will check current sources and recipients before sending.'):(saved?'Saved settings and recent delivery history loaded.':'No saved schedule. Manual delivery and no recipients are selected.');
+    }
+  } catch(error) {state.error=error?.message||'Report delivery request failed.';}
+  finally {state.busy=false;renderTab();}
+}
+
+function renderReportAutomationSettings(type) {
+  const supported=['rise_weekly_leasing','investor_community_packet'];
+  if(!supported.includes(type))return `<div class="report-hub-card" style="margin-bottom:14px"><div class="card-title">Automated delivery</div><p>Automated HTML email and HTML attachments are available for RISE Weekly Leasing and Investor Community Packet. This report uses the manual preview, draft email and export actions above. PDF, PowerPoint and other export formats are manual.</p></div>`;
+  const {community,names,state}=reportAutomationEditorContext(type),e=escapeHtml;
+  const contacts=getCurrentReportRosterContacts(community);
+  const namesOptions=names.map(name=>`<option value="${e(name)}" ${name===community?'selected':''}>${e(name)}</option>`).join('');
+  const select=(field,options)=>`<select onchange="setReportAutomationField('${field}',this.value)">${options.map(([value,label])=>`<option value="${value}" ${String(state[field])===String(value)?'selected':''}>${label}</option>`).join('')}</select>`;
+  const input=(field,type,min='',max='')=>`<input type="${type}" value="${e(state[field])}" ${min!==''?`min="${min}"`:''} ${max!==''?`max="${max}"`:''} onchange="setReportAutomationField('${field}',this.value)">`;
+  const preview=state.preview;
+  const statusLabels={preparing:'Preparing; delivery not confirmed',held:'Held for review',sending:'Delivery attempt in progress or outcome unconfirmed',sent:'Sent',delivery_uncertain:'Delivery outcome uncertain — check provider before resend'};
+  return `<div class="report-hub-card" style="margin-bottom:14px">
+    <h3 style="margin-bottom:8px">Optional automated delivery</h3>
+    <p style="font-size:0.74rem;color:var(--muted)">Schedule this community’s ${type==='rise_weekly_leasing'?'RISE Weekly Leasing month-to-date report':'Investor Community Packet'} as HTML email with an HTML attachment. Each delivery rebuilds the selected reporting month from current saved sources. Missing or stale evidence holds delivery and appears in history. Automated output is not a new human review. PDF and PowerPoint remain manual exports.</p>
+    <label>Community <select onchange="setReportAutomationField('community',this.value)">${namesOptions}</select></label>
+    <button class="btn btn-gray btn-sm" onclick="runReportAutomationAction('status')" ${state.busy?'disabled':''}>Load saved settings and history</button>
+    ${!state.loaded?'<p>Load settings before editing a saved schedule. The editor starts in manual mode with no recipients.</p>':''}
+    <fieldset ${!state.loaded||state.busy?'disabled':''} style="border:0;padding:0;margin-top:10px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+        <label>Delivery ${select('mode',[['manual','Manual — automation off'],['automated','Automated']])}</label>
+        <label>Frequency ${select('frequency',[['daily','Daily'],['weekly','Weekly'],['monthly','Monthly']])}</label>
+        ${state.frequency==='weekly'?`<label>Day ${select('weekday',['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((label,i)=>[i,label]))}</label>`:''}
+        ${state.frequency==='monthly'?`<label>Day of month ${input('monthDay','number',1,31)}<small>Uses the last day for shorter months.</small></label>`:''}
+        <label>Local send time ${input('sendTime','time')}</label>
+        <label>Time zone ${select('timezone',[['America/New_York','Eastern'],['America/Chicago','Central'],['America/Denver','Mountain'],['America/Phoenix','Arizona'],['America/Los_Angeles','Pacific'],['UTC','UTC']])}</label>
+        <label>Reporting month ${select('periodPolicy',[['current_month','Current month'],['previous_month','Previous month']])}</label>
+        <label>Maximum source age (days) ${input('maxSourceAgeDays','number',1,31)}</label>
+      </div>
+      <p style="font-size:0.72rem;color:var(--muted)">Source age is measured from the report date, or month end for a completed month. Daily schedules include weekends. These are individual community reports; choosing a portfolio above does not combine or activate other communities.</p>
+      <label style="display:block;margin:10px 0"><input type="checkbox" ${state.toInvestorContacts?'checked':''} onchange="setReportAutomationField('toInvestorContacts',this.checked)"> Use this property’s current Community Setup investor contacts at each delivery</label>
+      <div class="bonus-assignment-chip-wrap">${contacts.length?contacts.map(person=>`<label style="display:inline-flex;gap:5px;margin:5px"><input type="checkbox" ${state.employeeRecipientIds.includes(person.employeeId)?'checked':''} ${!person.eligible?'disabled':''} onchange="toggleReportAutomationEmployee('${e(person.employeeId)}',this.checked)">${e(person.name||person.email)} · ${e(person.eligible?person.email:person.issue)}</label>`).join(''):'No eligible current property roster contacts are available.'}</div>
+      <p style="font-size:0.72rem;color:var(--muted)">Employee selections use roster identity; changed work email addresses are resolved at delivery. Inactive employees and employees outside this property are excluded.</p>
+      <button class="btn btn-gray btn-sm" onclick="runReportAutomationAction('preview')">Check current report and recipients</button>
+      <button class="btn btn-blue btn-sm" onclick="runReportAutomationAction('save')">${state.mode==='manual'?'Save manual delivery':'Save automated delivery'}</button>
+    </fieldset>
+    ${state.dirty?'<p>Unsaved changes — the saved schedule is still in effect.</p>':''}
+    ${state.message?`<p role="status">${e(state.message)}</p>`:''}
+    ${state.error?`<p role="alert">${e(state.error)}</p>`:''}
+    ${state.capabilities?.email===false?'<p>Transactional email is not configured. Automated delivery will be held until it is available.</p>':''}
+    ${preview?`<div style="margin-top:12px"><strong>${preview.ready?'Current report checks passed':'Delivery would be held'}</strong>${(preview.issues||[]).map(issue=>`<p>${e(issue)}</p>`).join('')}<p>Current recipients: ${e((preview.recipients?.to||[]).join(', ')||'None')}</p><p>Checking this preview does not send an email or save a schedule.</p><iframe sandbox="" title="Automated report preview" srcdoc="${e(preview.report?.html||'')}" style="width:100%;height:460px;border:1px solid var(--border)"></iframe></div>`:''}
+    <h4 style="margin-top:14px">Recent delivery history</h4>
+    <p style="font-size:0.72rem;color:var(--muted)">A held report is not retried automatically for that scheduled date. After correcting its sources, use Recheck held delivery to send if all checks pass. Reports already attempted or sent cannot be retried here.</p>
+    ${state.history.length?`<table style="width:100%"><thead><tr><th>Scheduled date</th><th>Report month</th><th>Outcome</th></tr></thead><tbody>${state.history.map(row=>`<tr><td>${e(row.scheduled_date)}</td><td>${e(row.reporting_period)}</td><td>${e(statusLabels[row.status]||row.status)}${row.reason?` · ${e(row.reason)}`:''}${row.status==='held'&&state.mode==='automated'?` <button class="btn btn-gray btn-sm" ${state.busy||state.dirty?'disabled':''} onclick="runReportAutomationAction('retry_held','${e(row.report_delivery_id)}')">Recheck held delivery — send if ready</button>`:''}</td></tr>`).join('')}</tbody></table>`:'<p>No delivery history loaded. Use Load saved settings and history to refresh.</p>'}
   </div>`;
 }
 

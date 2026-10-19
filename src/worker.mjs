@@ -1,3 +1,5 @@
+import {resolveCurrentDlrRecipients} from './dlr-current-recipients.mjs';
+import {handleReportAutomation,processReportSchedules} from './report-automation.mjs';
 import {handleMoveOutState} from './moveout-state.mjs';
 import {handleMoveOutIntegration} from './moveout-integrations.mjs';
 import {handleResidentCommunications, createCommunicationService} from './resident-communications.mjs';
@@ -431,6 +433,7 @@ function normalizeDlrDeliverySettingsForServer(input = {}, env = {}) {
     sendOnHolidays: Boolean(source.sendOnHolidays),
     toInvestorContacts: source.toInvestorContacts !== undefined ? Boolean(source.toInvestorContacts) : true,
     roleRecipients: Array.isArray(source.roleRecipients) ? source.roleRecipients.map(item => cleanText(item)).filter(Boolean) : [],
+    employeeRecipientIds: Array.isArray(source.employeeRecipientIds) ? [...new Set(source.employeeRecipientIds.filter(isUuid))] : [],
     cc: normalizeEmailList(source.cc),
     bcc: normalizeEmailList(source.bcc),
     emailContentMode: cleanText(source.emailContentMode || "executive_snapshot_commentary"),
@@ -761,6 +764,8 @@ async function upsertDlrDeliverySubscription(config, snapshot, savedSnapshot, ac
   const settings = snapshot.settings;
   const recipientConfig = {
     to: snapshot.recipients,
+    resolverVersion: 1,
+    employeeRecipientIds: settings.employeeRecipientIds,
     cc: settings.cc,
     bcc: settings.bcc,
     toInvestorContacts: settings.toInvestorContacts,
@@ -1132,7 +1137,9 @@ async function processDlrSubscriptionCadence(config, subscription, cadence, loca
     });
     return { communityName: subscription.community_name, cadence, status: "awaiting_approval", history };
   }
-  const recipients = resolveDeliveryRecipients(snapshot, subscription);
+  const recipients = subscription.recipient_config?.resolverVersion === 1
+    ? await resolveCurrentDlrRecipients(subscription, path => supabaseRequest(config, path, { service: true }), local.dateOnly)
+    : resolveDeliveryRecipients(snapshot, subscription);
   if (!recipients.to.length) {
     const history = await recordDlrDelivery(config, subscription, cadence, local, "no_recipients", {
       snapshot,
@@ -2250,6 +2257,11 @@ export default {
       return handleCommunityPlanEmail(request,env,{requireAtlasAccessUser,apiResponse,supabaseRequest,callAtlasRpcAsUser});
     }
 
+    if (url.pathname === "/api/atlas/reports/delivery") {
+      if (request.method === "OPTIONS") return noContent();
+      return handleReportAutomation(request,env,{requireAtlasAccessUser,apiResponse,supabaseRequest,community:propertySpecialsCommunity});
+    }
+
     if (url.pathname === "/api/atlas/dlr/status") {
       if (request.method === "OPTIONS") return noContent();
       if (request.method !== "GET") {
@@ -2323,8 +2335,11 @@ export default {
 
   async scheduled(controller, env) {
     if (controller?.cron === '* * * * *') {
-      try { await createCommunicationService(env, {config:getAtlasSupabaseConfig, db:supabaseRequest}).refreshReminders(); }
-      catch { console.log({event:'atlas_communication_reminder_error'}); }
+      const results=await Promise.allSettled([
+        createCommunicationService(env, {config:getAtlasSupabaseConfig, db:supabaseRequest}).refreshReminders(),
+        processReportSchedules(env,{getAtlasSupabaseConfig,supabaseRequest},new Date(controller.scheduledTime || Date.now()))
+      ]);
+      results.forEach((result,index)=>{if(result.status==='rejected')console.log({event:index?'atlas_report_scheduler_error':'atlas_communication_reminder_error'});});
       return;
     }
     try {

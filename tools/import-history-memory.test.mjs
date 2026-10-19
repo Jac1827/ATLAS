@@ -27,7 +27,7 @@ try{
  assert.equal(rootComparisons,1,'The exact root is still reread inside the atomic commit');
  assert(peakSnapshotBytes<=largestSnapshotBytes,'Snapshot digest buffers must stay bounded to one complete snapshot');
  assert.equal(current.historyStorage.counts.batches,8);
- const original=await io('readonly',store=>store.get(historyNamespace(key)+'legacy:'+originalHash));assert.deepEqual(original.value,source,'The original complete legacy evidence remains retained');
+ const original=await run('legacy',{hash:originalHash});assert.deepEqual(original,source,'The original complete legacy evidence remains retained');
  const batches=await run('page',{collection:'batches',limit:100});
  for(let i=0;i<source.batches.length;i++)assert.deepEqual(await run('snapshot',{batch:batches.rows[i]}),source.batches[i].beforeSnapshot,'Every rollback snapshot retains its complete payload');
  assert.deepEqual((await run('export')).batches,source.batches,'Portable export retains every full snapshot and its original order');

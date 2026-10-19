@@ -109,6 +109,8 @@ entries=[
 # Discover imports of governed modules so a stale parent cannot keep an old
 # child after deployment. A topological pass versions every child first.
 tracked={asset: list(refs) for asset,refs in entries}
+for asset in ['features/legacy-evidence-store.mjs','features/legacy-evidence-worker.js','features/legacy-evidence-recovery.mjs','features/workspace-publication-baseline.mjs']:
+ tracked.setdefault(asset,[])
 for asset in ['features/str-ltr-comparison-engine.mjs','features/str-ltr-comparison-store.mjs','features/str-ltr-comparison-recovery.mjs','features/str-ltr-comparison-export.mjs','features/str-ltr-comparison-ui.mjs','features/str-ltr-comparison.css']:
  tracked.setdefault(asset,[])
 for asset in ['features/str-programme-workbook.mjs','features/reforecast-str-source-validation.mjs']:

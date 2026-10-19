@@ -289,7 +289,7 @@ for (const [name, navigate] of [
 function installRealSettingsPersistence(ctx, write) {
   for (const name of ['atlasInvestorPacketState', 'bonusQuarter', 'bonusQuarterManualOverride', 'bonusEngineState', 'jacsTeamBonus', 'regionalAssignments', 'salarySecurity', 'monthlyPresentationCommunities', 'reportHubCommunityProgressCommunities', 'reportHubLvrCommunity', 'weeklyExecutiveEmail', 'portfolioReportSections', 'portfolioReportFilters', 'portfolioReportMode', 'atlasWorkbookImportMode', 'portfolioMonthScopeByPeriod', 'reportHubType', 'reportHubPerspective', 'reportHubMonth', 'reportHubYear', 'reportRecommendationOverrides', 'communityCommandState', 'windowshadeState', 'atlasSharedData']) ctx[name] = {};
   Object.assign(ctx, {
-    applicationResidentDataState: { uploads: [] }, serializeJacsTeamBonus: value => value,
+    reportHubRecipientKeys: [], applicationResidentDataState: { uploads: [] }, serializeJacsTeamBonus: value => value,
     applyOpsGlobalData: value => { ctx.opsGlobalData = value; },
     atlasStateWritePromise: Promise.resolve(), atlasPersistenceMeta: {},
     writeOpsGlobalStorage: () => write.completion, clearAtlasPersistenceError() {}, persistAtlasPersistenceMeta() {}, markAtlasPersistenceError() {},

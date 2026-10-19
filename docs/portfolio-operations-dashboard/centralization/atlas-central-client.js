@@ -1797,6 +1797,14 @@
     });
   }
 
+  async function reportDelivery(action, payload = {}) {
+    return request(accessApiUrl("/api/atlas/reports/delivery"), {
+      method: "POST",
+      headers: baseHeaders(getConfig(), true, { supabasePublicHeaders: false }),
+      body: JSON.stringify({ ...payload, action })
+    });
+  }
+
   async function readDlrDeliveryStatus(options = {}) {
     const params = new URLSearchParams();
     if (options.communityName) params.set("communityName", String(options.communityName));
@@ -1941,6 +1949,7 @@
     upsertMaintenanceInspections,
     recordBonusCalculation,
     publishDlrSnapshot,
+    reportDelivery,
     readDlrDeliveryStatus,
     runDlrDeliveryProcessor
   };

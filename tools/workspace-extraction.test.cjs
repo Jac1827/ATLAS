@@ -20,7 +20,7 @@ for(const [feature,spec] of Object.entries(manifest)){
     assert.equal(renderer.split(replayRenderGuard).length,2,'Exactly one reviewed guard is allowed');
     renderer=renderer.replace(replayRenderGuard,'');
    }
-   assert.equal(crypto.createHash('sha256').update(renderer).digest('hex'),hash,name+' retains its exact pre-extraction renderer after the reviewed replay guard');
+   assert.equal(crypto.createHash('sha256').update(renderer).digest('hex'),hash,name+' matches its reviewed lazy renderer baseline after the replay guard');
   }
  }
 }

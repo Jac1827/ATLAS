@@ -29,3 +29,6 @@ test('aborted operations do not initialize a worker, and failed final source rec
  const f=fixture();f.args.beforeCommit=async()=>{throw Error('Source changed');};const task=initializeCanonicalEvidence(f.args);const rejected=assert.rejects(task,/Source changed/);
  await f.send({kind:'commit',id:2});assert.equal(f.posted.at(-1).error,'Source changed');await f.send({kind:'result',ok:false,error:'Source changed'});await rejected;
 });
+test('operational restore preparation crosses the worker boundary only when explicitly requested',async()=>{
+ const f=fixture();f.args.options.operationalKeys={community:'community_data'};let received;f.args.prepareRestore=async bundle=>{received=bundle;return{records:[{record:{key:'community_data',value:{verified:true}},expectedHash:'captured'}]};};const task=initializeCanonicalEvidence(f.args);await f.send({kind:'prepareRestore',id:4,bundle:{indexedDb:{communityData:{}}}});assert.deepEqual(received,{indexedDb:{communityData:{}}});assert.equal(f.posted.at(-1).value.records[0].record.key,'community_data');await f.send({kind:'result',ok:true,value:{verified:true}});await task;
+});

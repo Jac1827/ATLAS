@@ -44,7 +44,7 @@ self.onmessage=async({data})=>{
       const raw=atob(archive.data);bytesData=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytesData[i]=raw.charCodeAt(i);
     }
     check();
-    const result=await initializeCanonicalArchive({...data.options,archive:{...archive,data:undefined,bytesData},Zip:JSZip,api:AtlasMigrationArchive,signal,onProgress:progress,beforeCommit:async()=>{check();await ask('commit');check();}});
+    const result=await initializeCanonicalArchive({...data.options,archive:{...archive,data:undefined,bytesData},Zip:JSZip,api:AtlasMigrationArchive,signal,onProgress:progress,prepareRestore:data.options.operationalKeys?async({bundle})=>{check();const result=await ask('prepareRestore',{bundle});check();return result;}:null,beforeCommit:async()=>{check();await ask('commit');check();}});
     if(proofDatabase){await new Promise((resolve,reject)=>{const r=indexedDB.deleteDatabase(proofDatabase);r.onsuccess=resolve;r.onerror=()=>reject(r.error);});proofDatabase=null;}
     self.postMessage({kind:'result',ok:true,value:{verified:result.verified,records:result.records,revision:result.revision,...(data.options.includeBundle?{bundle:result.bundle}:{}),...(data.options.mode==='proof'?{passed:true,archiveSha256:archive.sha256,recordsRestored:archive.recordCount+1,testedAt:new Date().toISOString()}: {})}});
   }catch(error){

@@ -20691,7 +20691,7 @@ async function importDashboardStorageBundleFromFile(file) {
     return;
   }
   let writtenCount;
-  try {writtenCount=await applyDashboardStorageBundle(parsed);}catch(error){if(!current()||error?.name==='AbortError')return;throw error;}
+  try {writtenCount=await applyDashboardStorageBundle(parsed);}catch(error){if(!current()||error?.name==='AbortError')return;if(error?.committed){alert(error.message);return;}throw error;}
   if(!current())return;
   if (writtenCount === 0) {
     alert("No keys were written. Browser storage may be blocked or full.");
@@ -20708,22 +20708,55 @@ async function applyDashboardStorageBundle(bundle, {canonicalSource = null} = {}
   let retainedRecords = [];
   let intendedCommunityData = null;
   if (bundle?.bundleType === "atlas_migration_archive_v1") {
-    const archive=bundle;
+    const archive=bundle,restoreActor=atlasWorkspaceActorKey();
     const {sourceIdentity,stableJson}=await import('./features/workspace-bootstrap.mjs?v=99b459d64e31f2cb');checkRestore();
+    const {restoreJournalKey,prepareOperationalRestore,finishOperationalRestore,readRestoredOperationalValues,committedRestoreError}=await import('./features/archive-operational-restore.mjs');checkRestore();
     const binding=await atlasStateGetValue('atlas_workspace_source_v2');checkRestore();
     if(!binding?.identity||!atlasWorkspaceAccess.validated)throw new Error('A verified scoped workspace is required to restore retained evidence.');
-    if(await withAtlasStateStore('readonly',store=>store.getKey(DATA_IMPORT_2_STATE_KEY)))throw new Error('This browser already has retained import evidence. Reconcile it before restoring another archive.');
-    checkRestore();
     if(canonicalSource&&(canonicalSource.archiveHash!==archive.sha256||stableJson(canonicalSource)!==stableJson(binding.identity)))throw new Error('The requested canonical restore source does not match this workspace.');
-    const {initializeCanonicalEvidence}=await import('./features/canonical-evidence.mjs');checkRestore();
-    const restored=await initializeCanonicalEvidence({
-      archive,options:{dbName:restoreDatabase,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,filePrefix:DATA_IMPORT_FILE_ARCHIVE_PREFIX,source:binding.identity,mode:canonicalSource?'canonical':'local-restore',includeBundle:true},
-      signal:restoreSignal,assertCurrent:checkRestore,onProgress:event=>{checkRestore();window.updateAtlasArchiveProgress?.(event);},
-      readPart:async(ref,signal)=>{const row=await window.ATLAS_CENTRAL.readDocument(ref.documentKey,{signal});checkRestore();return row?.payload?.data;},
-      beforeCommit:async()=>{checkRestore();if(canonicalSource){const latest=await window.ATLAS_CENTRAL.readDocument(canonicalSource.documentKey,{signal:restoreSignal});checkRestore();if(stableJson(sourceIdentity(latest))!==stableJson(canonicalSource))throw new Error('The central source changed while restoring. Refresh before continuing.');}}
-    });checkRestore();
-    if(!restored?.verified||restored.records!==archive.recordCount)throw new Error('The complete archive restore could not be verified.');
-    bundle=restored.bundle;
+    const keys={community:ATLAS_STATE_COMMUNITY_KEY,global:OPS_GLOBAL_STORAGE_KEY,weekly:ATLAS_STATE_WEEKLY_SNAPSHOT_KEY,backupIndex:ATLAS_STATE_DAILY_BACKUP_INDEX_KEY,backupPrefix:ATLAS_STATE_DAILY_BACKUP_PREFIX};
+    const readRecord=async key=>{checkRestore();const record=await withAtlasStateStore('readonly',store=>store.get(key));checkRestore();return record;};
+    const readJournal=async()=>{const row=await readRecord(restoreJournalKey);return row?.value;};
+    let journal=await readJournal();checkRestore();
+    if(journal?.state==='pending-settings'&&(journal.actor!==restoreActor||journal.archiveHash!==archive.sha256||stableJson(journal.source)!==stableJson(binding.identity)))throw new Error('Finish the previously committed archive restore before restoring a different archive.');
+    const resumeJournal=['pending-settings','complete'].includes(journal?.state)&&journal.actor===restoreActor&&journal.archiveHash===archive.sha256&&stableJson(journal.source)===stableJson(binding.identity);
+    if(!resumeJournal){
+      if(await withAtlasStateStore('readonly',store=>store.getKey(DATA_IMPORT_2_STATE_KEY)))throw new Error('This browser already has retained import evidence. Reconcile it before restoring another archive.');
+      checkRestore();
+      const {initializeCanonicalEvidence}=await import('./features/canonical-evidence.mjs');checkRestore();
+      const restoreId=crypto.randomUUID();
+      try{
+        const restored=await initializeCanonicalEvidence({
+          archive,options:{dbName:restoreDatabase,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,filePrefix:DATA_IMPORT_FILE_ARCHIVE_PREFIX,source:binding.identity,mode:canonicalSource?'canonical':'local-restore',operationalKeys:keys,restoreId,restoreActor},
+          signal:restoreSignal,assertCurrent:checkRestore,onProgress:event=>{checkRestore();window.updateAtlasArchiveProgress?.(event);},
+          readPart:async(ref,signal)=>{const row=await window.ATLAS_CENTRAL.readDocument(ref.documentKey,{signal});checkRestore();return row?.payload?.data;},
+          prepareRestore:async operationalBundle=>{await atlasStateWritePromise;checkRestore();const plan=await prepareOperationalRestore({bundle:operationalBundle,keys,readRecord,readLocal:key=>localStorage.getItem(key),mergeCommunity:mergeDashboardCommunityDataMaps,protectOccupancy:window.AtlasOccupancyReplay?.protectCommittedOccupancy,retention:DASHBOARD_DAILY_BACKUP_RETENTION,assertCurrent:checkRestore});return {records:plan.records,settings:plan.settings,journalExpectedHash:plan.journalExpectedHash,sourceDirty:plan.sourceDirty};},
+          beforeCommit:async()=>{checkRestore();if(canonicalSource){const latest=await window.ATLAS_CENTRAL.readDocument(canonicalSource.documentKey,{signal:restoreSignal});checkRestore();if(stableJson(sourceIdentity(latest))!==stableJson(canonicalSource))throw new Error('The central source changed while restoring. Refresh before continuing.');}}
+        });checkRestore();
+        if(!restored?.verified||restored.records!==archive.recordCount)throw new Error('The complete archive restore could not be verified.');
+      }catch(error){checkRestore();const receipt=await readJournal().catch(()=>null);if(receipt?.restoreId===restoreId)throw committedRestoreError(error);throw error;}
+      // A later cache/settings read can fail without undoing the acknowledged
+      // native commit. Its durable journal lets the exact archive resume safely.
+      try{journal=await readJournal();checkRestore();if(journal?.restoreId!==restoreId)throw new Error('The restore completion receipt could not be read');}catch(error){throw committedRestoreError(error);}
+    }
+    try{
+      const sourceNow=await atlasStateGetValue('atlas_workspace_source_v2');checkRestore();if(atlasWorkspaceActorKey()!==restoreActor||stableJson(sourceNow?.identity)!==stableJson(binding.identity))throw new Error('The workspace source changed before settings completion');
+      const values=await readRestoredOperationalValues({journal,readRecord,assertCurrent:checkRestore});checkRestore();
+      await finishOperationalRestore({journal,readJournal,storage:localStorage,assertCurrent:checkRestore,writeJournal:async(expected,value)=>{
+        checkRestore();let conflict=false;
+        try{await withAtlasStateStore('readwrite',store=>{
+          const request=store.get(restoreJournalKey),sourceRead=store.get('atlas_workspace_source_v2');let pending=2;
+          const finish=()=>{if(--pending)return;try{checkRestore();if(atlasWorkspaceActorKey()!==restoreActor||stableJson(sourceRead.result?.value?.identity)!==stableJson(binding.identity)||stableJson(request.result?.value)!==stableJson(expected)){conflict=true;store.transaction.abort();return;}store.put({...request.result,value,updatedAt:new Date().toISOString()});}catch{conflict=true;store.transaction.abort();}};
+          request.onsuccess=sourceRead.onsuccess=finish;return request;
+        });}catch(error){if(conflict)error.commitRejected=true;throw error;}
+      }});checkRestore();
+      savedData=values[keys.community];
+      if(Object.prototype.hasOwnProperty.call(values,keys.global))opsGlobalStorageCache=values[keys.global];
+      if(Object.prototype.hasOwnProperty.call(values,keys.weekly))weeklySnapshotCache=values[keys.weekly];
+      if(Object.prototype.hasOwnProperty.call(values,keys.backupIndex))dailyBackupIndexCache=values[keys.backupIndex];
+      return journal.writtenCount;
+    }catch(error){if(error?.committed)throw error;throw committedRestoreError(error);}
+
   }
 
   const incoming = (bundle && typeof bundle === "object" && bundle.keys && typeof bundle.keys === "object")
@@ -20874,7 +20907,7 @@ async function importDashboardStorageBundleFromClipboard() {
     writtenCount = await applyDashboardStorageBundle(parsed);
   } catch (error) {
     if (!current() || error?.name === "AbortError") return;
-    alert(`Bundle import failed: ${error?.message || error}`);
+    alert(error?.committed ? error.message : `Bundle import failed: ${error?.message || error}`);
     return;
   }
   if (!current()) return;

@@ -804,6 +804,10 @@
         "./bounded-json-integrity.mjs"
       ],
       [
+        "features/archive-operational-restore.mjs",
+        "./bounded-json-integrity.mjs"
+      ],
+      [
         "features/legacy-evidence-store.mjs",
         "./bounded-json-integrity.mjs"
       ],
@@ -1322,8 +1326,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "2e2f807daee50706",
-    "bytes": 3141937,
+    "sha256": "5a576ba2731349fe",
+    "bytes": 3146325,
     "references": [
       [
         "index.html",

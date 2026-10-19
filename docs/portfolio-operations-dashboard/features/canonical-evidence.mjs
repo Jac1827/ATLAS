@@ -1,6 +1,6 @@
 // Only bounded archive parts cross the UI/worker boundary. Credentials stay in
 // the authenticated central client and are never sent to or stored by workers.
-export function initializeCanonicalEvidence({archive,options,readPart,beforeCommit,assertCurrent,signal,onProgress=()=>{},workerFactory=()=>new Worker(new URL('./canonical-evidence-worker.js',import.meta.url))}){
+export function initializeCanonicalEvidence({archive,options,readPart,beforeCommit,prepareRestore,assertCurrent,signal,onProgress=()=>{},workerFactory=()=>new Worker(new URL('./canonical-evidence-worker.js',import.meta.url))}){
   assertCurrent();if(typeof Worker==='undefined'&&!workerFactory)throw Error('Background archive processing is unavailable');
   return new Promise((resolve,reject)=>{
     const worker=workerFactory();let settled=false,timer=null,cancelled=false;
@@ -22,6 +22,9 @@ export function initializeCanonicalEvidence({archive,options,readPart,beforeComm
           if(!Number.isInteger(data.index)||!archive.dataDocuments?.[data.index])throw Error('Invalid archive part request');
           const value=await readPart(archive.dataDocuments[data.index],signal);assertCurrent();
           if(!settled)worker.postMessage({kind:'response',id:data.id,value});
+        }else if(data.kind==='prepareRestore'){
+          if(!options.operationalKeys||typeof prepareRestore!=='function')throw Error('Unexpected operational restore request');
+          const value=await prepareRestore(data.bundle);assertCurrent();if(!settled)worker.postMessage({kind:'response',id:data.id,value});
         }else if(data.kind==='commit'){
           await beforeCommit();assertCurrent();if(!settled)worker.postMessage({kind:'response',id:data.id,value:true});
         }

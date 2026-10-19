@@ -1,11 +1,11 @@
 import {createJsonTokenSink} from './migration-token-stream.mjs';
 import {historyNamespace,prepareStreamedInitialHistory} from './import-history-store.mjs?v=e310a5426db3487e';
 import {stableJson} from './workspace-bootstrap.mjs?v=99b459d64e31f2cb';
-import {Sha256,hashJson} from './bounded-json-integrity.mjs?v=a4ea8821996c3b57';
+import {Sha256,hashJson,jsonChunks} from './bounded-json-integrity.mjs?v=a4ea8821996c3b57';
 
 // An isolated staging namespace is invisible to normal history readers. Only a
 // final native transaction activates the verified source, files, and history.
-export async function initializeCanonicalArchive({archive,Zip,api,dbName,storeName,key,filePrefix,source,mode='canonical',signal,onProgress=()=>{},beforeCommit=async()=>{}}){
+export async function initializeCanonicalArchive({archive,Zip,api,dbName,storeName,key,filePrefix,source,mode='canonical',signal,onProgress=()=>{},beforeCommit=async()=>{},prepareRestore=null,operationalKeys=null,restoreId=null,restoreActor=null}){
   const check=()=>{if(signal?.aborted)throw signal.reason||new DOMException('Archive initialization cancelled','AbortError');};
   const db=await new Promise((resolve,reject)=>{const r=indexedDB.open(dbName);r.onupgradeneeded=()=>{r.transaction.abort();reject(Error('Canonical storage must already exist'));};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
   const prefix='__atlas_verified_archive_stage:'+crypto.randomUUID()+':',staged=[],destinations=new Set(),sinks=new Set(),fingerprints=new Map();
@@ -20,8 +20,9 @@ export async function initializeCanonicalArchive({archive,Zip,api,dbName,storeNa
   const add=async record=>{check();if(!record?.key||destinations.has(record.key))throw Error('Duplicate retained archive record');destinations.add(record.key);const stageKey=prefix+staged.length;fingerprints.set(stageKey,await fingerprint(record));await io('readwrite',store=>store.add({key:stageKey,record}));staged.push(stageKey);};
   const newSink=()=>{const sink=createJsonTokenSink({signal});sinks.add(sink);return sink;};
   const finishSink=async sink=>{const result=await sink.finish();sinks.delete(sink);return result;};
-  let original=null,history=null,historyMetadata=null,bundle=null,activated=false;
-  const initialSnapshots=new Map();
+  let original=null,history=null,historyMetadata=null,bundle=null,activated=false,operationalSourceDirty=false;
+  const initialSnapshots=new Map(),protectedOperational=new Map();
+  const hashCurrent=record=>{const hash=new Sha256();for(const chunk of jsonChunks(record??null,{trustedData:true}))hash.update(new TextEncoder().encode(chunk));return hash.digestHex();};
   try{
     check();
     const expectedSource=await io('readonly',store=>store.get(sourceKey));
@@ -103,9 +104,20 @@ export async function initializeCanonicalArchive({archive,Zip,api,dbName,storeNa
     for(const record of prepared.records)if(!destinations.has(record.key))await add(record);
     prepared.records.length=0;
     await add({...historyMetadata,key,value:prepared.head,updatedAt:prepared.head.updatedAt});
-    await add({key:receiptKey,value:{archiveHash:archive.sha256,version:source.version,parentDocument:source.documentKey,records:archive.recordCount,verifiedAt:new Date().toISOString()},updatedAt:prepared.head.updatedAt});
+    await add({key:receiptKey,value:{...(mode==='canonical'?{source}:{}),archiveHash:archive.sha256,version:source.version,parentDocument:source.documentKey,records:archive.recordCount,verifiedAt:new Date().toISOString()},updatedAt:prepared.head.updatedAt});
     if(mode==='local-restore')await add({...expectedSource,value:{...expectedSource.value,dirty:true,lastLocalRestoreHash:archive.sha256}});
     if(mode==='proof')await add({key:'__atlas_restore_bundle_proof',value:bundle});
+    if(operationalKeys){
+      if(!restoreId||typeof prepareRestore!=='function')throw Error('Operational restore preparation is required');
+      const plan=await prepareRestore({bundle});check();operationalSourceDirty=Boolean(plan?.sourceDirty);
+      if(mode==='canonical')await add({...expectedSource,value:{...expectedSource.value,dirty:Boolean(expectedSource.value.dirty||operationalSourceDirty),lastCanonicalRestore:source}});
+      const operationalHashes={};
+      const allowed=new Set([operationalKeys.community,operationalKeys.global,operationalKeys.weekly,operationalKeys.backupIndex]);
+      for(const item of plan?.records||[]){const name=item?.record?.key;if(!allowed.has(name)&&!(name?.startsWith(operationalKeys.backupPrefix)&&/^\d{4}-\d{2}-\d{2}$/.test(name.slice(operationalKeys.backupPrefix.length))))throw Error('Unexpected operational restore record');if(!/^[a-f0-9]{64}$/.test(item.expectedHash||''))throw Error('Operational restore comparison is missing');protectedOperational.set(name,item.expectedHash);operationalHashes[name]=await hashJson(item.record,{trustedData:true});await add(item.record);}
+      if(!protectedOperational.has(operationalKeys.community)||!/^[a-f0-9]{64}$/.test(plan.journalExpectedHash||''))throw Error('Operational restore is incomplete');
+      const journalKey='atlas_archive_restore_commit_v1';protectedOperational.set(journalKey,plan.journalExpectedHash);
+      await add({key:journalKey,value:{restoreId,actor:restoreActor,archiveHash:archive.sha256,source,state:'pending-settings',operationalHashes,settings:plan.settings||[],writtenCount:archive.recordCount+protectedOperational.size-1+(plan.settings||[]).length},updatedAt:new Date().toISOString()});
+    }
     await beforeCommit();check();
     // Keep the exact verified native readback envelopes for activation. Blob
     // handles are immutable and cheap to retain; expanded snapshots never enter
@@ -121,7 +133,10 @@ export async function initializeCanonicalArchive({archive,Zip,api,dbName,storeNa
         const scan=store.openKeyCursor();scan.onsuccess=()=>{
           const cursor=scan.result;
           if(cursor){const current=String(cursor.key);if(current===key||current===receiptKey||current.startsWith(filePrefix)||current.startsWith('occupancy_replay_backup:')){abort(Error('This browser has retained archive evidence. Reconcile before replacing it'));return;}cursor.continue();return;}
-          try{check();for(const record of verifiedRecords){if(mode==='local-restore'&&record.key===sourceKey)store.put({...sourceRead.result,value:{...sourceRead.result.value,dirty:true,lastLocalRestoreHash:archive.sha256}});else store.add(record);}for(const stageKey of staged)store.delete(stageKey);}catch(error){abort(error);}
+          const activate=()=>{try{check();for(const record of verifiedRecords){if(record.key===sourceKey&&(mode==='local-restore'||mode==='canonical'&&operationalKeys))store.put({...sourceRead.result,value:{...sourceRead.result.value,...(mode==='local-restore'?{dirty:true,lastLocalRestoreHash:archive.sha256}:{dirty:Boolean(sourceRead.result.value.dirty||operationalSourceDirty),lastCanonicalRestore:source})}});else if(protectedOperational.has(record.key))store.put(record);else store.add(record);}for(const stageKey of staged)store.delete(stageKey);}catch(error){abort(error);}};
+          if(!protectedOperational.size){activate();return;}
+          let pending=protectedOperational.size;
+          for(const [name,expectedHash]of protectedOperational){const request=store.get(name);request.onsuccess=()=>{try{if(hashCurrent(request.result)!==expectedHash){abort(Error('Operational data changed while preparing the archive restore'));return;}if(--pending===0)activate();}catch(error){abort(error);}};}
         };
       };
       tx.oncomplete=()=>{signal?.removeEventListener('abort',cancelled);resolve();};tx.onabort=tx.onerror=()=>{signal?.removeEventListener('abort',cancelled);reject(failure||tx.error||Error('Archive activation failed'));};

@@ -67,6 +67,7 @@ jobs:
           node tools/community-goal-consumers.test.cjs
           node tools/community-plan-email.test.mjs
           node tools/community-finance-roster.test.mjs
+          node tools/linked-contact-refresh.test.cjs
           node tools/fiscal-ytd.test.mjs
           node tools/community-report-progress.test.mjs
           node tools/financial-package.test.mjs

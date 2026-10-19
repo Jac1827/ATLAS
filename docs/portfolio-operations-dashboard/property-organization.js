@@ -30,39 +30,59 @@
     const id=String(e.peopleEmployeeId||e.id||'');
     return id?(id.startsWith('people:')?id:'people:'+id):String(e.employeeId||getSharedEmployeeStableId(e));
   };
+  const communityAllowed=name=>typeof atlasDashboardUserCanSeeCommunityName!=='function'||atlasDashboardUserCanSeeCommunityName(name);
+  const activeContact=e=>e&&e.active!==false&&!e.archived&&!e.deletedAt&&!e.deleted_at&&!e.terminationDate&&!/inactive|terminated|archived|deleted|superseded/i.test([e.status,e.recordStatus].join(' '));
+  const activeCentralContact=e=>activeContact(e)&&/^active$/i.test(String(e.status||'').trim());
+  const validContactDate=value=>!value||(/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value);
+  const contactIds=e=>[employeeId(e),e.canonicalEmployeeId,e.peopleEmployeeId,e.canonicalEmployeeId?'people:'+e.canonicalEmployeeId:''].filter(Boolean);
+  const contactRole=(e,role)=>{const title=String(e.title||e.role||'').trim().replace(/[_-]+/g,' ');return role==='gm'?/^(gm|general manager|community manager)$/i.test(title):/^regional (?:property )?manager$/i.test(title);};
+  const sameCommunity=(e,name)=>{const currentId=canonicalCommunityId(savedData[name]),assignedId=String(e.assignmentCommunityId||'');return currentId&&assignedId?currentId===assignedId:P.norm(e.communityName)===P.norm(name);};
+  const centralContactAccess=()=>atlasSharedData.lastPeopleSource!=='atlas_central_people'||((typeof atlasWorkspaceAccess==='undefined'||atlasWorkspaceAccess.validated)&&(!window.ATLAS_CENTRAL?.getStatus||window.ATLAS_CENTRAL.getStatus().signedIn));
   function roster(){
     if(atlasSharedData.lastPeopleSource==='atlas_central_people'){
-      const employees=Object.values(atlasSharedData.employees||{}),assignments=atlasSharedData.assignments||[],today=new Date().toISOString().slice(0,10);
-      if(assignments.length)return assignments.filter(a=>(!a.effectiveStart||a.effectiveStart<=today)&&(!a.effectiveEnd||a.effectiveEnd>=today)&&!/inactive|terminated|superseded/i.test(a.status||'')).map(a=>{
-        const e=employees.find(e=>e.employeeId===a.employeeId)||{};
-        return {...e,employeeId:stableEmployeeId(e),title:a.title||e.title,communityName:a.communityName};
+      if(!centralContactAccess())return [];
+      const employees=Object.values(atlasSharedData.employees||{}),assignments=[...(atlasSharedData.assignments||[]),...(atlasSharedData.reportingAssignments||[]).filter(a=>a.source==='atlas_central_people').map(a=>({...a,reportingOnly:true}))],today=new Date().toISOString().slice(0,10);
+      return assignments.filter(a=>activeCentralContact(a)&&validContactDate(a.effectiveStart)&&validContactDate(a.effectiveEnd)&&(!a.effectiveStart||a.effectiveStart<=today)&&(!a.effectiveEnd||a.effectiveEnd>=today)&&communityAllowed(a.communityName)).flatMap(a=>{
+        const e=employees.find(e=>e.employeeId===a.employeeId);
+        if(!activeCentralContact(e))return [];
+        return [{...e,canonicalEmployeeId:employeeId(e),employeeId:stableEmployeeId(e),title:a.title||e.title,communityName:a.communityName,assignmentCommunityId:a.communityId,reportingOnly:Boolean(a.reportingOnly)}];
       });
-      return employees.map(e=>({...e,employeeId:stableEmployeeId(e)}));
     }
     const raw=loadPeoplePlatformStateForSharedData().employees;
     return raw.length?raw.map(e=>({...e,employeeId:stableEmployeeId(e),title:e.role||e.title,communityName:resolveSharedCommunityForEmployee(e).communityName,active:isSharedPeopleEmployeeActive(e)})):Object.values(atlasSharedData.employees||{}).map(e=>({...e,employeeId:stableEmployeeId(e)}));
   }
+  function linkedContact(name,record,prefix,employees=roster()){
+    if(!communityAllowed(name))return null;
+    const ids=[record[prefix+'EmployeeId'],record[prefix+'UserId']].map(id=>String(id||'').trim()).filter(Boolean);
+    if(!ids.length)return null;
+    const role=prefix==='generalManager'?'gm':'regional';
+    const matches=employees.filter(e=>activeContact(e)&&contactRole(e,role)&&sameCommunity(e,name)&&ids.every(id=>contactIds(e).includes(id)));
+    const unique=new Map(matches.map(e=>[e.canonicalEmployeeId||employeeId(e),e]));
+    return unique.size===1?[...unique.values()][0]:null;
+  }
+  function refreshContact(name,record,prefix,e){
+    if(!e)return false;
+    const changed=record[prefix+'Name']!==(e.name||'')||record[prefix+'Email']!==(e.email||'');
+    record[prefix+'Name']=e.name||'';record[prefix+'Email']=e.email||'';
+    if(name===getProp().name){if(prefix==='generalManager'){communityGeneralManagerName=e.name||'';communityGeneralManagerEmail=e.email||'';}else{communityRegionalManagerName=e.name||'';communityRegionalManagerEmail=e.email||'';}}
+    return changed;
+  }
   window.atlasSynchronizeLinkedContacts=()=>{
     const employees=roster();let changed=false;
     for(const [name,record] of Object.entries(savedData))for(const prefix of ['generalManager','regionalManager']){
-      const id=record[prefix+'EmployeeId'];if(!id)continue;
-      const e=employees.find(e=>employeeId(e)===id);if(!e)continue;
-      if(record[prefix+'Name']!==e.name||record[prefix+'Email']!==e.email){
-        record[prefix+'Name']=e.name||'';record[prefix+'Email']=e.email||'';changed=true;
-        if(name===getProp().name){if(prefix==='generalManager'){communityGeneralManagerName=e.name||'';communityGeneralManagerEmail=e.email||'';}else{communityRegionalManagerName=e.name||'';communityRegionalManagerEmail=e.email||'';}}
-      }
+      changed=refreshContact(name,record,prefix,linkedContact(name,record,prefix,employees))||changed;
     }
     if(changed){persistSaved();queueAtlasCentralDocumentPush('linked_roster_contacts');}
     return changed;
   };
   const area=()=>communityRegionalGrouping||communityMarket;
-  const eligible=role=>[...new Map(P.eligible(roster(),role,area(),savedData).map(e=>[employeeId(e),e])).values()];
+  const eligible=role=>communityAllowed(getProp().name)?[...new Map(P.eligible(roster().filter(e=>contactRole(e,role)&&(!e.reportingOnly||sameCommunity(e,getProp().name))),role,area(),savedData).map(e=>[employeeId(e),e])).values()]:[];
   window.atlasLinkedEmployeeIssues=()=>{
     const record=savedData[getProp().name]||{};
-    return [['gm','generalManagerEmployeeId'],['regional','regionalManagerEmployeeId']].filter(([role,key])=>record[key]&&!eligible(role).some(e=>employeeId(e)===record[key])).map(([role])=>`${role==='gm'?'GM':'Regional'} assignment needs a replacement in the selected area.`);
+    return [['gm','generalManager'],['regional','regionalManager']].filter(([role,prefix])=>{if(!record[prefix+'EmployeeId']&&!record[prefix+'UserId'])return false;const linked=linkedContact(getProp().name,record,prefix);return !linked||!eligible(role).some(e=>employeeId(e)===employeeId(linked));}).map(([role])=>`${role==='gm'?'GM':'Regional'} assignment needs review in the current People roster.`);
   };
   window.atlasEmployeeSelect=role=>{
-    const key=role==='gm'?'generalManagerEmployeeId':'regionalManagerEmployeeId',id=savedData[getProp().name]?.[key]||'',options=eligible(role);
+    const prefix=role==='gm'?'generalManager':'regionalManager',record=savedData[getProp().name]||{},linked=linkedContact(getProp().name,record,prefix),id=linked?employeeId(linked):record[prefix+'EmployeeId']||record[prefix+'UserId']||'',options=eligible(role);
     return `<select aria-label="${role==='gm'?'GM':'Regional Manager'} linked employee" onchange="atlasSelectEmployee('${role}',this.value)"><option value="">Select employee</option>${id&&!options.some(e=>employeeId(e)===id)?'<option selected value="'+esc(id)+'">Assignment needs review</option>':''}${options.map(e=>`<option value="${esc(employeeId(e))}" ${employeeId(e)===id?'selected':''}>${esc(e.name)}</option>`).join('')}</select>`;
   };
   window.atlasOrganizationWarnings=()=>{
@@ -76,20 +96,24 @@
   window.atlasRefreshLinkedEmployees=()=>{
     const record=savedData[getProp().name]||{};
     for(const role of ['gm','regional']){
-      const prefix=role==='gm'?'generalManager':'regionalManager',id=record[prefix+'EmployeeId'];
-      if(!id)continue;const e=roster().find(e=>employeeId(e)===id);if(!e)continue;
-      record[prefix+'Name']=e.name||'';record[prefix+'Email']=e.email||'';
-      if(role==='gm'){communityGeneralManagerName=e.name||'';communityGeneralManagerEmail=e.email||'';}
-      else{communityRegionalManagerName=e.name||'';communityRegionalManagerEmail=e.email||'';}
+      const prefix=role==='gm'?'generalManager':'regionalManager';
+      refreshContact(getProp().name,record,prefix,linkedContact(getProp().name,record,prefix));
     }
   };
   window.atlasSelectEmployee=async(role,id)=>{
+    if(!communityAllowed(getProp().name)||!centralContactAccess())return;
+    const epoch=syncAccess();
     const e=eligible(role).find(e=>employeeId(e)===id);if(id&&!e)return;
     const name=getProp().name,prefix=role==='gm'?'generalManager':'regionalManager';
     savedData[name] ||= getCurrentCommunityRecord();savedData[name][prefix+'EmployeeId']=id;
+    if(atlasSharedData.lastPeopleSource==='atlas_central_people'){
+      savedData[name][prefix+'UserId']=e?.canonicalEmployeeId||'';
+      if(typeof communitySharedSyncMeta!=='undefined')communitySharedSyncMeta[prefix+'UserId']=e?.canonicalEmployeeId||'';
+    }
     if(role==='gm'){communityGeneralManagerName=e?.name||'';communityGeneralManagerEmail=e?.email||'';}
     else{communityRegionalManagerName=e?.name||'';communityRegionalManagerEmail=e?.email||'';}
     savedData[name]=getCurrentCommunityRecord();persistSaved();await atlasStateWritePromise;
+    if(syncAccess()!==epoch||!communityAllowed(name)||!centralContactAccess())return;
     queueAtlasCentralDocumentPush('linked_employee_assignment');renderTab();
   };
   const websitePair=record=>({communityWebsiteUrl:record?.communityWebsiteUrl??record?.website??'',floorPlanRatesPageUrl:record?.floorPlanRatesPageUrl??record?.floorplan??''});

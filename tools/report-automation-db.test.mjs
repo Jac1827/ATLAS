@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 const db=new PGlite(),cid='10000000-0000-4000-8000-000000000001',actor='20000000-0000-4000-8000-000000000001';
 await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;alter default privileges in schema public grant all on tables to service_role;create schema auth;create table auth.users(id uuid primary key);create table atlas_communities(community_id uuid primary key);insert into auth.users values('${actor}');insert into atlas_communities values('${cid}');`);
-await db.exec(fs.readFileSync(new URL('../supabase/migrations/20261019121951_report_delivery_automation.sql',import.meta.url),'utf8'));
+await db.exec(fs.readFileSync(new URL('../supabase/migrations/20261019122721_report_delivery_automation.sql',import.meta.url),'utf8'));
 assert.equal((await db.query('select count(*)::int n from atlas_report_subscriptions')).rows[0].n,0);
 await db.exec('set role service_role');
 const insert=async(type)=> (await db.query(`insert into atlas_report_subscriptions(community_id,community_name,report_type,created_by,updated_by) values($1,'Synthetic',$2,$3,$3) returning *`,[cid,type,actor])).rows[0];

@@ -24,6 +24,19 @@ test('repeated Availability headings agree, conflicting or impossible dates fail
  for(const invalid of ['02/30/2026','missing'])assert.throws(()=>c.pickDailyBoxScoreReportDate([['Availability (As of '+invalid+')'],['Make Ready 10/31/2026']]),/Availability date/);
  assert.equal(c.buildDlrDateInputValue(c.pickDailyBoxScoreReportDate([['Daily Report 10/19/2026']])),'2026-10-19');
 });
+test('two-digit Availability years retain established century semantics and strict validation',async()=>{
+ const c=context();
+ for(const [raw,expected] of [['10/19/26','2026-10-19'],['10.19.26','2026-10-19'],['10-19-26','2026-10-19'],['10/19/026','2026-10-19'],['12/31/49','2049-12-31'],['01/01/50','1950-01-01'],['02/29/24','2024-02-29']]){
+  const input=[['Availability (As of '+raw+')'],['Make Ready (As of 10/31/2026)']];
+  assert.equal(c.buildDlrDateInputValue(c.pickDailyBoxScoreReportDate(input)),expected);
+  assert.equal(c.pickDailyBoxScoreReportDate(input).getTime(),c.extractDatesFromText(raw)[0].getTime());
+ }
+ assert.equal(c.buildDlrDateInputValue(c.pickDailyBoxScoreReportDate([['Availability (As of 10/19/26)'],['Availability (As of 10/19/2026)']])),'2026-10-19');
+ assert.throws(()=>c.pickDailyBoxScoreReportDate([['Availability (As of 02/29/25)']]),/Availability date/);
+ assert.throws(()=>c.pickDailyBoxScoreReportDate([['Availability (As of 10/19/26)'],['Availability (As of 10/20/2026)']]),/conflicting Availability/);
+ const twoDigitRows=rows.map(row=>row.map(value=>String(value).replace('Availability (As of 10/19/2026)','Availability (As of 10/19/26)')));
+ const parsed=await c.parseDailyBoxScoreFile(fileForRows(twoDigitRows));assert.equal(parsed.snapshot.reportDateIso,'2026-10-19');assert.equal(parsed.availabilityDateIso,'2026-10-19');assert.equal(parsed.snapshot.occupiedUnits,273);
+});
 async function fixture(){
  const c=context(),file=fileForRows(),snapshot=(await c.parseDailyBoxScoreFile(file)).snapshot,hash=await c.dataImportFileHash(file);
  const entry={id:'approved-source',batchId:'retained-batch',reportType:'box_score',fileName:file.name,fileHash:hash,communities:['Bartram Park'],importStatus:'Approved',reprocessResult:{prior:'preserve'}};

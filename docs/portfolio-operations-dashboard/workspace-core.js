@@ -26757,11 +26757,12 @@ function pickDailyBoxScoreAvailabilityDate(rows = [], rawText = "") {
   const text = [rawText, ...rows.map(row => Array.isArray(row) ? row.join(" ") : "")].join("\n");
   const dates = new Map();
   for (const match of text.matchAll(/\bavailability\s*\(\s*as\s+of\b([^)]*)\)/gi)) {
-    const token = match[1].match(/^\s*(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})\s*$/);
+    const token = match[1].match(/^\s*(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})\s*$/);
     if (!token) throw new Error("The Box Score Availability date is missing or invalid.");
-    const [, month, day, year] = token.map(Number);
-    const date = new Date(year, month - 1, day);
-    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) throw new Error("The Box Score Availability date is invalid.");
+    const [, month, day] = token.map(Number);
+    // Reuse established slash/dot/hyphen and short-year normalization exactly.
+    const date = extractDatesFromText(token[0])[0];
+    if (!date || date.getMonth() !== month - 1 || date.getDate() !== day) throw new Error("The Box Score Availability date is invalid.");
     dates.set(date.getTime(), date);
   }
   if (dates.size > 1) throw new Error("The Box Score contains conflicting Availability dates; review its sections before importing.");

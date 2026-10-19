@@ -52,7 +52,7 @@ test('acknowledged publication and final refresh failures never restore a retrya
   if(where==='committed-error')c.persistDataImportPublication=async()=>{c.committed=structuredClone(c.dataImport2State);throw Object.assign(Error('cache failed'),{publicationCommitted:true});};
   if(where==='load')c.loadPropertyData=()=>{if(c.committed)throw Error('display failed');};
   if(where==='grid')c.renderPropGrid=()=>{if(c.committed)throw Error('display failed');};
-  await c.approveDataImportBatch();assert.equal(c.dataImportApprovalInProgress,false);assert.equal(c.dataImport2State.pendingBatch,null);assert.equal(c.dataImport2State.batches[0].status,'Approved');assert.equal(c.savedData.Test.marketSurveyData.compAverageRent,1709);assert(!c.dataImportFileHandles.has('file'));assert(c.dataImportFileHandles.has('unrelated'));assert.match(c.csvError,/import was saved.*Open Import History/);assert(!c.csvLog.some(s=>s.includes('remains in Import Preview')));
+  await c.approveDataImportBatch();assert.equal(c.dataImportApprovalInProgress,false);assert.equal(c.notices,1,'Every acknowledged commit attempts its post-commit notice once');assert.equal(c.dataImport2State.pendingBatch,null);assert.equal(c.dataImport2State.batches[0].status,'Approved');assert.equal(c.savedData.Test.marketSurveyData.compAverageRent,1709);assert(!c.dataImportFileHandles.has('file'));assert(c.dataImportFileHandles.has('unrelated'));assert.match(c.csvError,/import was saved.*Open Import History/);assert(!c.csvLog.some(s=>s.includes('remains in Import Preview')));
  }
 });
 test('missing source handles fail before routing, and busy upload/preview controls are disabled',async()=>{
@@ -63,5 +63,18 @@ test('missing source handles fail before routing, and busy upload/preview contro
   c.dataImportApprovalPreflight=preflight;c.dataImportApprovalInProgress=approval;
   const drop=c.renderDataImportDropzone(),preview=c.renderDataImportPendingBatch();
   assert.equal(/id="csv-input"[^>]*disabled/.test(drop),preflight||approval);assert.equal(/aria-disabled="true"/.test(drop),preflight||approval);assert.equal(/disabled onclick="clearDataImportPendingBatch/.test(preview),preflight||approval);
+ }
+});
+
+test('acknowledged commits use the same stable notice event identity as normal publication',async()=>{
+ for(const acknowledgedError of [false,true]){
+  const c=setup(),sent=[];
+  Object.assign(c,{atlasProfileCanManageSettings:()=>true,getAtlasAccessProfile:()=>({}),atlasAccessAdminState:{rows:[{email:'employee@example.com',role:'viewer',allowed_community_ids:['community'],locked_tab_ids:[]}],communities:[{display_name:'Test',community_id:'community'}]},ATLAS_ACCESS_ROLE_TABS:{viewer:['8']},getAtlasAccessTab:()=>({label:'Marketing',key:'marketing'}),atlasNormalizeSharedText:v=>String(v).toLowerCase(),normalizeAtlasAccessList:v=>v||[]});
+  c.window.ATLAS_CENTRAL={publishEmployeeNotification:async notice=>{sent.push(notice);}};
+  c.dataImportRouteApprovedFile=async()=>({rowsUpdated:1,communities:['Test'],destinations:['Marketing']});
+  if(acknowledgedError)c.persistDataImportPublication=async()=>{throw Object.assign(Error('post-commit refresh failed'),{publicationCommitted:true});};
+  vm.runInContext(extract('publishAtlasApprovedDataNotices'),c);
+  await c.approveDataImportBatch();await tick();assert.equal(sent.length,1);assert.equal(sent[0].eventKey,'data:batch:employee@example.com:marketing_iq:Test');
+  await c.publishAtlasApprovedDataNotices(c.dataImport2State.batches[0]);assert.equal(sent.length,2);assert.equal(new Set(sent.map(n=>n.eventKey)).size,1,'Repeating the existing notice publisher retains the backend idempotency key');
  }
 });

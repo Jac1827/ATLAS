@@ -1326,8 +1326,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "74eb61ecf7ec4b33",
-    "bytes": 3166803,
+    "sha256": "2639ab5d1fcfcc53",
+    "bytes": 3167228,
     "references": [
       [
         "index.html",

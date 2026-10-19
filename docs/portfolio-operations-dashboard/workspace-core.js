@@ -49150,6 +49150,8 @@ async function approveDataImportBatch() {
   const routeMessages = [];
   const archivedEntries = [];
   let completionLog = null;
+  let publicationHistoryEntry = null;
+  let publicationCommitted = false;
   let marketRouteFailed = false;
   let approvalRuntime = null;
   try {
@@ -49288,18 +49290,20 @@ async function approveDataImportBatch() {
     csvLog = [`${historyEntry.id}: saving and verifying the approved data. Keep this page open.`, ...routeMessages.slice(0, 6)];
     dataImportUpdateApprovalProgress({ stage: "Saving and verifying", fileName: "" });
     checkApprovalCurrent();
+    publicationHistoryEntry = historyEntry;
     await persistDataImportPublication({assertCurrent:checkApprovalCurrent});
+    publicationCommitted = true;
     checkApprovalCurrent();
     completionLog = approvedLog;
     const marketSurveyCount = approvedPlans.filter(plan => plan.reportType === "marketing_iq").length;
     if (marketSurveyCount) marketSurveyImportSourceLabel = `${marketSurveyCount} market survey${marketSurveyCount === 1 ? "" : "s"} updated`;
     for (const plan of batch.files) dataImportFileHandles.delete(plan.fileId);
-    publishAtlasApprovedDataNotices(historyEntry).catch(error => console.warn("ATLAS employee upload notices were not published.", error));
   } catch (error) {
     if (!approvalCurrent()) return;
     dataImportDiscardApprovalRuntime(approvalRuntime);
     const message = String(error?.message || error || "The selected batch could not be applied.");
     if (error?.publicationCommitted) {
+      publicationCommitted = true;
       // The native transaction succeeded. Never restore an old preview or ask
       // for reapproval because a subsequent display/cache refresh failed.
       for (const plan of batch.files) dataImportFileHandles.delete(plan.fileId);
@@ -49329,6 +49333,11 @@ async function approveDataImportBatch() {
       return;
     }
     try {
+      // Both normal success and acknowledged-commit refresh errors share this
+      // one attempt. Notice event keys remain tied to the committed batch.
+      if (publicationCommitted && publicationHistoryEntry) {
+        publishAtlasApprovedDataNotices(publicationHistoryEntry).catch(error => console.warn("ATLAS employee upload notices were not published.", error));
+      }
       dataImportFinishApprovalRuntime();
       await atlasStateWritePromise;
       if (!approvalCurrent()) return;

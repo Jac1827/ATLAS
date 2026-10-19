@@ -12,7 +12,13 @@ const oldIndex='<html>retained startup and storage bytes\n'+old+'\nuntouched ope
 const patch=(source=oldIndex,core=current,ui=archiveUi)=>patchOccupancyImportBoundary(source,core,ui);
 test('twelve exact boundaries preserve all other retained operational bytes',()=>{
  const patched=patch();
- assert.equal(functionText(patched,'dataImportRowPeriod'),functionText(current,'dataImportRowPeriod'));
+ // The retained client receives only the rent-roll prefix. Later renewal fixes
+ // belong to the current client and must not leak into this compatibility patch.
+ const periodAnchor='  const sectionDate = sourceRow.period?.start || sourceRow.period?.asOf;';
+ const currentPeriod=functionText(current,'dataImportRowPeriod'),retainedPeriod=functionText(oldIndex,'dataImportRowPeriod');
+ const expectedPeriod=currentPeriod.slice(0,currentPeriod.indexOf(periodAnchor))+retainedPeriod.slice(retainedPeriod.indexOf(periodAnchor));
+ assert.equal(functionText(patched,'dataImportRowPeriod'),expectedPeriod);
+ assert(!functionText(patched,'dataImportRowPeriod').includes('renewalWorkbookSheetYear'));
  assert(patched.includes('occupancyEvidence:'));
  assert(patched.includes('Rent roll reporting period is missing'));
  assert.equal(functionText(patched,'dataImportSupersedeRentRollPeriods'),functionText(current,'dataImportSupersedeRentRollPeriods'));

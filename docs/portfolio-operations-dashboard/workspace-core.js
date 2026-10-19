@@ -26751,7 +26751,27 @@ function extractDatesFromText(value) {
   }).filter(Boolean);
 }
 
+function pickDailyBoxScoreAvailabilityDate(rows = [], rawText = "") {
+  // Activity ranges and Make Ready dates describe separate sections, not the
+  // daily inventory cutoff. Only the explicit Availability heading owns it.
+  const text = [rawText, ...rows.map(row => Array.isArray(row) ? row.join(" ") : "")].join("\n");
+  const dates = new Map();
+  for (const match of text.matchAll(/\bavailability\s*\(\s*as\s+of\b([^)]*)\)/gi)) {
+    const token = match[1].match(/^\s*(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})\s*$/);
+    if (!token) throw new Error("The Box Score Availability date is missing or invalid.");
+    const [, month, day] = token.map(Number);
+    // Reuse established slash/dot/hyphen and short-year normalization exactly.
+    const date = extractDatesFromText(token[0])[0];
+    if (!date || date.getMonth() !== month - 1 || date.getDate() !== day) throw new Error("The Box Score Availability date is invalid.");
+    dates.set(date.getTime(), date);
+  }
+  if (dates.size > 1) throw new Error("The Box Score contains conflicting Availability dates; review its sections before importing.");
+  return dates.values().next().value || null;
+}
+
 function pickDailyBoxScoreReportDate(rows = [], fileName = "", rawText = "") {
+  const availabilityDate = pickDailyBoxScoreAvailabilityDate(rows, rawText);
+  if (availabilityDate) return availabilityDate;
   const candidates = [
     ...extractDatesFromText(fileName),
     ...extractDatesFromText(rawText),
@@ -27193,6 +27213,7 @@ async function parseDailyBoxScoreFile(file) {
     const rows = fullText.split(/\r?\n/).map(line => [line]);
     return {
       snapshot: buildDailyBoxScoreSnapshotFromRows(rows, file.name, fullText),
+      availabilityDateIso: buildDlrDateInputValue(pickDailyBoxScoreAvailabilityDate(rows, fullText)),
       floorPlanRows: []
     };
   }
@@ -27217,6 +27238,7 @@ async function parseDailyBoxScoreFile(file) {
   return best
     ? {
         snapshot: best.snapshot,
+        availabilityDateIso: buildDlrDateInputValue(pickDailyBoxScoreAvailabilityDate(best.rows)),
         floorPlanRows: Array.isArray(best.floorPlanRows) ? best.floorPlanRows : []
       }
     : null;
@@ -27797,10 +27819,12 @@ function extractMarketSurveyWorkbookData(workbook, fileName = "") {
   const introRows = getWorkbookSheetRows(workbook, [/^Intro Page$/i]);
   const propertySummaryRows = getWorkbookSheetRows(workbook, [/^Property Summary$/i]);
   const marketRows = getWorkbookSheetRows(workbook, [/^Market Survey$/i]);
-  const titleCell = findWorksheetCellMatch(introRows, [/^RISE at .* Market$/i])
+  const aptiqSource = dataImportAptiqWorkbookSource(workbook.SheetNames, introRows, marketRows);
+  if (aptiqSource && aptiqSource.status !== "valid") throw new Error(aptiqSource.reason);
+  const titleCell = aptiqSource?.title || findWorksheetCellMatch(introRows, [/^RISE(?: at)? .* Market$/i])
     || findWorksheetCellMatch(propertySummaryRows, [/^RISE at /i])
     || guessCommunityNameFromMarketFileName(fileName);
-  const matchedCommunity = matchPropertyName(titleCell);
+  const matchedCommunity = aptiqSource?.communityName || matchPropertyName(titleCell);
   const updatedOnRaw = findWorksheetCellMatch(propertySummaryRows, [/updated on:/i])
     || findWorksheetCellMatch(introRows, [/last updated:/i])
     || findWorksheetCellMatch(marketRows, [/updated on:/i]);
@@ -28527,7 +28551,7 @@ function captureAtlasSaveContext() {
   return () => current && (current = revision === observeAtlasSaveContext());
 }
 
-async function handleMarketSurveyWorkbook(file, isCurrent = captureAtlasSaveContext()) {
+async function handleMarketSurveyWorkbook(file, isCurrent = captureAtlasSaveContext(), expectedCommunity = "") {
   if (!isCurrent()) return null;
   if (typeof XLSX === "undefined") await window.AtlasFeatures.load("xlsx");
   if (!isCurrent()) return null;
@@ -28540,6 +28564,7 @@ async function handleMarketSurveyWorkbook(file, isCurrent = captureAtlasSaveCont
   const workbook = XLSX.read(buffer, { type: "array", cellNF: true });
   const parsed = extractMarketSurveyWorkbookData(workbook, file.name);
   if (!isCurrent()) return null;
+  if (expectedCommunity && parsed.communityName !== expectedCommunity) throw new Error("The parsed market subject no longer matches the approved community.");
   if (!parsed.communityName) {
     marketSurveyImportLog.push(`⚠️ ${file.name} could not be matched to a community. Update the workbook title or file name and try again.`);
     return null;
@@ -28750,7 +28775,7 @@ function clearCurrentCommunityMarketSurvey() {
   clearImportReadinessForCommunities([getProp().name], "current community");
 }
 
-async function processMarketSurveyFiles(files, { deferPersistence = false } = {}) {
+async function processMarketSurveyFiles(files, { deferPersistence = false, expectedCommunity = "" } = {}) {
   if (marketSurveyImportOperation?.isCurrent()) return false;
   const isCurrent = captureAtlasSaveContext();
   const operation = { isCurrent };
@@ -28764,7 +28789,7 @@ async function processMarketSurveyFiles(files, { deferPersistence = false } = {}
       if (!isCurrent()) return false;
       const lowerName = String(file.name || "").toLowerCase();
       if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls") || lowerName.endsWith(".xlsm")) {
-        const matchedName = await handleMarketSurveyWorkbook(file, isCurrent);
+        const matchedName = await handleMarketSurveyWorkbook(file, isCurrent, expectedCommunity);
         if (matchedName) touchedProps.add(matchedName);
       } else if (lowerName.endsWith(".pdf")) {
         const matchedName = await handleMarketSurveyPdf(file, isCurrent);
@@ -46536,6 +46561,45 @@ function dataImportIsBoxScoreSheet(rows, sheetName) {
   ));
 }
 
+function dataImportAptiqWorkbookSource(sheetNames, introRows, marketRows) {
+  if (!["Intro Page", "Property Summary", "Market Survey"].every(name => (sheetNames || []).some(sheet => sheet.trim().toLowerCase() === name.toLowerCase()))) return null;
+  const titles = [...new Set((introRows || []).flat().map(value => String(value ?? "").trim()).filter(value => /^RISE(?: at)? .+ Market$/i.test(value)))];
+  const source = { kind: "aptiq_market_workbook", version: 1, status: "invalid", title: titles[0] || "", communityName: "", reason: "The workbook needs one printed market title and the same subject in its Market Survey header." };
+  if (titles.length !== 1) return source;
+  const subjectKey = normalizeCommunityLookupName(titles[0]);
+  const headers = (marketRows || []).filter(row => row.some(value => /^comp average$/i.test(String(value ?? "").trim())));
+  if (headers.length !== 1 || headers[0].filter(value => normalizeCommunityLookupName(value) === subjectKey).length !== 1
+    || !(marketRows || []).some(row => row.some(value => /^rent$/i.test(String(value ?? "").trim())))) return source;
+  const matches = new Set();
+  const known = getAllCommunityNames();
+  const consider = (alias, name) => { if (known.includes(name) && normalizeCommunityLookupName(alias) === subjectKey) matches.add(name); };
+  known.forEach(name => consider(name, name));
+  Object.entries(typeof SHARED_COMMUNITY_ALIASES === "undefined" ? {} : SHARED_COMMUNITY_ALIASES).forEach(([alias, name]) => consider(alias, name));
+  (dataImport2State.propertyAliases || []).forEach(alias => consider(alias.alias, alias.communityName));
+  if (matches.size !== 1) return { ...source, reason: "The printed AptIQ subject does not match exactly one saved community. Verify its configured community alias before importing." };
+  return { ...source, status: "valid", communityName: [...matches][0], reason: "" };
+}
+
+function dataImportHasAptiqPlanLayout(plan) {
+  const sheets = (plan.sampleSummary?.sheets || []).map(sheet => sheet.sheetName);
+  return Boolean(plan.aptiqSource) || ["Intro Page", "Property Summary", "Market Survey"].every(name => sheets.some(sheet => String(sheet).trim().toLowerCase() === name.toLowerCase()));
+}
+
+function dataImportAptiqSourceFromWorkbook(workbook) {
+  const rows = name => {
+    const sheet = (workbook.SheetNames || []).find(value => value.trim().toLowerCase() === name.toLowerCase());
+    return sheet ? XLSX.utils.sheet_to_json(workbook.Sheets[sheet], {header:1, defval:"", raw:false}) : [];
+  };
+  return dataImportAptiqWorkbookSource(workbook.SheetNames, rows("Intro Page"), rows("Market Survey"));
+}
+
+function dataImportAssertMarketSubject(plan, source) {
+  const selected = Array.isArray(plan.selectedCommunities) ? plan.selectedCommunities : plan.communities || [];
+  if (source?.status !== "valid") throw new Error(source?.reason || "The AptIQ workbook source could not be verified.");
+  if (selected.length !== 1 || selected[0] !== source.communityName) throw new Error(`Select only ${source.communityName}, the printed subject of this AptIQ workbook, before approving it.`);
+  if (!dataImportIsActiveReportingCommunity(source.communityName) || !dataImportCommunitySupportsReport(source.communityName, "marketing_iq")) throw new Error("The AptIQ subject is not an active community in the managed reporting scope.");
+}
+
 async function dataImportReadFileSample(file, signal) {
   if (typeof XLSX === "undefined") await window.AtlasFeatures.load("xlsx");
   let workbookSession = null;
@@ -46595,6 +46659,21 @@ async function dataImportReadFileSample(file, signal) {
       const workbook = workbookSession ? null : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
       signal?.throwIfAborted();
       const sheetNames = workbookSession?.sheetNames || workbook.SheetNames || [];
+      if (["Intro Page", "Property Summary", "Market Survey"].every(name => sheetNames.some(sheet => sheet.trim().toLowerCase() === name.toLowerCase()))) {
+        const sourceRows = {};
+        for (const name of ["Intro Page", "Property Summary", "Market Survey"]) {
+          const sheetName = sheetNames.find(sheet => sheet.trim().toLowerCase() === name.toLowerCase());
+          const result = workbookSession ? await workbookSession.sheet(sheetName, true) : null;
+          signal?.throwIfAborted();
+          sourceRows[name] = result?.rows || XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1, defval:"", raw:false});
+        }
+        const aptiqSource = dataImportAptiqWorkbookSource(sheetNames, sourceRows["Intro Page"], sourceRows["Market Survey"]);
+        const metadataText = dataImportRowsToText(sourceRows["Intro Page"]) + "\n" + dataImportRowsToText(sourceRows["Property Summary"]);
+        // Competitor columns and unit listings belong to this subject's market evidence,
+        // not the generic operational field dictionary or community detector.
+        return { ...base, sheetNames, aptiqSource, rowCount: 1, sampleText: `${name}\n${aptiqSource.title}\n${metadataText}`,
+          metadataText, reportHeaderText: metadataText, tabSummaries: [{sheetName:"Market Survey", rowCount:1, headers:[], sampleValues:{}, isMetadata:false}] };
+      }
       const allHeaders = [];
       const qualifiedFields = [];
       const tabSummaries = [];
@@ -46654,7 +46733,7 @@ async function dataImportReadFileSample(file, signal) {
         else reportHeaderParts.push(dataImportRowsToText(rows.slice(0, 7)));
         window.AtlasPerformance?.record("workbook-sheet", typeof performance !== "undefined" ? performance.now()-sheetStart : 0, {rows:sheetRowCount});
         // Give input/navigation a turn between sheets in the non-worker fallback too.
-        if (typeof document !== "undefined") await new Promise(resolve => setTimeout(resolve, 0));
+        if (typeof document !== "undefined") await dataImportYieldToBrowser();
       }
       return {
         ...base,
@@ -46684,6 +46763,7 @@ async function dataImportReadFileSample(file, signal) {
 }
 
 function dataImportScoreReportType(fileName, sample) {
+  if (sample?.aptiqSource) return {reportType:"marketing_iq", confidence:100, ranked:[{type:"marketing_iq", score:100}]};
   const haystack = dataImportNormalizeText(`${fileName} ${sample?.sheetNames?.join(" ") || ""} ${sample?.headers?.join(" ") || ""} ${sample?.sampleText || ""}`);
   const fileOnly = dataImportNormalizeText(fileName);
   const scores = {};
@@ -47229,9 +47309,11 @@ async function dataImportBuildFilePlan(file, extras = {}) {
     Object.assign(period, {monthIdx:date.getMonth(), year:date.getFullYear(), reportingPeriodLabel:`${MONTHS[date.getMonth()]} ${date.getFullYear()}`});
   }
   if (metadata.dataAsOf) { period.dataDateIso = metadata.dataAsOf; period.dataDateLabel = dataImportFormatDate(metadata.dataAsOf); }
-  const fields = dataImportDetectFields(sample, { reportType, sourceSystem });
-  let communities = dataImportDetectCommunities(combinedText);
+  const fields = sample.aptiqSource ? {mappedFields:[], lowConfidence:[], unmappedHeaders:[]} : dataImportDetectFields(sample, { reportType, sourceSystem });
+  let communities = sample.aptiqSource ? (sample.aptiqSource.communityName ? [sample.aptiqSource.communityName] : []) : dataImportDetectCommunities(combinedText);
   const issues = [];
+  if (sample.aptiqSource && reportType !== "marketing_iq") issues.push({type:"conflict", severity:"critical", title:"AptIQ report type required", detail:"This printed market workbook must use the AptIQ Marketing Survey report type."});
+  if (sample.aptiqSource?.status === "invalid") issues.push({type:"conflict", severity:"critical", title:"AptIQ subject requires review", detail:sample.aptiqSource.reason});
   if (reportType === "renewal_tracker") communities = extras.communityName ? [extras.communityName] : [];
   if (!dataImportIsSupportedFileName(file.name)) {
     issues.push({ type: "unsupported", severity: "critical", title: "Unsupported file type", detail: `${file.name} is not one of the currently supported upload formats.` });
@@ -47283,6 +47365,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
     fileHash,
     mappingVersion: "ATLAS-RRIM-1.0",
     metadata,
+    aptiqSource: sample.aptiqSource || null,
     reportType,
     requestedCommunity: extras.communityName || "",
     reportTypeLabel: dataImportReportLabel(reportType),
@@ -47308,6 +47391,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
     selected: status !== "blocked",
     overrideReportType: reportDef ? reportType : "",
     sampleSummary: {
+      aptiqSource: sample.aptiqSource || null,
       headers: (sample.headers || []).slice(0, 30),
       headerSamples: sample.headerSamples || {},
       qualifiedFields: sample.qualifiedFields || [],
@@ -48056,7 +48140,12 @@ function dataImportCanonicalRecordKey(plan, communityName, period, row, sourceRo
 }
 
 function dataImportYieldToBrowser() {
-  return new Promise(resolve => setTimeout(resolve, 0));
+  if (typeof MessageChannel === "undefined") return new Promise(resolve => setTimeout(resolve, 0));
+  return new Promise(resolve => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => { channel.port1.close(); channel.port2.close(); resolve(); };
+    channel.port2.postMessage(null);
+  });
 }
 
 function dataImportCurrentLineageKey(communityName, periodKey, atlasField) {
@@ -48858,6 +48947,7 @@ async function dataImportRouteApprovedFile(file, plan, batchId = "", assertCurre
   if (typeof XLSX === "undefined") await window.AtlasFeatures.load("xlsx");
   assertCurrent();
   const extension = dataImportGetFileExtension(file.name);
+  if (dataImportHasAptiqPlanLayout(plan) && plan.reportType !== "marketing_iq") throw new Error("This verified AptIQ market workbook must use the AptIQ Marketing Survey report type.");
   if (plan.reportType === "renewal_tracker") {
     const communities = plan.selectedCommunities || plan.communities || [];
     if (communities.length !== 1 || !getAllCommunityNames().includes(communities[0])) throw new Error("Choose one saved community for this renewal tracker before approval.");
@@ -48867,11 +48957,27 @@ async function dataImportRouteApprovedFile(file, plan, batchId = "", assertCurre
     const detected = resolveRenewalWorkbookPropertyName(workbook, file.name, {prompt:false});
     if (detected && detected !== communities[0]) throw new Error("The renewal workbook property conflicts with the approved community.");
   }
+  let aptiqSource = null;
+  if (plan.reportType === "marketing_iq" && [".xlsx", ".xls", ".xlsm"].includes(extension)) {
+    const buffer = await file.arrayBuffer();
+    assertCurrent();
+    aptiqSource = dataImportAptiqSourceFromWorkbook(XLSX.read(buffer, {type:"array", cellNF:true}));
+    if (aptiqSource || plan.aptiqSource) {
+      dataImportAssertMarketSubject(plan, aptiqSource);
+      plan.aptiqSource = aptiqSource;
+      plan.communities = [aptiqSource.communityName];
+      plan.selectedCommunities = [aptiqSource.communityName];
+      plan.communityCount = 1;
+      plan.availableFields = []; plan.lowConfidenceFields = []; plan.unmappedHeaders = [];
+    }
+  }
   const exactDuplicate = (dataImport2State.sourceArchive || []).find(entry => entry.fileHash && entry.fileHash === plan.fileHash && entry.batchId !== batchId && !["Rolled Back", "Failed", "Needs Review"].includes(entry.importStatus));
   if (exactDuplicate) {
     return { message: `Exact duplicate retained in the archive; current data was not rewritten. Original batch ${exactDuplicate.batchId}.`, rowsReviewed: plan.rowCount || 0, rowsInserted: 0, rowsUpdated: 0, rowsUnchanged: 0, rowsRejected: 0, rowsHeld: 0, duplicatesIgnored: plan.rowCount || 1, issues: [], destinations: [], communities: plan.communities || [], formulas: [], coverage: [] };
   }
-  let result = [".csv", ".txt", ".pdf", ".xlsx", ".xls", ".xlsm"].includes(extension)
+  let result = aptiqSource
+    ? {rowsReviewed:1, rowsInserted:0, rowsUpdated:1, rowsUnchanged:0, rowsRejected:0, rowsHeld:0, duplicatesIgnored:0, issues:[], destinations:[], communities:[aptiqSource.communityName], formulas:[], coverage:[{communityName:aptiqSource.communityName, reportType:"marketing_iq", period:plan.reportingPeriodLabel || ""}], coverageExpected:1, coverageGaps:[]}
+    : [".csv", ".txt", ".pdf", ".xlsx", ".xls", ".xlsm"].includes(extension)
     ? await dataImportRouteStructuredFile(file, plan, batchId, assertCurrent)
     : { rowsReviewed: plan.rowCount || 0, rowsInserted: 0, rowsUpdated: 0, rowsUnchanged: 0, rowsRejected: 0, rowsHeld: 0, duplicatesIgnored: 0, issues: [], destinations: [], communities: plan.communities || [], formulas: [], coverage: [] };
   assertCurrent();
@@ -48888,7 +48994,7 @@ async function dataImportRouteApprovedFile(file, plan, batchId = "", assertCurre
   if (plan.reportType === "marketing_iq") {
     // Approval publishes community data and source receipts atomically below.
     // A parser refusal must not become an Approved duplicate that blocks retry.
-    const applied = await processMarketSurveyFiles([file], {deferPersistence:true});
+    const applied = await processMarketSurveyFiles([file], {deferPersistence:true, expectedCommunity:aptiqSource?.communityName || ""});
     assertCurrent();
     if (applied !== true) throw new Error("Market survey could not be prepared for approval. Review its parser or storage message and retry the source.");
     assertCurrent();
@@ -48981,6 +49087,10 @@ async function approveDataImportBatch() {
     return;
   }
   const approvedPlans = batch.files.filter(file => file.selected && file.status !== "blocked");
+  if (approvedPlans.some(plan => dataImportHasAptiqPlanLayout(plan) && plan.reportType !== "marketing_iq")) {
+    alert("An AptIQ workbook still has an operational report type. Choose AptIQ Marketing Survey or upload it again before approval.");
+    return;
+  }
   if (approvedPlans.some(plan => plan.reportType !== "renewal_tracker" && dataImportPeriodConflict(plan.periodSelection?.requested, plan.periodSelection?.detected))) {
     alert("A selected report conflicts with its requested month and year. Correct the period and upload it again before approval.");
     return;
@@ -49250,9 +49360,17 @@ function assignDataImportPlanCommunity(fileId, communityName) {
   renderTab();
 }
 
-function overrideDataImportReportType(fileId, reportType) {
+async function overrideDataImportReportType(fileId, reportType) {
   const batch = dataImport2State.pendingBatch;
   if (!batch?.files) return;
+  const current = captureAtlasSaveContext();
+  const prior = batch.files.find(file => file.fileId === fileId);
+  let aptiqSource = prior?.aptiqSource || prior?.sampleSummary?.aptiqSource || null;
+  if (reportType === "marketing_iq" && prior && [".xlsx", ".xls", ".xlsm"].includes(dataImportGetFileExtension(prior.name)) && !aptiqSource) {
+    const sourceFile = dataImportFileHandles.get(fileId);
+    if (sourceFile) aptiqSource = (await dataImportReadFileSample(sourceFile)).aptiqSource || null;
+    if (!current() || dataImport2State.pendingBatch !== batch || batch.files.find(file => file.fileId === fileId) !== prior) return;
+  }
   batch.files = batch.files.map(file => {
     if (file.fileId !== fileId) return file;
     const def = dataImportGetReportDef(reportType);
@@ -49263,14 +49381,15 @@ function overrideDataImportReportType(fileId, reportType) {
       sampleText: (file.sampleSummary?.sheets || []).map(sheet => `${sheet.sheetName || ""} ${(sheet.headers || []).join(" ")}`).join(" ")
     };
     const sourceSystem = dataImportSourceSystemForType(reportType, `${file.name} ${sample.sampleText} ${sample.headers.join(" ")}`);
-    const fields = dataImportDetectFields(sample, { reportType, sourceSystem });
+    const dedicatedMarket = reportType === "marketing_iq" && aptiqSource;
+    const fields = dedicatedMarket ? {mappedFields:[], lowConfidence:[], unmappedHeaders:[]} : dataImportDetectFields(sample, { reportType, sourceSystem });
     const issues = (file.issues || []).filter(issue => ![
       "Report type needs confirmation",
       "Low confidence report detection",
       "Low confidence mapping",
       "Report structure changed"
     ].includes(issue.title));
-    if (def && sample.headers.length && fields.mappedFields.length === 0) {
+    if (def && !dedicatedMarket && sample.headers.length && fields.mappedFields.length === 0) {
       issues.push({ type: "held", severity: "high", title: "Report structure changed", detail: `${def.label} was selected, but none of its source columns map to the current ATLAS dictionary. Review the source fields before sending data downstream.` });
     }
     fields.lowConfidence.forEach(item => issues.push({
@@ -49300,6 +49419,21 @@ function overrideDataImportReportType(fileId, reportType) {
       status: file.status === "blocked" ? "blocked" : issues.some(issue => ["unmapped","invalid","low_confidence","held"].includes(issue.type)) ? "review" : "ready",
       issues
     };
+    if (aptiqSource && reportType !== "marketing_iq") {
+      next.issues.push({type:"conflict", severity:"critical", title:"AptIQ report type required", detail:"This printed market workbook must use the AptIQ Marketing Survey report type."});
+      next.status = "blocked"; next.selected = false;
+    }
+    if (dedicatedMarket) {
+      next.aptiqSource = aptiqSource;
+      next.communities = aptiqSource.communityName ? [aptiqSource.communityName] : [];
+      next.selectedCommunities = [...next.communities];
+      next.communityCount = next.communities.length;
+      next.rowCount = 1; next.readyRows = aptiqSource.status === "valid" ? 1 : 0;
+      next.issues = next.issues.filter(issue => !["No community match found", "AptIQ subject requires review", "AptIQ report type required"].includes(issue.title));
+      if (aptiqSource.status !== "valid") next.issues.push({type:"conflict", severity:"critical", title:"AptIQ subject requires review", detail:aptiqSource.reason});
+      next.status = next.issues.some(issue => issue.severity === "critical") ? "blocked" : next.issues.length ? "review" : "ready";
+      next.selected = next.status !== "blocked";
+    }
     if (reportType === "renewal_tracker") {
       next.issues = next.issues.filter(issue => issue.title !== "Report period does not match your selection");
       next.status = next.issues.some(issue => issue.severity === "critical") ? "blocked" : "review";
@@ -49352,7 +49486,7 @@ function dataImportReplayRecoveryReader(entry) {
     if(!actor||typeof source.archiveId!=="string"||!source.archiveId||typeof source.fileHash!=="string"||!source.fileHash||central!==window.ATLAS_CENTRAL||actor!==(central?.getSession?.()?.user?.id||"")||access!==authScope()||database!==ATLAS_STATE_DB_NAME
       ||(borrowedPrimaryPromise&&borrowedPrimaryPromise!==(typeof atlasStateDbPromise==="undefined"?null:atlasStateDbPromise))
       ||!dataImportCanManageArchitecture()||!atlasAccessDecision(7).ok||!(dataImport2State.sourceArchive||[]).includes(entry)
-      ||entry.importStatus!=="Approved"||!["rent_roll","trending_occupancy"].includes(entry.reportType)||!Array.isArray(entry.communities)||!entry.communities.length||!entry.communities.every(name=>atlasDashboardUserCanSeeCommunityName(name))
+      ||entry.importStatus!=="Approved"||!["rent_roll","trending_occupancy","box_score"].includes(entry.reportType)||!Array.isArray(entry.communities)||!entry.communities.length||!entry.communities.every(name=>atlasDashboardUserCanSeeCommunityName(name))
       ||entry.id!==source.archiveId||entry.fileHash!==source.fileHash||entry.batchId!==source.batchId||entry.reportType!==source.reportType)throw new Error("The authorized source or workspace changed. Reopen the intended source before inspecting.");
   };
   const names=async()=>{check();if(typeof indexedDB.databases!=="function")return null;const list=await indexedDB.databases();check();return new Set(list.map(row=>row.name));};
@@ -49494,7 +49628,7 @@ async function inspectDataImportReplayReceipt(archiveId) {
   if(!dataImportCanManageArchitecture()||!atlasAccessDecision(7).ok)return;
   const entry=(dataImport2State.sourceArchive||[]).find(row=>row.id===archiveId);
   if(!entry)throw new Error("The selected source is not loaded.");
-  if(!["rent_roll","trending_occupancy"].includes(entry.reportType)){alert("Replay receipts are available only for Rent Roll and Trending Occupancy sources.");return;}
+  if(!["rent_roll","trending_occupancy","box_score"].includes(entry.reportType)){alert("Replay receipts are available only for Rent Roll, Trending Occupancy and Box Score sources.");return;}
   try{
     const reader=dataImportReplayRecoveryReader(entry);
     const name=await selectDataImportReplayCheckpoint(entry,reader);if(!name)return;
@@ -49627,7 +49761,7 @@ async function dataImportCreateReplayCheckpoint(entry) {
     await transact("readwrite",store=>{store.put({...metadata(),stamps:Object.fromEntries(stamps)},"metadata");return store.put({schemaVersion:1,actor,access,database,identity,createdAt,saved:savedData,imports:dataImport2State},"before");});
     captured=true;assertCurrent();
     checkpoint={name,mayRender,assertCurrent,assertRecord,assertRecords,sourceKey:keys[2],receiptKey,
-      publicationReceipt(){assertCurrent();return {...metadata(),status:"committed",publishedAt:entry.reprocessedAt||new Date().toISOString(),reportingPeriod:entry.reportingPeriodLabel||null,result:{communities:entry.reprocessResult?.communities||[],rowsHeld:entry.reprocessResult?.rowsHeld??null,reviewItems:entry.reprocessResult?.issues?.length??null,periodCorrection:entry.reprocessResult?.periodCorrection||null}};},
+      publicationReceipt(){assertCurrent();return {...metadata(),status:"committed",publishedAt:entry.reprocessedAt||new Date().toISOString(),reportingPeriod:entry.reportingPeriodLabel||null,result:{communities:entry.reprocessResult?.communities||[],rowsHeld:entry.reprocessResult?.rowsHeld??null,reviewItems:entry.reprocessResult?.issues?.length??null,periodCorrection:entry.reprocessResult?.periodCorrection||null,dailyReportDateCorrection:entry.dailyReportDateCorrection||null}};},
       ownWrite:promise=>{writeQueue=promise;},
       updateEntry(value){assertCurrent();Object.assign(entry,value);currentIdentity=sourceIdentity();},
       async restore(){
@@ -49646,6 +49780,99 @@ async function dataImportCreateReplayCheckpoint(entry) {
   } catch(error) {
     if (captured) {db?.close();error.message+=` Checkpoint retained: ${name}`;}else {await dispose().catch(()=>{});if(window.AtlasReplayWriteFence===fence)delete window.AtlasReplayWriteFence;}
     throw error;
+  }
+}
+
+function dataImportPlanBoxScoreDateCorrection(entry, plan, snapshot) {
+  const communities = [...new Set(plan.communities || [])];
+  if (communities.length !== 1 || entry.communities?.length !== 1 || communities[0] !== entry.communities[0]
+      || !dataImportIsActiveReportingCommunity(communities[0]) || !dataImportCommunitySupportsReport(communities[0], "box_score")) {
+    throw new Error("A daily date correction requires one verified, authorized source community.");
+  }
+  const community = communities[0], record = savedData[community], summary = record?.latestDlrSummary, daily = summary?.dailyBoxScore;
+  const date = snapshot?.reportDateIso, period = String(date || "").slice(0, 7);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !daily || daily.sourceFileName !== snapshot.sourceFileName
+      || record?.monthlyHistoryByPeriod?.[period]?.metricProvenance?.occupiedSnapshot?.source !== entry.fileHash) {
+    throw new Error("The approved source does not own the current daily Box Score. No dates were changed.");
+  }
+  if ((dataImport2State.closedPeriods || []).some(closed => closed === period || closed === String(daily.reportDateIso || "").slice(0, 7))) {
+    throw new Error("The daily Box Score belongs to a closed reporting period. No dates were changed.");
+  }
+  const numericFields = Object.keys(defaultDlrBoxScoreSnapshot()).filter(key => !["sourceFileName", "importedAt", "reportDateIso", "reportDateLabel", "leadSourceReconciliation"].includes(key));
+  if (numericFields.some(key => !Object.is(normalizeOptionalNumber(daily[key]), normalizeOptionalNumber(snapshot[key])))) {
+    throw new Error("The current daily Box Score metrics differ from the retained source. Review those changes before correcting its date.");
+  }
+  const changes = [];
+  const add = (path, object, key, value) => { if (object[key] !== value) changes.push({path, key, before:object[key] ?? null, after:value}); };
+  add("latestDlrSummary.dailyBoxScore", daily, "reportDateIso", date);
+  add("latestDlrSummary.dailyBoxScore", daily, "reportDateLabel", snapshot.reportDateLabel);
+  // Preserve a separately edited summary date or period label.
+  if (summary.reportDateIso === daily.reportDateIso) {
+    add("latestDlrSummary", summary, "reportDateIso", date);
+    if (summary.reportDateLabel === daily.reportDateLabel) add("latestDlrSummary", summary, "reportDateLabel", snapshot.reportDateLabel);
+    if (summary.reportPeriodLabel === daily.reportDateLabel) add("latestDlrSummary", summary, "reportPeriodLabel", snapshot.reportDateLabel);
+  }
+  return {community, period, changes};
+}
+
+async function correctDataImportBoxScoreDailyDate(archiveId) {
+  if (!dataImportCanManageArchitecture() || !atlasAccessDecision(7).ok || dataImportApprovalInProgress || dataImportApprovalPreflight) return;
+  dataImportApprovalPreflight = true;
+  try { await ensureDataImportFullState(); } catch(error) { alert(error.message); return; } finally { dataImportApprovalPreflight = false; }
+  const entry = (dataImport2State.sourceArchive || []).find(row => row.id === archiveId);
+  if (!entry || entry.reportType !== "box_score" || entry.importStatus !== "Approved") return;
+  dataImportApprovalInProgress = true;
+  let checkpoint = null, published = false;
+  try {
+    checkpoint = await dataImportCreateReplayCheckpoint(entry);
+    window.showDataImportReplayCheckpoint?.(checkpoint);
+    const stored = await atlasStateGetValue(DATA_IMPORT_FILE_ARCHIVE_PREFIX + archiveId);
+    checkpoint.assertCurrent();
+    if (!stored?.blob) throw new Error("The original Box Score is unavailable in this browser archive.");
+    const file = new File([stored.blob], stored.fileName || entry.fileName, {type:stored.type});
+    const hash = await dataImportFileHash(file);
+    checkpoint.assertCurrent();
+    if (!entry.fileHash || hash !== entry.fileHash) throw new Error("The retained source hash does not match its approved archive entry.");
+    const plan = await dataImportBuildFilePlan(file, {forceReportType:"box_score"});
+    checkpoint.assertCurrent();
+    if (plan.fileHash !== hash) throw new Error("The Box Score source changed during review.");
+    const parsed = await parseDailyBoxScoreFile(file);
+    checkpoint.assertCurrent();
+    if (!parsed?.availabilityDateIso || parsed.availabilityDateIso !== parsed.snapshot?.reportDateIso) throw new Error("An explicit Availability date is required to correct the retained daily report.");
+    const correction = dataImportPlanBoxScoreDateCorrection(entry, plan, parsed.snapshot);
+    if (!correction.changes.length) {
+      await checkpoint.committed();
+      published = true;
+      if (checkpoint.mayRender()) alert("The daily Box Score already uses the source Availability date. Nothing was changed.");
+      return;
+    }
+    const summary = savedData[correction.community].latestDlrSummary;
+    for (const change of correction.changes) (change.path.endsWith(".dailyBoxScore") ? summary.dailyBoxScore : summary)[change.key] = change.after;
+    const audit = {id:dataImportMakeId("box_score_date_correction"), action:"box_score_availability_date_correction", archiveId:entry.id, batchId:entry.batchId,
+      reportType:entry.reportType, fileName:entry.fileName, fileHash:entry.fileHash, community:correction.community, period:correction.period,
+      changes:correction.changes, createdAt:new Date().toISOString(), actor:window.ATLAS_CENTRAL?.getSession?.()?.user?.id,
+      formula:"The daily inventory date comes from the retained source Availability heading; activity ranges and Make Ready dates remain unchanged."};
+    entry.dailyReportDateCorrection = audit;
+    dataImport2State.reconciliationLog.unshift(audit);
+    checkpoint.assertCurrent();
+    await persistDataImportPublication(checkpoint);
+    published = true;
+    await checkpoint.committed();
+    if (checkpoint.mayRender()) {
+      loadPropertyData(getProp().name);
+      alert(`Daily Box Score date corrected to ${parsed.snapshot.reportDateLabel}. Source bytes, metrics, and section dates were preserved. Local receipt checkpoint: ${checkpoint.name}`);
+    }
+  } catch(error) {
+    if (error?.publicationCommitted) { published = true; checkpoint?.retain(); }
+    let recovery = "";
+    if (checkpoint && !published) {
+      try { await checkpoint.restore(); } catch(restoreError) { checkpoint.retain(); recovery = ` No rollback was applied. Reload to verify the retained checkpoint: ${checkpoint.name}. ${restoreError.message}`; }
+    }
+    if (!checkpoint || checkpoint.mayRender()) alert(`Daily Box Score date correction stopped: ${error.message || error}${recovery}`);
+    if (checkpoint && !published && !recovery) window.dismissDataImportReplayCheckpoint?.(checkpoint.name);
+  } finally {
+    dataImportApprovalInProgress = false;
+    if (!checkpoint || checkpoint.mayRender()) renderTab();
   }
 }
 

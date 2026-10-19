@@ -23,6 +23,8 @@ jobs:
         run: node tools/trending-boundaries.test.cjs
       - name: Validate governed planning
         run: node tools/community-governed-planning.test.cjs
+      - name: Validate Box Score daily date ownership
+        run: node tools/box-score-daily-date.test.cjs
       - name: Validate archive replay
         run: node tools/archive-replay.test.cjs
       - name: Validate scoped occupancy revisions
@@ -59,6 +61,7 @@ jobs:
         run: |
           node tools/community-command-contract.test.cjs
           node tools/community-command-db.test.cjs
+          node tools/application-optional-identity-db.test.cjs
           node tools/community-goals-db.test.cjs
           node tools/community-goals.test.mjs
           node tools/community-goal-consumers.test.cjs
@@ -165,6 +168,7 @@ jobs:
       - name: Validate cancellation parser-to-renderer units
         run: |
           node tools/competitor-cancellation-display.test.cjs
+          node tools/aptiq-subject-routing.test.cjs
           node tools/concession-insights.test.cjs
           node tools/property-intelligence.test.cjs
           node tools/property-specials-compat.test.mjs

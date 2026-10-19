@@ -1,0 +1,78 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const {MessageChannel}=require('node:worker_threads');
+const XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
+const source=fs.readFileSync(path.join(__dirname,'../docs/portfolio-operations-dashboard/workspace-core.js'),'utf8');
+const extract=name=>source.match(new RegExp('^(?:async )?function '+name+'\\([^]*?^\\}','m'))[0];
+const names=['Bartram Park','Baymeadows','Citrus Ridge','Doro','Florence Villa','Sereno','St. Augustine'];
+const clean=value=>JSON.parse(JSON.stringify(value));
+function fixture(){
+ const c={XLSX,Date,Set,Map,Promise,Error,DOMException,AbortController,ArrayBuffer,console,performance,DATA_IMPORT_MAX_SAMPLE_CHARS:180000,DATA_IMPORT_REPORT_TYPES:{marketing_iq:{label:'AptIQ Marketing Survey',sourceSystems:['APTIQ'],dependencies:['Marketing Performance']}},DATA_IMPORT_FIELD_ALIASES:{},SHARED_COMMUNITY_ALIASES:{},MONTHS:['January','February','March','April','May','June','July','August','September','October','November','December'],dataImport2State:{propertyAliases:[],sourceArchive:[]},dataImportFileHandles:new Map(),getAllCommunityNames:()=>[...names,'Nocatee'],getProp:()=>({name:'Unrelated'}),dataImportIsSupportedFileName:()=>true,dataImportGetFileExtension:n=>path.extname(n).toLowerCase(),dataImportFileHash:async()=> 'hash',dataImportGetReportDef:t=>c.DATA_IMPORT_REPORT_TYPES[t],dataImportReportLabel:()=> 'AptIQ Marketing Survey',dataImportFormatDate:d=>new Date(d).toISOString().slice(0,10),dataImportInferMime:()=>'',dataImportMakeId:()=> 'file',dataImportApplySelectedPeriod:p=>p,dataImportDetectFields:()=>assert.fail('Verified AptIQ must not use generic field mappings'),dataImportDetectCommunities:()=>assert.fail('Competitor text must not choose destination communities'),dataImportFindHeaderRowIndex:()=>assert.fail('Verified AptIQ must not run generic header scoring'),dataImportCommunitySupportsReport:()=>true,dataImportIsActiveReportingCommunity:n=>n!=='Nocatee',captureAtlasSaveContext:()=>()=>true,persistDataImport2State(){},renderTab(){},renderPropGrid(){},dataImportBuildBatchSummary:()=>({}),marketSurveyImportOperation:null,marketSurveyImportLog:[],marketSurveyImportSourceLabel:'',updateMarketSurveyImportInputs(){},getWorkbookSheetRows:null,extractMarketSurveyFloorPlanRates:()=>[],formatWorkbookDateLabel:v=>String(v||''),applied:[],applyMarketSurveyDataToProperty:(name,data)=>{c.applied.push({name,data});return {matchedName:name};}};
+ c.window={AtlasFeatures:{load:async()=>{}},atlasCsPreviewRenewalSheetRows:true};
+ vm.createContext(c);
+ for(const name of ['normalizeCommunityLookupName','matchPropertyName','dataImportNormalizeText','dataImportSourceSystemForType','dataImportRowsToText','dataImportParseMetadataDate','dataImportExtractMetadata','dataImportAptiqWorkbookSource','dataImportHasAptiqPlanLayout','dataImportAptiqSourceFromWorkbook','dataImportAssertMarketSubject','dataImportReadFileSample','dataImportScoreReportType','dataImportDetectReportingPeriod','dataImportBuildFilePlan','overrideDataImportReportType','dataImportRouteApprovedFile','normalizeWorkbookNumber','normalizeWorkbookPercent','normalizeMarketSurveyCancellationPercent','findWorksheetRow','findWorksheetCellMatch','getWorkbookSheetRows','guessCommunityNameFromMarketFileName','buildMarketSurveyCompSet','buildMarketSurveyConcessionSummary','extractMarketSurveyCompRows','extractMarketSurveyWorkbookData','handleMarketSurveyWorkbook','processMarketSurveyFiles','dataImportYieldToBrowser'])vm.runInContext(extract(name),c);
+ return c;
+}
+function workbook(subject,{title=`RISE ${subject} Market`,subjectHeader=`RISE ${subject}`}={}){
+ const b=XLSX.utils.book_new();
+ const rows={'Intro Page':[[title],['Last updated: 10/04/2026']],'Property Summary':[['Property','Rent'],[`RISE ${subject}`,1600],['Updated on: 10/04/2026']],'Market Survey':[['','Comp Average',subjectHeader,subject==='Nocatee'?'Other competitor':'RISE Nocatee',subject==='Baymeadows'?'Other competitor':'RISE Baymeadows'],['Rent',1700,1600,9999,1800],['NER',1650,1550,9999,1750],['Leased %',0.9,0.8,1,0.9],['Applications (Last 7 days)',5,4,99,6]],'Visual Market Survey':[['occupied units',999]],'Unit Level Data':[['property','occupied units'],['RISE Nocatee',999]]};
+ for(const [name,data]of Object.entries(rows))XLSX.utils.book_append_sheet(b,XLSX.utils.aoa_to_sheet(data),name);
+ return b;
+}
+function file(b,name='Misleading_Baymeadows_Market.xlsx'){const bytes=XLSX.write(b,{type:'buffer',bookType:'xlsx'});return {name,size:bytes.length,type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',lastModified:Date.parse('2026-10-04'),arrayBuffer:async()=>bytes,slice:(a,b)=>new Blob([bytes.subarray(a,b)])};}
+function routeSetup(c){c.dataImportRouteStructuredFile=()=>assert.fail('Verified AptIQ must skip generic operational rows');c.dataImportRecordPlanLearningUsage=()=>{};}
+test('all seven printed subjects override generic metrics and misleading filenames',async()=>{
+ for(const subject of names){const c=fixture(),f=file(workbook(subject));const p=await c.dataImportBuildFilePlan(f);assert.equal(p.reportType,'marketing_iq');assert.equal(p.confidence,100);assert.equal(p.sourceSystem,'APTIQ');assert.deepEqual(clean(p.communities),[subject]);assert.deepEqual(clean(p.selectedCommunities),[subject]);assert.equal(p.rowCount,1);assert.deepEqual(clean(p.availableFields),[]);assert.equal(p.status,'ready');routeSetup(c);const r=await c.dataImportRouteApprovedFile(f,p,'batch');assert.deepEqual(clean(r.communities),[subject]);assert.deepEqual(clean(p.communities),[subject]);assert.deepEqual(clean(r.coverage).map(x=>x.communityName),[subject]);assert.equal(c.applied.length,1);assert.equal(c.applied[0].name,subject);assert.equal(c.applied[0].data.compAverageRent,1700);assert(!JSON.stringify(r).includes('Nocatee'));}
+});
+test('unchecked, competitor-only, multi-community, inactive and conflicting source are held before mutation',async()=>{
+ for(const selected of [[],['Nocatee'],['Bartram Park','Baymeadows']]){const c=fixture(),f=file(workbook('Bartram Park')),p=await c.dataImportBuildFilePlan(f);p.selectedCommunities=selected;routeSetup(c);await assert.rejects(c.dataImportRouteApprovedFile(f,p,'batch'),/Select only/);assert.equal(c.applied.length,0);}
+ const c=fixture(),f=file(workbook('Nocatee')),p=await c.dataImportBuildFilePlan(f);routeSetup(c);await assert.rejects(c.dataImportRouteApprovedFile(f,p,'batch'),/not an active/);assert.equal(c.applied.length,0);
+ const bad=await c.dataImportBuildFilePlan(file(workbook('Bartram Park',{subjectHeader:'RISE Baymeadows'})));assert.equal(bad.status,'blocked');assert.deepEqual(clean(bad.communities),[]);
+ const stale={reportType:'box_score',sampleSummary:{sheets:['Intro Page','Property Summary','Market Survey'].map(sheetName=>({sheetName}))}};await assert.rejects(c.dataImportRouteApprovedFile(file(workbook('Bartram Park')),stale,'batch'),/must use/);
+ const good=await c.dataImportBuildFilePlan(file(workbook('Bartram Park')));good.reportType='box_score';await assert.rejects(c.dataImportRouteApprovedFile(file(workbook('Bartram Park')),good,'batch'),/must use/);assert.equal(c.applied.length,0);
+});
+test('manual override refreshes a stale broad preview and receipt scope stays subject-only',async()=>{
+ const c=fixture(),f=file(workbook('Bartram Park'));
+ const p={fileId:'old',name:f.name,reportType:'box_score',communities:['Bartram Park','Baymeadows','Nocatee'],selectedCommunities:['Bartram Park'],rowCount:5000,issues:[{title:'Low confidence mapping'}],sampleSummary:{headers:['occupied units'],sheets:[]},status:'review'};
+ c.dataImportFileHandles.set('old',f);c.dataImport2State.pendingBatch={files:[p]};await c.overrideDataImportReportType('old','marketing_iq');const next=c.dataImport2State.pendingBatch.files[0];assert.deepEqual(clean(next.communities),['Bartram Park']);assert.deepEqual(clean(next.selectedCommunities),['Bartram Park']);assert.deepEqual(clean(next.availableFields),[]);assert.equal(next.rowCount,1);routeSetup(c);const r=await c.dataImportRouteApprovedFile(f,next,'batch');const receiptCommunities=[...new Set([...next.communities,...r.communities])];assert.deepEqual(receiptCommunities,['Bartram Park']);
+});
+test('unrecognized marketing workbook retains established structured route',async()=>{
+ const c=fixture();const b=XLSX.utils.book_new();XLSX.utils.book_append_sheet(b,XLSX.utils.aoa_to_sheet([['Property','Applications'],['Bartram Park',4]]),'Other');let calls=0;c.dataImportRouteStructuredFile=async()=>{calls++;return {destinations:[],communities:['Bartram Park']};};c.processMarketSurveyFiles=async()=>true;await c.dataImportRouteApprovedFile(file(b),{reportType:'marketing_iq',name:'other.xlsx',communities:['Bartram Park']},'batch');assert.equal(calls,1);
+});
+test('background-safe yield schedules a task and closes both ports without nested timers',async()=>{
+ const c=fixture();let closed=0;c.setTimeout=()=>assert.fail('MessageChannel must avoid throttled timers');c.MessageChannel=class{constructor(){this.port1={close(){closed++;}};this.port2={close(){closed++;},postMessage:()=>queueMicrotask(()=>this.port1.onmessage())};}};let done=false;const pending=c.dataImportYieldToBrowser().then(()=>{done=true;});assert.equal(done,false);await pending;assert.equal(closed,2);c.MessageChannel=MessageChannel;await c.dataImportYieldToBrowser();delete c.MessageChannel;c.setTimeout=(fn,ms)=>{assert.equal(ms,0);queueMicrotask(fn);};await c.dataImportYieldToBrowser();
+});
+if(process.env.ATLAS_APTIQ_SOURCE_DIR)test('private original seven Oct4 workbooks retain dedicated metrics with exact subject-only routing',async()=>{
+ const files=fs.readdirSync(process.env.ATLAS_APTIQ_SOURCE_DIR).filter(n=>/^2026_10_04_.*_Market.xlsx$/.test(n)&&!n.includes('Nocatee'));assert.equal(files.length,7);
+ for(const name of files){const c=fixture(),bytes=fs.readFileSync(path.join(process.env.ATLAS_APTIQ_SOURCE_DIR,name)),f={name,size:bytes.length,arrayBuffer:async()=>bytes};const b=XLSX.read(bytes,{type:'buffer',cellNF:true});const baseline=fixture();vm.runInContext(extract('extractMarketSurveyWorkbookData').replace(/  const aptiqSource =[^]*?  const matchedCommunity = aptiqSource\?\.communityName \|\| matchPropertyName\(titleCell\);/,`  const titleCell = findWorksheetCellMatch(introRows, [/^RISE at .* Market$/i]) || findWorksheetCellMatch(propertySummaryRows, [/^RISE at /i]) || guessCommunityNameFromMarketFileName(fileName);\n  const matchedCommunity = matchPropertyName(titleCell);`),baseline);const oldMetrics=baseline.extractMarketSurveyWorkbookData(b,name);const p=await c.dataImportBuildFilePlan(f);routeSetup(c);const r=await c.dataImportRouteApprovedFile(f,p,'batch');assert.equal(p.reportType,'marketing_iq');assert.equal(p.confidence,100);assert.equal(p.communities.length,1);assert.equal(p.communities[0],oldMetrics.communityName);assert.deepEqual(clean(c.applied[0].data),clean({...oldMetrics,sourceFileName:name,uploadedAt:c.applied[0].data.uploadedAt}));assert.deepEqual(clean(r.communities),[oldMetrics.communityName]);console.log(`Verified ${name} → ${oldMetrics.communityName}`);}
+});
+
+test('worker preview reads only bounded identity sheets and agrees with fallback',async()=>{
+ const c=fixture(),f=file(workbook('Bartram Park')),requests=[];let closed=0;
+ c.Worker=function(){};
+ c.openWorkerFixture=async file=>{
+  let message;
+  const worker=vm.createContext({XLSX,performance,importScripts(){},self:{postMessage:value=>{message=value;}}});
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../docs/portfolio-operations-dashboard/features/workbook-worker.js'),'utf8'),worker);
+  await worker.self.onmessage({data:{id:1,operation:'open',buffer:await file.arrayBuffer()}});
+  return {sheetNames:message.result.sheetNames,sheet:async(name,metadata)=>{requests.push({name,metadata});await worker.self.onmessage({data:{id:2,operation:'sheet',name,metadata}});return message.result;},close(){closed++;}};
+ };
+ vm.runInContext(extract('dataImportReadFileSample').replace(/await import\("\.\/features\/workbook-session\.mjs\?v=[^"]+"\)/,'({openWorkbook:openWorkerFixture})'),c);
+ const preview=await c.dataImportReadFileSample(f);
+ assert.deepEqual(clean(preview.aptiqSource),clean((await fixture().dataImportReadFileSample(f)).aptiqSource));
+ assert.deepEqual(requests,[{name:'Intro Page',metadata:true},{name:'Property Summary',metadata:true},{name:'Market Survey',metadata:true}]);assert.equal(closed,1);
+});
+
+function approvalFixture(){
+ const c=fixture();Object.assign(c,{savedData:{'Bartram Park':{occupied:273}},dataImportApprovalInProgress:false,dataImportApprovalPreflight:false,dataImportApprovalProgress:{},dataImportRuntimeCanonicalIndex:null,dataImportRuntimeCurrentLineageIndex:null,dataImportRuntimeLineageBuffer:null,atlasStateWritePromise:Promise.resolve(),csvLog:[],csvError:'',DATA_IMPORT_FILE_ARCHIVE_PREFIX:'file:',originals:new Map(),alert:message=>{c.alertMessage=message;},ensureDataImportFullState:async()=>{},dataImportPeriodConflict:()=>false,dataImportUpdateApprovalProgress(){},dataImportBuildBeforeSnapshot:()=>({savedData:clean(c.savedData)}),dataImportBuildDownstreamAudit:()=>[],dataImportBuildLearningSummary:()=>({}),dataImportBuildExceptionsForApprovedFiles:()=>[],dataImportSummarizeDownstreamAudit:()=>'',publishAtlasApprovedDataNotices:async()=>{},loadPropertyData(){},atlasStateSetValue:async(k,v)=>{c.originals.set(k,v);},markAtlasPersistenceError:()=>assert.fail('Original storage failed'),persistDataImportPublication:async()=>{c.committed=clean(c.dataImport2State);}});
+ for(const name of ['dataImportBeginApprovalRuntime','dataImportFinishApprovalRuntime','dataImportDiscardApprovalRuntime','dataImportArchiveApprovedFile','persistDataImportFailedReceipts','approveDataImportBatch'])vm.runInContext(extract(name),c);
+ c.dataImportYieldToBrowser=async()=>{};routeSetup(c);return c;
+}
+test('actual approval writes one subject in the stored receipt and history without generic facts',async()=>{
+ const c=approvalFixture(),f=file(workbook('Bartram Park')),p=await c.dataImportBuildFilePlan(f);
+ p.communities=['Bartram Park','Baymeadows','Nocatee']; // Legacy detected names must not survive the actual approval union.
+ c.dataImport2State.pendingBatch={id:'batch',uploadedAt:'2026-10-19',files:[p]};await c.approveDataImportBatch();
+ assert.equal(c.csvError,'');assert.equal(c.committed.sourceArchive[0].storageStatus,'Stored');assert.equal(c.committed.sourceArchive[0].importStatus,'Approved');assert.deepEqual(c.committed.sourceArchive[0].communities,['Bartram Park']);assert.deepEqual(c.committed.batches[0].files[0].communities,['Bartram Park']);assert.deepEqual(c.committed.batches[0].files[0].selectedCommunities,['Bartram Park']);assert.deepEqual(c.committed.sourceArchive[0].fieldsMapped,[]);assert.equal(c.committed.canonicalRecords,undefined);assert.equal(c.originals.size,1);assert.equal(c.savedData['Bartram Park'].occupied,273);
+});
+test('persisted wrong-type preview is rejected before originals or operational data are written',async()=>{
+ const c=approvalFixture(),f=file(workbook('Bartram Park'));const plan={fileId:'old',name:f.name,selected:true,status:'ready',reportType:'rent_roll',sampleSummary:{sheets:['Intro Page','Property Summary','Market Survey'].map(sheetName=>({sheetName}))}};c.dataImportFileHandles.set('old',f);c.dataImport2State.pendingBatch={id:'old-batch',files:[plan]};await c.approveDataImportBatch();assert.match(c.alertMessage,/AptIQ workbook/);assert.equal(c.originals.size,0);assert.equal(c.committed,undefined);assert.equal(c.applied.length,0);
+});

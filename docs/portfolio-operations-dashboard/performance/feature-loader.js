@@ -4,12 +4,12 @@
   const base = new URL('../', document.currentScript.src);
   const pending = new Map();
   const definitions = {
-    reports: { src: new URL('features/reports-workspace.js?v=b1f605175eed2ced', base).href, ready: () => !!root.AtlasReports },
+    reports: { src: new URL('features/reports-workspace.js?v=9e9cd3a7526079b1', base).href, ready: () => !!root.AtlasReports },
     importWorkspace: { src: new URL('features/import-workspace.js?v=a51bdd87284bf708', base).href, ready: () => !!root.AtlasImportWorkspace },
     bonusWorkspace: { src: new URL('features/bonus-workspace.js?v=5b55a9f8df2d0326', base).href, ready: () => !!root.AtlasBonusWorkspace },
     adminWorkspace: { src: new URL('features/admin-workspace.js?v=238bee335635e78e', base).href, ready: () => !!root.AtlasAdminWorkspace },
     residentCommunications: { src: new URL('features/resident-communications.js?v=877a0ce805f91383', base).href, css: new URL('features/resident-communications.css?v=8f84c3003c7be5b8', base).href, ready: () => !!root.AtlasResidentCommunications },
-    centralServices: { src: new URL('central-services.js?v=5641fe97161ff3bd', base).href, ready: () => typeof root.renderCentralServicesTab === 'function' },
+    centralServices: { src: new URL('central-services.js?v=82e2b09ae3d1f81b', base).href, ready: () => typeof root.renderCentralServicesTab === 'function' },
     historyRestore: { src: new URL('atlas_historical_restore_data.js?v=43f55dab14d794f6', base).href, ready: () => !!root.ATLAS_HISTORICAL_RESTORE_COMMUNITY_DATA },
     xlsx: { src: new URL('assets/xlsx.full.min.js?v=c9506197caf809a0', base).href, ready: () => !!root.XLSX?.utils },
     migrationArchive: { src: new URL("migration-archive.js?v=feebb32ebbdf48d8", base).href, ready: () => !!root.AtlasMigrationArchive },

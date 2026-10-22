@@ -85,8 +85,9 @@ export default async function buildMonthlyInvestorPresentationPptxSlides(pptx, r
       items: report.details.map(detail => ({
         label: detail.name,
         value: getSummaryOccPct(detail.summary),
-        target: Number(detail.summary.budgetOccPct ?? 0),
-        note: `Leased ${getSummaryLeasedPct(detail.summary).toFixed(1)}% · ${Math.round(detail.summary.applicationsApproved ?? 0)} approved apps MTD`,
+        target: monthlyOccupancyBudgetAvailable(detail.summary) ? detail.summary.budgetOccPct : null,
+        targetAvailable: monthlyOccupancyBudgetAvailable(detail.summary),
+        note: `${monthlyOccupancyBudgetNote(detail.summary)} · Leased ${getSummaryLeasedPct(detail.summary).toFixed(1)}% · ${Math.round(detail.summary.applicationsApproved ?? 0)} approved apps MTD`,
         color: RISE_PRESENTATION_BRAND.blue
       })),
       max: 100,
@@ -128,7 +129,7 @@ export default async function buildMonthlyInvestorPresentationPptxSlides(pptx, r
       photoData: coverPhotoData
     });
     addPptxMetricGrid(overviewSlide, pptx, [
-      { label: "Budget Attainment", value: `${(report.aggregate.avgBudgetOccAttainmentPct ?? 0).toFixed(1)}%`, sub: "Average occupancy attainment vs saved budget" },
+      { label: "Budget Attainment", value: formatMonthlyOccupancyBudgetAttainment(report.aggregate), sub: "Average occupancy attainment vs saved budget" },
       { label: "Occ Gap vs Budget", value: formatSignedDisplay(report.aggregate.occGapPts, 1, " pts"), sub: "Portfolio occupancy gap versus budget" },
       { label: "Leased Gap vs Budget", value: formatSignedDisplay(report.aggregate.leasedGapPts ?? 0, 1, " pts"), sub: "Leased occupancy gap versus target" },
       { label: "NER Delta vs Budget", value: report.aggregate.nerDelta ? formatSignedDisplay(report.aggregate.nerDelta, 0) : "—", sub: "Weighted effective rent delta versus budget" }
@@ -141,8 +142,9 @@ export default async function buildMonthlyInvestorPresentationPptxSlides(pptx, r
       items: report.details.map(detail => ({
         label: detail.name,
         value: getSummaryOccPct(detail.summary),
-        target: Number(detail.summary.budgetOccPct ?? 0),
-        note: detail.summary.budgetOccOnTrack ? "On track to budget" : `${Math.max(detail.summary.occGapUnits ?? 0, 0)} units below target`,
+        target: monthlyOccupancyBudgetAvailable(detail.summary) ? detail.summary.budgetOccPct : null,
+        targetAvailable: monthlyOccupancyBudgetAvailable(detail.summary),
+        note: monthlyOccupancyBudgetNote(detail.summary),
         color: RISE_PRESENTATION_BRAND.blue
       })),
       max: 100,

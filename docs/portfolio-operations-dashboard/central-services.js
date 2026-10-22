@@ -9495,8 +9495,8 @@
       scheduledMoveOutDate: prepared.scheduledMoveOutDate,
       actualPossessionReturnedDate: "",
       depositHeld: prepared.depositHeld,
-      ntvReceivedDate: prepared.ntvReceivedDate || TODAY_ISO,
-      noticeDate: prepared.noticeDate || prepared.ntvReceivedDate || TODAY_ISO,
+      ntvReceivedDate: prepared.ntvReceivedDate,
+      noticeDate: prepared.noticeDate || prepared.ntvReceivedDate,
       owner: prepared.owner,
       assignedRegional: prepared.assignedRegional,
       assignedCentralServicesUser: prepared.owner,
@@ -9538,7 +9538,7 @@
       ntvReceivedDate: prepared.ntvReceivedDate,
       title: `Confirm possession for ${prepared.residentName}`,
       owner: prepared.owner || "Unassigned",
-      dueDate: prepared.scheduledMoveOutDate || inspectionDate || prepared.ntvReceivedDate || TODAY_ISO,
+      dueDate: prepared.scheduledMoveOutDate || inspectionDate || prepared.ntvReceivedDate,
       status: "Open",
       priority: "High",
       createdAt
@@ -9990,7 +9990,7 @@
         unit: `Pending NTV ${index}`,
         leaseExpiration: "",
         scheduledMoveOutDate: "",
-        ntvReceivedDate: TODAY_ISO,
+        ntvReceivedDate: "",
         owner: "Unassigned",
         summaryPlaceholder: true,
         notes: "Created from saved Renewal Tracker NTV count because resident-level detail rows were not available. Update this intake record or re-import the resident-level tracker."

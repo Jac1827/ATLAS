@@ -56,6 +56,10 @@ function fixture() {
   vm.createContext(c);
   vm.runInContext([
     extract(core, 'atlasReputationDisplay'),
+    extract(core, 'monthlyOccupancyBudgetAvailable'),
+    extract(core, 'monthlyOccupancyBudgetNote'),
+    extract(core, 'monthlyOccupancyBudgetCoverageNote'),
+    extract(core, 'formatMonthlyOccupancyBudgetAttainment'),
     extract(core, 'buildDeckHorizontalCompareChart'),
     extract(core, 'addPptxBarPanel'),
     extract(reports, 'buildMonthlyPresentationCommunitySpotlightSlide'),

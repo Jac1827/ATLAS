@@ -18,9 +18,22 @@ Object.assign(c, {
  getCommunityCommandActivePlan:()=>null, communityCommandCanOverrideDashboard:()=>false,
  getCommunityCommandDashboardOverride:()=>null, getCommunityCommandApprovedGoal:()=>null,
 });
-const record={currentMonth:8,reportYear:2026,currentOccupied:184,currentLeased:181,customUnits:'',corporateLeaseUnits:0,occupancyGoal:95,leasedGoal:97,conversionRate:65,monthlyData:c.defaultMonthly(),monthlyHistoryByPeriod:{},savedBudgetTargets:Array(12).fill(95),seasonal:Array(12).fill(1),sharedSyncUpdatedAt:'2026-09-11T15:56:53.094Z'};
+const record={communityId:'synthetic-citrus-ridge',currentMonth:8,reportYear:2026,currentOccupied:184,currentLeased:181,customUnits:'',corporateLeaseUnits:0,occupancyGoal:95,leasedGoal:97,conversionRate:65,monthlyData:c.defaultMonthly(),monthlyHistoryByPeriod:{},savedBudgetTargets:Array(12).fill(95),seasonal:Array(12).fill(1),sharedSyncUpdatedAt:'2026-09-11T15:56:53.094Z'};
 Object.assign(record.monthlyData[8], {budgetOcc:95,occupiedSnapshot:184,leasedSnapshot:181,sourceLeasedUnits:191,sourceTotalUnits:222,rentableUnits:220,physicalOccupancyPct:184/220*100,leasedOccupancyPct:191/220*100,exposureUnits:41,guestCards:59,walkIn:6,phoneCalls:16,emailsOnline:19,textChatOther:18,tours:6,applications:2,applicationsApproved:1,denied:3,moveIns:2,moveOuts:5,leasesSignedActual:2});
 const close=(a,b)=>assert(Math.abs(a-b)<1e-8,`${a} != ${b}`);
+// A retained curve alone is not an approved occupancy budget.
+const unavailable=c.buildCommunityCommandModel('Citrus Ridge',record);
+assert.equal(unavailable.summary.budgetOccPct,null);
+assert.equal(unavailable.summary.hasBudgetOcc,false);
+assert.equal(unavailable.summary.budgetOccUnits,0);
+assert.equal(unavailable.plan.occupancyGapUnits,0);
+// Isolate this arithmetic/rendering contract at the approved-readback boundary.
+// Transport and approval evidence validation run in occupancy-budget-readback.
+c.window.AtlasOccupancyBudgets={get:(source,month,year)=>
+ source.communityId==='synthetic-citrus-ridge'&&month===8&&year===2026
+  ? {status:'available',pct:95,versionId:'approved-test-v1',contentHash:'approved-test-hash'}
+  : {status:'missing',reason:'No approved fixture for this scope'}
+};
 let model=c.buildCommunityCommandModel('Citrus Ridge',record);
 assert.equal(model.occupancyBaseUnits,220);assert.equal(model.occupied,184);assert.equal(model.leased,191);
 close(model.physicalPct,184/220*100);close(model.leasedPct,191/220*100);close(model.trendingPct,179/220*100);
@@ -38,6 +51,6 @@ assert.equal(c.buildCommunityCommandModel('Citrus Ridge',manual).leased,195,'Lat
 const invalid={...record.monthlyData[8],sourceTotalUnits:999};assert.equal(c.getReportedOccupancySnapshot(invalid,222),null);assert.equal(c.getReportedOccupancyBaseUnits(invalid,222),222);
 const zero={...record.monthlyData[8],sourceLeasedUnits:0,leasedSnapshot:0,occupiedSnapshot:0,physicalOccupancyPct:0,exposureUnits:220};assert.equal(c.getReportedOccupancySnapshot(zero,222).leasedUnits,0);
 const corp=c.getReportedOccupancySnapshot(record.monthlyData[8],222,2);assert.equal(corp.baseUnits,218);assert.equal(corp.leasedUnits,189);assert.equal(corp.trendUnits,177);
-console.log('PASS saved legacy and JSON reload -> summary, Command model/cards, trend chart, 95% target, metric provenance, zero counts, corporate exclusions and manual snapshot protection.');
+console.log('PASS saved legacy and JSON reload -> summary, Command model/cards, trend chart, scoped approved 95% target, legacy curve unavailable,  metric provenance, zero counts, corporate exclusions and manual snapshot protection.');
 
 const corporateRecord={...record,corporateLeaseUnits:2};const corporateModel=c.buildCommunityCommandModel("Citrus Ridge",corporateRecord);assert.equal(corporateModel.schedule[8].netOccLeases,26,"Corporate units are excluded exactly once");

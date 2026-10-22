@@ -93,3 +93,17 @@ test('missing or conflicting Box Score cannot erase an approved occupancy target
  const f=hostFixture(),api=installCommunityGoalPlanning({host:f.host,readSources:()=>({snapshot:{status:'unavailable',reason:'Conflicting source versions'}}),readBudgets:async()=>[budget()],readPublications:async()=>[]});
  await api.hydrate(f.model);const m=f.host.buildCommunityCommandModel();assert.equal(m.budgetOccPct,47.6);assert.equal(m.leasedPct,null);assert.equal(m.goalPlanning.requiredMoveIns,null);assert.match(m.goalPlanning.warnings.join(' '),/Conflicting/);
 });
+
+test('historical plan display shares approved missing/zero/original/reforecast targets without changing retained actuals or goals',async()=>{
+ const f=hostFixture(),legacy=Array.from({length:12},(_,idx)=>({monthIdx:idx,month:String(idx+1),budgetPct:97,beginningPct:40,endingForecastPct:42,approved:{version:2,applicationGoal:0},occupancy:{endingActualPct:41,status:'Verified Actual'},recommendedApps:65}));
+ const before=structuredClone(legacy);f.host.buildCommunityCommandLeasingPlanRows=()=>legacy;
+ const finance=[['2026-02',0],['2026-03',92]].map(([period_key,occupancyPct])=>({...budget(),period_key,summary:{...budget().summary,occupancyPct}}));
+ finance.push({community_id:cid,period_key:'2026-04',summary:{}});
+ const publication={...active(),activePeriods:['2026-04'],snapshot:{leasing:[{period:'2026-04',sourceKind:'forecast',occupancy:.88,units:247}]}};
+ const api=installCommunityGoalPlanning({host:f.host,readSources:sources,readBudgets:async()=>finance,readPublications:async()=>[publication]});
+ await api.hydrate(f.model);const rows=f.host.buildCommunityCommandLeasingPlanRows(f.host.buildCommunityCommandModel());
+ assert.deepEqual(rows.slice(0,4).map(row=>row.budgetPct),[null,0,92,88]);
+ for(const row of rows.slice(0,8))for(const field of ['beginningPct','endingForecastPct','approved','occupancy','recommendedApps'])assert.deepEqual(row[field],before[row.monthIdx][field]);
+ assert.deepEqual(legacy,before,'display correction must not rewrite retained history or approved goals');
+ f.changeActor();assert(f.host.buildCommunityCommandLeasingPlanRows(f.host.buildCommunityCommandModel()).slice(0,8).every(row=>row.budgetPct===null));
+});

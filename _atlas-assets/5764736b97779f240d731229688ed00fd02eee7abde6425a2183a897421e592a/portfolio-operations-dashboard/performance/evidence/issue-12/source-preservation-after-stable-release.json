@@ -1,0 +1,68 @@
+{
+  "purpose": "Metadata-only preservation check after release coordinator's signed-in stable-client validation",
+  "stableClient": {
+    "sourceCommit": "2fab61de2627b7c8753f2ca8ebe7b0b879a67d25",
+    "releaseId": "d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d",
+    "uiValidation": "Performed separately by release coordinator; this receipt does not independently assert UI results"
+  },
+  "verification": {
+    "parent": {
+      "version": 1,
+      "unchanged": true,
+      "updatedAt": "2026-09-19T02:36:25.886387+00:00",
+      "archiveHash": "44fff7341af4fe69f97dffe49736f7d6b81c1c465a59ac1477cdc745443d261f",
+      "payloadHash": "05c889b5561ad4b74ac0440891e6e5600b0371aa40c1662792106c07ed59ea92"
+    },
+    "publisher": {
+      "config": [
+        "search_path=\"\"",
+        "statement_timeout=30s"
+      ],
+      "bodyMd5": "6315aea283cbecdcabc816846a9e814d",
+      "signature": "atlas_publish_workspace_projection(jsonb)",
+      "securityDefiner": false
+    },
+    "observedAt": "2026-09-25T00:14:26.631947+00:00",
+    "migrationCount": 81,
+    "latestMigration": {
+      "name": "reforecast_active_import_close_scope",
+      "version": "20260924235553",
+      "statementsMd5": "cd2ece3cc9891ab9fce0f8f6ec91c2c0",
+      "statementCount": 1
+    },
+    "projectionCurrentRows": 0,
+    "projectionVersionRows": 0,
+    "projectionAuditRowsAll": 0,
+    "expectedDoroMigrationPresent": true,
+    "catalogDeadlineAndHoistingSettings": [
+      {
+        "role": "anon",
+        "setting": "statement_timeout=3s",
+        "database": "all"
+      },
+      {
+        "role": "authenticated",
+        "setting": "statement_timeout=8s",
+        "database": "all"
+      },
+      {
+        "role": "authenticator",
+        "setting": "statement_timeout=8s",
+        "database": "all"
+      }
+    ]
+  },
+  "actions": {
+    "readOnly": true,
+    "queries": 1,
+    "publicationAttempts": 0,
+    "databaseChanges": 0,
+    "serviceChanges": 0,
+    "browserNavigation": 0
+  },
+  "limits": [
+    "Checks the named canonical parent, derived projection metadata and migration/function catalogs only; does not assert preservation of every operational record.",
+    "Current configured tools and catalog reads do not expose the running PostgREST process's effective db-hoisted-tx-settings allowlist or cached pdFuncSettings. No runtime introspection endpoint was accessed and no access was broadened.",
+    "Function proconfig shows a 30-second declaration and role defaults remain 8 seconds, but these catalog facts alone do not prove the actual REST request deadline."
+  ]
+}

@@ -1050,8 +1050,9 @@ function buildMonthlyPresentationCommunitySnapshotSlide(report) {
     report.details.map(detail => ({
       label: detail.name,
       value: getSummaryOccPct(detail.summary),
-      target: Number(detail.summary.budgetOccPct ?? 0),
-      note: `Leased ${getSummaryLeasedPct(detail.summary).toFixed(1)}% · ${Math.round(detail.summary.applicationsApproved ?? 0)} approved apps MTD`,
+      target: monthlyOccupancyBudgetAvailable(detail.summary) ? detail.summary.budgetOccPct : null,
+      targetAvailable: monthlyOccupancyBudgetAvailable(detail.summary),
+      note: `${monthlyOccupancyBudgetNote(detail.summary)} · Leased ${getSummaryLeasedPct(detail.summary).toFixed(1)}% · ${Math.round(detail.summary.applicationsApproved ?? 0)} approved apps MTD`,
       color: RISE_PRESENTATION_BRAND.blue
     })),
     {
@@ -1368,8 +1369,9 @@ function buildMonthlyInvestorPresentationSlides(report) {
       report.details.map(detail => ({
         label: detail.name,
         value: getSummaryOccPct(detail.summary),
-        target: Number(detail.summary.budgetOccPct ?? 0),
-        note: `${detail.summary.budgetOccOnTrack ? "On track to budget" : `${Math.max(detail.summary.occGapUnits ?? 0, 0)} units below target`}`,
+        target: monthlyOccupancyBudgetAvailable(detail.summary) ? detail.summary.budgetOccPct : null,
+        targetAvailable: monthlyOccupancyBudgetAvailable(detail.summary),
+        note: monthlyOccupancyBudgetNote(detail.summary),
         color: RISE_PRESENTATION_BRAND.blue
       })),
       {
@@ -1399,7 +1401,7 @@ function buildMonthlyInvestorPresentationSlides(report) {
       "Budget & Revenue Position",
       "Saved budget pacing and rate health",
       `<div class="deck-metric-grid deck-metric-grid-tight">
-        <div class="deck-metric-card"><div class="deck-metric-label">Budget Attainment</div><div class="deck-metric-value">${(report.aggregate.avgBudgetOccAttainmentPct ?? 0).toFixed(1)}%</div><div class="deck-metric-sub">Average occupancy attainment vs saved budget across selected communities</div></div>
+        <div class="deck-metric-card"><div class="deck-metric-label">Budget Attainment</div><div class="deck-metric-value">${formatMonthlyOccupancyBudgetAttainment(report.aggregate)}</div><div class="deck-metric-sub">Average occupancy attainment vs saved budget across selected communities</div></div>
         <div class="deck-metric-card"><div class="deck-metric-label">Occ Gap vs Budget</div><div class="deck-metric-value">${formatSignedDisplay(report.aggregate.occGapPts, 1, " pts")}</div><div class="deck-metric-sub">Portfolio occupancy gap versus current budget target</div></div>
         <div class="deck-metric-card"><div class="deck-metric-label">Leased Gap vs Budget</div><div class="deck-metric-value">${formatSignedDisplay(report.aggregate.leasedGapPts ?? 0, 1, " pts")}</div><div class="deck-metric-sub">Leased occupancy gap versus saved budget target</div></div>
         <div class="deck-metric-card"><div class="deck-metric-label">NER Delta vs Budget</div><div class="deck-metric-value">${report.aggregate.nerDelta ? formatSignedDisplay(report.aggregate.nerDelta, 0) : "—"}</div><div class="deck-metric-sub">Weighted effective rent delta vs budgeted NER</div></div>
@@ -1412,7 +1414,7 @@ function buildMonthlyInvestorPresentationSlides(report) {
         <div class="deck-panel">
           <div class="deck-panel-title">Budget read</div>
           <ul class="deck-bullets">
-            <li>${report.aggregate.onTrackBudgetOccCount ?? 0} of ${report.aggregate.trackedBudgetOccCount ?? 0} communities are currently on track to saved occupancy budget.</li>
+            <li>${monthlyOccupancyBudgetCoverageNote(report.aggregate)}</li>
             <li>Occupancy is ${formatSignedDisplay(report.aggregate.occGapPts, 1, " points").replace("points", "points versus budget")} and leased occupancy is ${formatSignedDisplay(report.aggregate.leasedGapPts ?? 0, 1, " points").replace("points", "points versus budget")}.</li>
             <li>NER delta is shown on a weighted basis so larger occupied communities carry appropriate influence in the investor narrative.</li>
           </ul>

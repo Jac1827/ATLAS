@@ -114,3 +114,41 @@ test('current form is flushed before the source snapshot and mismatches fail bef
 test('exact round-trip comparison rejects changed data even when totals match',async()=>{const {db,g,bundle}=await context();g.packAtlasCentralRetainedRecords=async()=>({});g.AtlasMigrationArchive={verifyBundle:async()=>({bundle:{...bundle,keys:{...bundle.keys,extra:'0'}}})};await assert.rejects(g.buildAtlasCentralAppStatePayload(),/round-trip data differs from the captured source/);await remove(db);});
 
 test('background shared-data refresh cannot change the captured publication or its reconciliation',async()=>{const {db,g,bundle}=await context();const shared={employees:{original:{name:'Original'}}};g.collectAtlasCentralMigrationSnapshot=async()=>({reconciliation:{counts:1},exceptions:[],sharedData:shared});g.packAtlasCentralRetainedRecords=async()=>{shared.employees.newer={name:'Newer'};g.atlasSharedData=shared;g.buildAtlasMigrationReconciliationSummary=()=>({counts:2});return {};};g.AtlasMigrationArchive={verifyBundle:async()=>({bundle})};const result=await g.buildAtlasCentralAppStatePayload();assert.deepEqual(Object.keys(result.sharedData.employees),['original']);assert.equal(result.reconciliation.counts,1);await remove(db);});
+
+test('current and retained builders preserve maintenance and marketing capture evidence without replacing conflicting dashboard data',async()=>{
+ const {patchArchiveBuilderBoundary}=await import('./archive-builder-compat.mjs');
+ for(const source of [core,patchArchiveBuilderBoundary(old,core)])for(const conflict of [false,true]){
+  const {db,g,bundle}=await context();
+  try{
+   bundle.indexedDb.communityData={};
+   Object.assign(g,{PERFORMANCE_PLATFORM_STORAGE_KEY:'people',maintenanceInspectionSnapshot:{records:[],archive:{},moonriseSync:{exceptions:[]}}});
+   vm.runInContext(fn(core,'buildAtlasMigrationReconciliationSummary')+'\n'+fn(source,'buildAtlasCentralAppStatePayload'),g);
+   const captured={
+    rise_wmr_v1:JSON.stringify({db:{weeks:{'synthetic-week':{completed:0,unknown:null,notes:'Original maintenance evidence Ω'}},maintenanceInspectionRecords:[{id:'synthetic-inspection',score:0}],maintenanceInspectionArchive:{'synthetic-snapshot':{unknown:null}},moonriseSync:{exceptions:[{id:'synthetic-exception'}]}}}),
+    'rise-b2b-v6':JSON.stringify([{id:'synthetic-contact',calls:0,unknown:null}]),
+    'rise-b2b-acts-v3':JSON.stringify([{id:'synthetic-activity',value:0,unknown:null}])
+   };
+   const storageEntries=Object.fromEntries(Object.entries(captured).map(([key,value])=>[key,{present:true,value,parsed:JSON.parse(value),redactedFields:[]} ]));
+   const reconciliation=g.buildAtlasMigrationReconciliationSummary({},storageEntries,bundle.indexedDb);
+   g.collectAtlasCentralMigrationSnapshot=async()=>({storageEntries,reconciliation,exceptions:[]});
+   if(conflict){
+    bundle.keys.rise_wmr_v1=JSON.stringify({db:{weeks:{}}});let packed=false;
+    g.packAtlasCentralRetainedRecords=async()=>{packed=true;throw Error('must not pack');};
+    await assert.rejects(g.buildAtlasCentralAppStatePayload(),/capture reconciliation.*maintenanceWeeks: source 1, archive 0/);
+    assert.equal(packed,false,'a later snapshot cannot conceal conflicting captured dashboard evidence');
+   }else{
+    const originalDashboardValue=bundle.keys.example;
+    const result=await g.buildAtlasCentralAppStatePayload(),restored=await api.unpack(result.bundle,Zip);
+    assert.equal(restored.bundle.keys.example,originalDashboardValue);
+    for(const [key,value]of Object.entries(captured))assert.equal(restored.bundle.keys[key],value,key+' preserves every captured byte through archive verification');
+    assert.equal(result.reconciliation.recordCounts.maintenanceWeeks,1);
+    assert.equal(result.reconciliation.recordCounts.maintenanceInspectionRecords,1);
+    assert.equal(result.reconciliation.recordCounts.maintenanceInspectionSnapshots,1);
+    assert.equal(result.reconciliation.recordCounts.moonriseInspectionExceptions,1);
+    assert.equal(result.reconciliation.recordCounts.marketingContacts,1);
+    assert.equal(result.reconciliation.recordCounts.marketingActivities,1);
+    assert.deepEqual(result.reconciliation,reconciliation);
+   }
+  }finally{await remove(db);}
+ }
+});

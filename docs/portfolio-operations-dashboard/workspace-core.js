@@ -7926,14 +7926,9 @@ function getRecordBudgetOccPct(record, monthIdx) {
 function getRecordBudgetOccupancyEvidence(record, monthIdx, year = null) {
   const targetYear = Number(year ?? record?.reportYear) || new Date().getFullYear();
   const governed = typeof window !== "undefined" ? window.AtlasOccupancyBudgets?.get(record, monthIdx, targetYear) : null;
-  if (governed && governed.status !== "absent") return governed;
-  const historyEntry = getRecordHistoryEntry(record, monthIdx, targetYear);
-  const historyPct = normalizeBudgetOccupancyPct(historyEntry?.budgetOcc);
-  const recordYear = Number(record?.reportYear) || new Date().getFullYear();
-  const savedPct = targetYear === recordYear ? getRecordBudgetOccPct(record, monthIdx) : 0;
-  const pct = historyPct > 0 ? historyPct : savedPct;
-  return pct > 0 ? {status:"available", pct, sourceType:"saved_curve", source:"Saved community budget curve"}
-    : {status:"missing", reason:"No saved occupancy budget for this community and month."};
+  // Legacy saved curves are not evidence of an approved original/reforecast target.
+  // Keep the source contract shared with Community Command, including missingness.
+  return governed || {status:"loading", reason:"Reading approved occupancy budget…"};
 }
 
 function getRecordSavedBudgetOccPct(record, monthIdx, year = null) {
@@ -11108,6 +11103,7 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
     occPct,
     leasedPct,
     budgetOccPct,
+    budgetOccEvidence: getRecordBudgetOccupancyEvidence(record, scopeCurrentMonth, record.reportYear),
     budgetLeasedPct,
     budgetOccUnits,
     budgetLeasedUnits,
@@ -11207,8 +11203,11 @@ function aggregateCommunitySummaries(summaries) {
     if (summary.budgetOccUnits > 0) {
       acc.avgBudgetOccAttainmentPctTotal += summary.budgetOccAttainmentPct;
       acc.avgBudgetOccAttainmentPctCount += 1;
+    }
+    // Coverage includes approved zero targets; ratio attainment still needs a positive denominator.
+    if (getOccupancyBudgetCoverage([summary]).complete) {
       acc.trackedBudgetOccCount += 1;
-      if (summary.budgetOccOnTrack) acc.onTrackBudgetOccCount += 1;
+      if (Number.isFinite(summary.occupied) && summary.occupied >= summary.budgetOccUnits) acc.onTrackBudgetOccCount += 1;
     }
     if (summary.budgetOccPct > 0) {
       acc.avgOccGapPtsTotal += summary.occPct - summary.budgetOccPct;
@@ -14101,11 +14100,12 @@ function prepareAtlasOccupancyBudgetView() {
   const panel = document.getElementById(`tab-panel-${activeTab}`);
   if (panel) panel.innerHTML = '<div class="card" role="status">Reading saved community budgets…</div>';
   if (!prepareAtlasOccupancyBudgetView.pending) {
-    prepareAtlasOccupancyBudgetView.pending = import('./features/occupancy-budget-store.mjs?v=5c4c95d494d79eae').then(async module => {
+    prepareAtlasOccupancyBudgetView.pending = import('./features/occupancy-budget-store.mjs?v=e32b767ebd6ae4ec').then(async module => {
       if (!window.AtlasOccupancyBudgets) {
         window.AtlasOccupancyBudgets = module.createOccupancyBudgetStore(central);
         const clear = () => { window.AtlasOccupancyBudgets.clear(); scheduleAtlasSharedRender(); };
         window.addEventListener('atlas-finance-updated', clear);
+        window.addEventListener('atlas-reforecast-updated', clear);
         let access = window.AtlasOccupancyBudgets.accessKey;
         window.addEventListener('atlas-central-auth-change', () => {
           const next = window.AtlasOccupancyBudgets.accessKey;
@@ -19346,6 +19346,15 @@ async function buildAtlasCentralAppStatePayload() {
   const bundle = redactAtlasCentralStorageBundle(await buildDashboardStorageBundle());
   await atlasStateWritePromise;
   const migrationSnapshot = await collectAtlasCentralMigrationSnapshot();
+  // The migration inventory also includes maintenance and marketing stores that
+  // the dashboard-only bundle omits. Retain their already redacted source bytes.
+  // Never replace a dashboard value: reconciliation must still detect conflicts.
+  for (const [key, entry] of Object.entries(migrationSnapshot.storageEntries || {})) {
+    if (Object.prototype.hasOwnProperty.call(bundle.keys, key)) continue;
+    if (typeof entry?.value !== "string") throw new Error(`Migration capture has invalid storage evidence for ${key}. No central publication was performed.`);
+    bundle.keys[key] = entry.value;
+    if (entry.redactedFields?.length) bundle.redactedFields = { ...bundle.redactedFields, [key]: [...entry.redactedFields] };
+  }
   const reconcileBundle = (candidate, stage) => {
     const storage = Object.fromEntries(Object.entries(candidate.keys || {}).map(([key,value]) => [key,{parsed:parseAtlasMigrationJson(value)}]));
     const summary = buildAtlasMigrationReconciliationSummary(candidate.indexedDb.communityData, storage, candidate.indexedDb);
@@ -24240,7 +24249,7 @@ function queueCommunityRosterFinancials(items) {
       hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=a8aff057c725c852");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=b4957bd7a8bcc9a4");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -36817,7 +36826,7 @@ function buildDeckHorizontalCompareChart(title, items, options = {}) {
   const cleaned = (Array.isArray(items) ? items : []).filter(item => {
     const value = Number(item?.value ?? 0);
     const target = Number(item?.target ?? 0);
-    return options.preserveMissing || value > 0 || target > 0;
+    return options.preserveMissing || typeof item?.targetAvailable === "boolean" || value > 0 || target > 0;
   });
   if (cleaned.length === 0) {
     return `<div class="deck-panel deck-panel-soft">
@@ -36836,17 +36845,18 @@ function buildDeckHorizontalCompareChart(title, items, options = {}) {
     const label = String(item.label ?? "Metric");
     const value = options.preserveMissing ? (typeof item.value === 'number' && Number.isFinite(item.value) ? item.value : null) : Number(item.value ?? 0) || 0;
     const target = Number(item.target ?? 0) || 0;
+    const showTarget = typeof item.targetAvailable === "boolean" ? item.targetAvailable && typeof item.target === "number" && Number.isFinite(item.target) : target > 0;
     const valueWidth = value > 0 ? Math.max(8, Math.min((value / maxValue) * 100, 100)) : 0;
-    const targetLeft = target > 0 ? Math.min((target / maxValue) * 100, 100) : 0;
+    const targetLeft = showTarget ? Math.min((target / maxValue) * 100, 100) : 0;
     const note = String(item.note ?? "").trim();
     const color = String(item.color ?? "var(--deck-accent)");
     return `<div class="deck-chart-row">
       <div class="deck-chart-row-head">
         <strong>${escapeHtml(label)}</strong>
-        <span>${escapeHtml(value === null ? "—" : valueFormatter(value))}${target > 0 ? ` · Goal ${escapeHtml(targetFormatter(target))}` : ""}</span>
+        <span>${escapeHtml(value === null ? "—" : valueFormatter(value))}${showTarget ? ` · Goal ${escapeHtml(targetFormatter(target))}` : ""}</span>
       </div>
       <div class="deck-chart-track">
-        ${target > 0 ? `<span class="deck-chart-target" style="left:${targetLeft}%"></span>` : ""}
+        ${showTarget ? `<span class="deck-chart-target" style="left:${targetLeft}%"></span>` : ""}
         ${valueWidth > 0 ? `<span class="deck-chart-bar" style="width:${valueWidth}%;background:${color}"></span>` : `<span class="deck-chart-bar deck-chart-bar-empty"></span>`}
       </div>
       ${note ? `<div class="deck-chart-note">${escapeHtml(note)}</div>` : ""}
@@ -37074,6 +37084,26 @@ function buildInvestorPropertyPacketData() {
   return buildMonthlyInvestorPresentationData("investor_property_packet");
 }
 
+function monthlyOccupancyBudgetAvailable(summary) {
+  return summary?.hasBudgetOcc === true && typeof summary.budgetOccPct === "number" && Number.isFinite(summary.budgetOccPct);
+}
+
+function monthlyOccupancyBudgetNote(summary) {
+  if (!monthlyOccupancyBudgetAvailable(summary)) return "Approved occupancy budget unavailable";
+  return summary.budgetOccOnTrack || summary.occGapUnits === 0 ? "On track to approved budget" : `${Math.max(summary.occGapUnits ?? 0, 0)} units below approved target`;
+}
+
+function monthlyOccupancyBudgetCoverageNote(aggregate) {
+  const coverage = aggregate.budgetOccCoverage;
+  if (!coverage?.complete) return `Approved occupancy budget unavailable for the full scope (${coverage?.coveredCommunities ?? 0}/${coverage?.totalCommunities ?? 0} communities covered).`;
+  return `${aggregate.onTrackBudgetOccCount ?? 0} of ${aggregate.trackedBudgetOccCount ?? 0} communities are on track to approved occupancy budget.`;
+}
+
+function formatMonthlyOccupancyBudgetAttainment(aggregate) {
+  return aggregate.budgetOccCoverage?.complete && aggregate.budgetOccUnits > 0 && Number.isFinite(aggregate.avgBudgetOccAttainmentPct)
+    ? aggregate.avgBudgetOccAttainmentPct.toFixed(1) + "%" : "Unavailable";
+}
+
 function buildMonthlyInvestorPresentationMetricCards(report) {
   const aggregate = report.aggregate;
   const previousAggregate = report.previousAggregate;
@@ -37087,7 +37117,7 @@ function buildMonthlyInvestorPresentationMetricCards(report) {
       value: `${occPct.toFixed(1)}%`,
       sub: previousAggregate
         ? formatPortfolioTrendValue(occPct, previousOccPct, "point")
-        : `${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities on track`
+        : monthlyOccupancyBudgetCoverageNote(aggregate)
     },
     {
       label: "Leased Occupancy",
@@ -37141,7 +37171,7 @@ function buildMonthlyInvestorPresentationNarrative(report) {
   const packetMode = report?.variant === "investor_property_packet";
   const firstParagraph = packetMode
     ? `${report.currentMonthLabel} is presenting a high-level investment read across ${report.details.length} selected ${report.details.length === 1 ? "property" : "properties"}, with physical occupancy at ${occPct.toFixed(1)}%, leased occupancy at ${leasedPct.toFixed(1)}%, ${Math.round(aggregate.applicationsApproved ?? 0)} approved applications month to date, and ${formatSignedDisplay(aggregate.monthAbsorption ?? 0)} units of net absorption already supporting the leasing story.`
-    : `${report.currentMonthLabel} closed with physical occupancy at ${occPct.toFixed(1)}% and leased occupancy at ${leasedPct.toFixed(1)}% across ${report.details.length} selected ${report.details.length === 1 ? "community" : "communities"}. Approved applications reached ${Math.round(aggregate.applicationsApproved ?? 0)} month to date, net absorption landed at ${formatSignedDisplay(aggregate.monthAbsorption ?? 0)} units, and ${aggregate.onTrackBudgetOccCount ?? 0} of ${aggregate.trackedBudgetOccCount ?? 0} communities are pacing on track to saved occupancy budget.`;
+    : `${report.currentMonthLabel} closed with physical occupancy at ${occPct.toFixed(1)}% and leased occupancy at ${leasedPct.toFixed(1)}% across ${report.details.length} selected ${report.details.length === 1 ? "community" : "communities"}. Approved applications reached ${Math.round(aggregate.applicationsApproved ?? 0)} month to date, net absorption landed at ${formatSignedDisplay(aggregate.monthAbsorption ?? 0)} units, and ${monthlyOccupancyBudgetCoverageNote(aggregate)}`;
   const tourToLeaseComparison = previousAggregate
     ? `${formatPortfolioTrendValue(aggregate.tourToLeasePct ?? 0, previousAggregate.tourToLeasePct ?? 0, "point").replace("MoM", "month over month")}`
     : `${(aggregate.tourToLeasePct ?? 0).toFixed(1)}%`;
@@ -37258,7 +37288,7 @@ function buildMonthlyInvestorPresentationSlidePlan(report) {
       image: describeMonthlyPresentationImage(report, report.photoPool?.[1]?.src ?? report.primaryPhoto),
       bullets: [
         `Charts: Occupancy vs Saved Budget by Community and Actual NER vs Budgeted NER`,
-        `Budget attainment: ${(report.aggregate.avgBudgetOccAttainmentPct ?? 0).toFixed(1)}% average occupancy attainment`,
+        `Budget attainment: ${formatMonthlyOccupancyBudgetAttainment(report.aggregate)} average occupancy attainment`,
         `Occupancy gap: ${formatSignedDisplay(report.aggregate.occGapPts, 1, " points versus budget")}`,
         `Leased gap: ${formatSignedDisplay(report.aggregate.leasedGapPts ?? 0, 1, " points versus budget")}`,
         `NER delta: ${report.aggregate.nerDelta ? formatSignedDisplay(report.aggregate.nerDelta, 0) : "Awaiting complete NER data"}`
@@ -37606,7 +37636,7 @@ function addPptxBarPanel(slide, pptx, config = {}) {
   } = config;
   addPptxPanel(slide, pptx, { x, y, w, h, title, fillColor: "17324A" });
   const rows = (Array.isArray(items) ? items : [])
-    .filter(item => preserveMissing || Number(item?.value ?? 0) > 0 || Number(item?.target ?? 0) > 0)
+    .filter(item => preserveMissing || typeof item?.targetAvailable === "boolean" || Number(item?.value ?? 0) > 0 || Number(item?.target ?? 0) > 0)
     .slice(0, subtitle ? 4 : 5);
   if (subtitle) {
     slide.addText(String(subtitle), {
@@ -37643,13 +37673,14 @@ function addPptxBarPanel(slide, pptx, config = {}) {
     const label = String(item?.label ?? "Metric");
     const value = preserveMissing ? (typeof item?.value === 'number' && Number.isFinite(item.value) ? item.value : null) : Number(item?.value ?? 0) || 0;
     const target = Number(item?.target ?? 0) || 0;
+    const showTarget = typeof item?.targetAvailable === "boolean" ? item.targetAvailable && typeof item.target === "number" && Number.isFinite(item.target) : target > 0;
     const note = String(item?.note ?? "").trim();
     const rowY = startY + idx * rowGap;
     const trackX = x + 0.12;
     const trackW = w - 0.24;
     const trackY = rowY + 0.12;
     const barW = value > 0 ? Math.max(0.08, Math.min((value / maxValue) * trackW, trackW)) : 0;
-    const targetX = target > 0 ? trackX + Math.min((target / maxValue) * trackW, trackW) : 0;
+    const targetX = showTarget ? trackX + Math.min((target / maxValue) * trackW, trackW) : 0;
     slide.addText(label, {
       x: trackX,
       y: rowY,
@@ -37663,7 +37694,7 @@ function addPptxBarPanel(slide, pptx, config = {}) {
       fit: "shrink"
     });
     slide.addText(
-      `${value === null ? "—" : valueFormatter(value)}${target > 0 ? ` · Goal ${targetFormatter(target)}` : ""}`,
+      `${value === null ? "—" : valueFormatter(value)}${showTarget ? ` · Goal ${targetFormatter(target)}` : ""}`,
       {
         x: x + w * 0.54,
         y: rowY,
@@ -37695,7 +37726,7 @@ function addPptxBarPanel(slide, pptx, config = {}) {
         line: { color: getPptxColorHex(item?.color ?? RISE_PRESENTATION_BRAND.blue), transparency: 100 }
       });
     }
-    if (target > 0) {
+    if (showTarget) {
       slide.addShape(getPptxShapeType(pptx, "rect"), {
         x: Math.min(Math.max(trackX, targetX - 0.01), trackX + trackW - 0.02),
         y: trackY - 0.01,
@@ -37808,7 +37839,7 @@ async function addPptxDeckShell(slide, pptx, report, options = {}) {
 }
 
 async function buildMonthlyInvestorPresentationPptxSlides(pptx, report) {
-  const feature = await import("./features/presentation-slides.mjs?v=dde8f610519a05a4");
+  const feature = await import("./features/presentation-slides.mjs?v=e0b74a26d94e8484");
   return feature.default(pptx, report);
 }
 

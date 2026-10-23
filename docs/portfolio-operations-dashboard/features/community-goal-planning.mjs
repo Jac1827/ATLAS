@@ -104,7 +104,7 @@ export function installCommunityGoalPlanning({host=window,getImportState=()=>nul
   return {...row,budget,variance:finite(budget)&&finite(row.physical)?row.physical-budget:null,...(row.idx===model.monthIdx?{leased:recommendation.actualLeasedPct}:{})};
  });};
  if(typeof originalAlerts==='function')host.buildCommunityCommandAlerts=function(model){return originalAlerts.call(this,model).filter(row=>!model.goalPlanning||!(row.id==='lease_pace_risk'&&!finite(model.plan.currentGrossLeaseNeed)||row.id==='traffic_volume_watch'&&!finite(model.plan.currentGuestCardNeed)));};
- host.buildCommunityCommandLeasingPlanRows=function(model){return originalRows.call(this,model).map((row,idx)=>idx<model.monthIdx?row:applyOccupancyRecommendation(row,evidence(model,idx)));};
+ host.buildCommunityCommandLeasingPlanRows=function(model){return originalRows.call(this,model).map((row,idx)=>idx<model.monthIdx?{...row,budgetPct:evidence(model,idx).budgetPct}:applyOccupancyRecommendation(row,evidence(model,idx)));};
  host.renderCommunityCommandLeasingPlan=function(model){
   const cid=scope(model),id=key(model,cid),hasEntry=cache.has(id);
   if(cid&&current()&&!hasEntry&&!pending.has(id))void hydrate(model).then(()=>{if(current()&&host.getProp?.().name===model.propName)host.renderTab?.();});

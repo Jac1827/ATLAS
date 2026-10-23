@@ -9,7 +9,7 @@ const root=new URL('../docs/portfolio-operations-dashboard/',import.meta.url);
 const reports=fs.readFileSync(new URL('features/reports-workspace.js',root),'utf8');
 const baseline=JSON.parse(fs.readFileSync(new URL('./fixtures/reports-template-hashes.json',import.meta.url),'utf8'));
 function extract(source,name){const start=source.indexOf('function '+name+'(');assert(start>=0,name);for(const close of source.slice(start).matchAll(/^\}/gm)){const text=source.slice(start,start+close.index+1);try{new vm.Script(text);return text;}catch{}}throw Error(name);}
-for(const [name,hash] of Object.entries(baseline))assert.equal(crypto.createHash('sha256').update(extract(reports,name)).digest('hex'),hash,`${name}: extraction preserves the complete prior document template`);
+for(const [name,hash] of Object.entries(baseline))assert.equal(crypto.createHash('sha256').update(extract(reports,name)).digest('hex'),hash,`${name}: document template matches the approved baseline`);
 new vm.Script(reports);
 const browser=await chromium.launch({headless:true});
 try{

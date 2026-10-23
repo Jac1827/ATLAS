@@ -4346,6 +4346,17 @@ async function atlasStateGetValue(key) {
   return record?.value ?? null;
 }
 
+function atlasOpsGlobalChangedOnlyPeopleSyncTime(previous, next) {
+  const isObject = value => Object.prototype.toString.call(value) === "[object Object]";
+  if (!isObject(previous) || !isObject(next) || !isObject(previous.sharedData) || !isObject(next.sharedData)) return false;
+  const withoutSyncTime = value => {
+    const sharedData = { ...value.sharedData };
+    delete sharedData.lastPeopleSyncAt;
+    return { ...value, sharedData };
+  };
+  return JSON.stringify(withoutSyncTime(previous)) === JSON.stringify(withoutSyncTime(next));
+}
+
 async function atlasStateSetValue(key, value) {
   if ([ATLAS_STATE_COMMUNITY_KEY, OPS_GLOBAL_STORAGE_KEY].includes(String(key))) {
     await withAtlasStateStore("readwrite", store => {
@@ -4355,6 +4366,10 @@ async function atlasStateSetValue(key, value) {
           ? window.AtlasOccupancyReplay.protectCommittedOccupancy(value,request.result?.value) : value;
         if (JSON.stringify(next) === JSON.stringify(request.result?.value)) return;
         store.put({key:String(key),value:next,updatedAt:new Date().toISOString()});
+        // The People refresh clock is observation metadata. Persist it for
+        // freshness checks without making an otherwise published workspace dirty.
+        // This never clears an existing dirty receipt or excludes other changes.
+        if (String(key) === OPS_GLOBAL_STORAGE_KEY && atlasOpsGlobalChangedOnlyPeopleSyncTime(request.result?.value, next)) return;
         const source = store.get("atlas_workspace_source_v2");
         source.onsuccess = () => {if(source.result?.value) store.put({...source.result,value:{...source.result.value,dirty:true}});};
       };
@@ -18324,6 +18339,13 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false,
       sharedData.lastPeopleSyncAt = new Date().toISOString();
       sharedData.validationIssues = validateAtlasSharedData(sharedData);
       check();
+      // A request can finish after Central Save captures the exact local records.
+      // Keep a clock-only observation from changing that capture while this save
+      // runs; real People changes and other current settings still persist below.
+      if (typeof saveAtlasCentralAppState === "function" && saveAtlasCentralAppState.inFlight && atlasOpsGlobalChangedOnlyPeopleSyncTime({ sharedData: atlasSharedData }, { sharedData: normalizeAtlasSharedData(sharedData) })) {
+        if (Object.prototype.hasOwnProperty.call(atlasSharedData, "lastPeopleSyncAt")) sharedData.lastPeopleSyncAt = atlasSharedData.lastPeopleSyncAt;
+        else delete sharedData.lastPeopleSyncAt;
+      }
       atlasSharedData = sharedData;
       syncAllCommunityStaffingFromPeopleRoster({ persist: false });
       window.atlasSynchronizeLinkedContacts?.();
@@ -18353,6 +18375,7 @@ function queueAtlasCentralPeopleLoad(options = {}) {
   const status = getAtlasCentralStatus();
   if (!status.configured || !status.signedIn) return;
   if (![1, 9, 10, 13, 14].includes(activeTab)) return;
+  if (!options.force && typeof saveAtlasCentralAppState === "function" && saveAtlasCentralAppState.inFlight) return;
   const lastSync = Date.parse(atlasSharedData?.lastPeopleSyncAt || "");
   if (!options.force && atlasSharedData?.lastPeopleSource === "atlas_central_people" && Number.isFinite(lastSync) && Date.now() - lastSync < 60000) return;
   const context=getAtlasRenderContextKey(),database=ATLAS_STATE_DB_NAME,epoch=atlasWorkspaceAccess.epoch,signal=atlasWorkspaceAccess.controller?.signal;

@@ -40,7 +40,7 @@ export function createJsonTokenSink({signal,hashOnly=false}={}){
 // complete JSON string, snapshot object, or unbounded string scalar.
 export async function* tokensFromJsonBlob(blob,{gzip=false,signal}={}){
   let stream=blob.stream();if(gzip)stream=stream.pipeThrough(new DecompressionStream('gzip'));
-  const reader=stream.pipeThrough(new TextDecoderStream('utf-8',{fatal:true})).getReader();
+  const reader=stream.pipeThrough(new TextDecoderStream('utf-8',{fatal:true,ignoreBOM:true})).getReader();
   const stack=[];let root='value',mode='',lex='',fragment='',escape='',unicode='',stringKey=false,out=[];
   const expectation=()=>stack.at(-1)?.state||root;
   const complete=()=>{const top=stack.at(-1);if(top){if(top.state!=='value'&&top.state!=='first')throw Error('Unexpected JSON value');top.state='comma';}else{if(root!=='value')throw Error('Multiple JSON roots');root='done';}};
@@ -58,9 +58,9 @@ export async function* tokensFromJsonBlob(blob,{gzip=false,signal}={}){
           if(char.charCodeAt(0)<32)throw Error('Invalid JSON control character');append(char);continue;
         }
         if(mode==='primitive'){
-          if(/[\s,\]}]/.test(char)){finishPrimitive();i--;continue;}lex+=char;if(lex.length>128)throw Error('Oversized JSON primitive');continue;
+          if(/[ \t\r\n,\]}]/.test(char)){finishPrimitive();i--;continue;}lex+=char;if(lex.length>128)throw Error('Oversized JSON primitive');continue;
         }
-        if(/\s/.test(char))continue;
+        if(/[ \t\r\n]/.test(char))continue;
         const top=stack.at(-1),expected=expectation();
         if(char==='}'||char===']'){
           if(!top||top.type!==(char==='}'?'object':'array')||!['first','comma','key-first'].includes(expected))throw Error('Incomplete JSON container');stack.pop();out.push(['end']);complete();continue;

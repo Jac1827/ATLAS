@@ -1,4 +1,4 @@
-importScripts('../vendor/jszip.min.js?v=acc7e41455a80765','../migration-archive.js?v=feebb32ebbdf48d8');
+importScripts('../vendor/jszip.min.js?v=acc7e41455a80765','../migration-archive.js?v=ab39d3a4205b4424');
 const pending=new Map();let sequence=0,controller=null;
 const ask=(kind,payload={})=>new Promise((resolve,reject)=>{const id=++sequence;pending.set(id,{resolve,reject});self.postMessage({kind,id,...payload});});
 self.onmessage=async({data})=>{

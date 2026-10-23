@@ -25,9 +25,10 @@ const options={documentKey:'state',payload:{source:'retained original actor'},ex
  const read=fixture();assert.equal((await read.context.rpc('atlas_read_fixture',{p_document_key:'fixture'})).version,1);
  // The archive helper must carry its outer context through saveDocument's
  // internal awaits, rather than checking only before calling the helper.
+ const transfer=await archive.pack({},[],require('../docs/portfolio-operations-dashboard/vendor/jszip.min.js')),partSize=Math.ceil(transfer.data.length/12)*4;
  for(const refresh of [1,2]){
-  const f=fixture();f.state.onRefresh=n=>{if(n===refresh)f.state.callbackCurrent=false;};await assert.rejects(archive.publish({bundleType:archive.TYPE,data:'abcdefghijk'},f.client,4,{isCurrent:()=>f.state.callbackCurrent}),/context changed/);assert.equal(f.state.writes.length,0,'Archive part canceled inside refresh '+refresh);
+  const f=fixture();f.state.onRefresh=n=>{if(n===refresh)f.state.callbackCurrent=false;};await assert.rejects(archive.publish(transfer,f.client,partSize,{isCurrent:()=>f.state.callbackCurrent}),/context changed/);assert.equal(f.state.writes.length,0,'Archive part canceled inside refresh '+refresh);
  }
- const valid=fixture(),manifest=await archive.publish({bundleType:archive.TYPE,data:'abcdefghijk'},valid.client,4);assert.equal(manifest.dataDocuments.length,3);assert.equal(valid.state.writes.length,3);assert.equal(manifest.data,undefined);
+ const valid=fixture(),manifest=await archive.publish(transfer,valid.client,partSize);assert.equal(manifest.dataDocuments.length,3);assert.equal(valid.state.writes.length,3);assert.equal(manifest.data,undefined);
  console.log('PASS actual Central document/part save guards: actor, access, endpoint, caller context and abort changes during either refresh cannot write; hash/readback scope changes fail closed; callbacks execute before transport; default callers and read RPCs remain compatible.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -12,8 +12,44 @@
     if(Array.isArray(v))return v.map(decode);
     if(v&&typeof v==='object'){const o={};for(const[k,x]of Object.entries(v))o[k]=decode(x);return o;}return v;
   }
-  const SEGMENTED='segmented-json-v1',DEFAULT_SEGMENT_BYTES=1048576,BLOB_FRAGMENT=Symbol('migrationBlobFragment');
+  const SEGMENTED='segmented-json-v1',DEFAULT_SEGMENT_BYTES=1048576,DEFAULT_INLINE_LIMIT=16*1048576,BASE64_READ_BYTES=262144,BLOB_FRAGMENT=Symbol('migrationBlobFragment');
   const utf8=new TextEncoder();
+  const inlineLimit=value=>{if(!Number.isSafeInteger(value)||value<0||value>DEFAULT_INLINE_LIMIT)throw Error('Invalid inline archive limit');return value;};
+  const checkArchiveOperation=({signal,isCurrent=()=>true}={})=>{if(signal?.aborted||!isCurrent())throw signal?.reason||new DOMException('Workspace changed during archive transport','AbortError');};
+  function archiveTransport(archive){
+    if(archive?.bundleType!==TYPE||archive.encoding!=='zip+base64'||!Number.isSafeInteger(archive.bytes)||archive.bytes<0||!Number.isSafeInteger(archive.recordCount)||archive.recordCount<0)throw Error('Invalid migration archive transport');
+    if(!/^[a-f0-9]{64}$/.test(archive.sha256||''))throw Error('Migration archive fingerprint mismatch');
+    const text=typeof archive.data==='string',blob=archive.dataBlob instanceof Blob;
+    if(text===blob||archive.data!=null&&!text||archive.dataBlob!=null&&!blob)throw Error('Invalid migration archive data transport');
+    const length=text?archive.data.length:archive.dataBlob.size;
+    if(length!==Math.ceil(archive.bytes/3)*4)throw Error('Migration archive fingerprint mismatch (encoded length)');
+    return {length,read:async(start,end)=>text?archive.data.slice(start,end):archive.dataBlob.slice(start,end).text(),part:(start,end)=>text?archive.data.slice(start,end):archive.dataBlob.slice(start,end)};
+  }
+  function base64Bytes(text,final){
+    if(text.length%4||!/^[A-Za-z0-9+/]*={0,2}$/.test(text)||!final&&text.includes('='))throw Error('Invalid migration archive base64 data');
+    const raw=atob(text),bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);return bytes;
+  }
+  async function* archiveTextChunks(transport,options={},size=BASE64_READ_BYTES){
+    for(let offset=0;offset<transport.length;offset+=size){
+      checkArchiveOperation(options);const end=Math.min(transport.length,offset+size),text=await transport.read(offset,end);checkArchiveOperation(options);
+      if(text.length!==end-offset)throw Error('Invalid migration archive base64 text');
+      yield {text,bytes:base64Bytes(text,end===transport.length),offset,end};
+    }
+  }
+  async function decodeArchiveTransport(archive,options={}){
+    const transport=archiveTransport(archive),bytes=new Uint8Array(archive.bytes);let offset=0;
+    for await(const part of archiveTextChunks(transport,options)){if(offset+part.bytes.length>bytes.length)throw Error('Migration archive decoded length mismatch');bytes.set(part.bytes,offset);offset+=part.bytes.length;}
+    if(offset!==bytes.length)throw Error('Migration archive decoded length mismatch');checkArchiveOperation(options);return bytes;
+  }
+  // Preserve the portable JSON format without creating one archive-sized string.
+  async function toJsonBlob(archive,options={}){
+    checkArchiveOperation(options);const transport=archiveTransport(archive);let decoded=0;
+    for await(const part of archiveTextChunks(transport,options))decoded+=part.bytes.length;
+    if(decoded!==archive.bytes)throw Error('Migration archive decoded length mismatch');
+    const {data,dataBlob,bytesData,dataDocuments,...metadata}=archive;
+    const header=JSON.stringify(metadata);checkArchiveOperation(options);
+    return new Blob([header.slice(0,-1),',"data":"',transport.part(0,transport.length),'"}'],{type:'application/json'});
+  }
   const supportedLayout=entry=>{if(entry.layout!==undefined&&entry.layout!==SEGMENTED)throw Error('Unsupported migration record layout');};
   // Conservative sizing stops before allocating a whole oversized JSON string.
   // Small ordinary records retain the exact original v1 encoding and hashes.
@@ -323,12 +359,12 @@
     }
     if(count!==entry.segments.length||total!==entry.bytes||await entryFingerprint(entry)!==entry.sha256)throw Error('Rollback segmented record differs from its source');
   }
-  async function packRecords(bundle,source,Zip,{segmentBytes=DEFAULT_SEGMENT_BYTES,onProgress}={}){
+  async function packRecords(bundle,source,Zip,{segmentBytes=DEFAULT_SEGMENT_BYTES,onProgress,inlineLimit:requestedInlineLimit=DEFAULT_INLINE_LIMIT}={}){
     let phase='initialization';
     try{
     if(!source||!Number.isSafeInteger(source.count)||source.count<0||typeof source.readRecord!=='function')throw Error('Invalid migration record source');
     let zip=new Zip();const manifest={format:TYPE,entries:[]};
-    const limit=segmentLimit(segmentBytes);
+    const limit=segmentLimit(segmentBytes),maxInline=inlineLimit(requestedInlineLimit);
     const add=async(name,value)=>{phase='record '+name;return addRecord(zip,manifest,name,value,limit);};
     onProgress?.({phase:'packing',completed:0,total:source.count+1});
     await add('bundle.json',bundle);onProgress?.({phase:'packing',completed:1,total:source.count+1});
@@ -346,21 +382,26 @@
     // buffers before encoding, and avoid a second archive-sized binary string.
     zip=null;phase='archive encoding';onProgress?.({phase:'Encoding archive'});
     const encoded=[];for(let i=0;i<bytes.length;i+=32766)encoded.push(btoa(String.fromCharCode(...bytes.subarray(i,i+32766))));
-    return {bundleType:TYPE,encoding:'zip+base64',sha256:await digest(bytes),bytes:bytes.length,recordCount:source.count,data:encoded.join('')};
+    const transport=Math.ceil(bytes.length/3)*4<=maxInline?{data:encoded.join('')}:{dataBlob:new Blob(encoded,{type:'text/plain'})};
+    return {bundleType:TYPE,encoding:'zip+base64',sha256:await digest(bytes),bytes:bytes.length,recordCount:source.count,...transport};
     }catch(error){throw new Error('Migration archive pack failed ('+phase+'): '+error.message,{cause:error});}
   }
   async function pack(bundle,records,Zip,options){
     return packRecords(bundle,{count:records.length,readRecord:i=>records[i]},Zip,options);
   }
-  async function openArchive(archive,Zip){
+  async function openArchive(archive,Zip,options={}){
     let phase='archive fingerprint';
     try{
-      // A byte string is already indexed. Avoid Uint8Array.from's iterable
-      // staging allocation for the complete archive before its hash is checked.
+      checkArchiveOperation(options);
+      // Decode bounded base64 slices into the ZIP bytes, without an archive-sized
+      // text or binary string. Worker-provided bytes keep the same hash checks.
       let bytes=archive.bytesData;
-      if(!(bytes instanceof Uint8Array)){const raw=atob(archive.data);bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);}
+      if(!(bytes instanceof Uint8Array))bytes=await decodeArchiveTransport(archive,options);
+      checkArchiveOperation(options);
       if(bytes.length!==archive.bytes||await digest(bytes)!==archive.sha256)throw Error('Migration archive fingerprint mismatch');
+      checkArchiveOperation(options);
       phase='manifest';const zip=await Zip.loadAsync(bytes),manifest=JSON.parse(await zip.file('manifest.json').async('string'));
+      checkArchiveOperation(options);
       if(manifest.format!==TYPE||!Array.isArray(manifest.entries)||!Number.isSafeInteger(archive.recordCount)||archive.recordCount<0||manifest.entries.length!==archive.recordCount+1)throw Error('Migration manifest is incomplete');
       for(let i=0;i<manifest.entries.length;i++)if(manifest.entries[i].name!==(i===0?'bundle.json':`record-${i-1}.json`))throw Error('Migration record order or name is invalid');
       return {zip,manifest};
@@ -457,11 +498,14 @@
   async function publish(archive,client,chunkSize=524288,{signal,isCurrent=()=>true}={}) {
     const check=()=>{if(signal?.aborted||!isCurrent())throw new DOMException('Workspace changed during archive publication','AbortError');};
     check();
-    if(archive?.bundleType!==TYPE||!archive.data||archive.data.length<=chunkSize)return archive;
-    const references=[];
-    for(let offset=0;offset<archive.data.length;offset+=chunkSize){
-      check();
-      const data=archive.data.slice(offset,offset+chunkSize),sha256=await digest(new TextEncoder().encode(data));
+    if(archive?.bundleType!==TYPE)return archive;
+    if(!Number.isSafeInteger(chunkSize)||chunkSize<4||chunkSize%4||chunkSize>DEFAULT_SEGMENT_BYTES)throw Error('Invalid migration publication part size');
+    const transport=archiveTransport(archive);
+    if(typeof archive.data==='string'&&transport.length<=chunkSize){await decodeArchiveTransport(archive,{signal,isCurrent});return archive;}
+    const references=[];let decoded=0;
+    for await(const part of archiveTextChunks(transport,{signal,isCurrent},chunkSize)){
+      check();decoded+=part.bytes.length;
+      const data=part.text,sha256=await digest(new TextEncoder().encode(data));
       const documentKey='atlas_migration_part_v1:'+sha256;
       check();
       let existing=await client.readDocument(documentKey,{signal});
@@ -475,12 +519,18 @@
       if(existing?.payload?.data!==data||existing?.payload?.sha256!==sha256)throw Error('Central migration part readback mismatch');
       references.push({documentKey,sha256,length:data.length});
     }
-    const {data,...manifest}=archive;
+    if(decoded!==archive.bytes)throw Error('Migration archive decoded length mismatch');check();
+    const {data,dataBlob,bytesData,dataDocuments,...manifest}=archive;
     return {...manifest,dataDocuments:references};
   }
-  async function hydrate(archive,client,{concurrency=3,signal}={}){
+  async function hydrate(archive,client,{concurrency=3,signal,inlineLimit:requestedInlineLimit=DEFAULT_INLINE_LIMIT}={}){
     if(!archive?.dataDocuments)return archive;
-    const refs=archive.dataDocuments,pieces=new Array(refs.length);
+    const maxInline=inlineLimit(requestedInlineLimit);
+    const refs=archive.dataDocuments;
+    if(!Array.isArray(refs)||!refs.length||refs.some(ref=>!Number.isSafeInteger(ref?.length)||ref.length<1||ref.length>DEFAULT_SEGMENT_BYTES||typeof ref.documentKey!=='string'||!/^[a-f0-9]{64}$/.test(ref.sha256||'')))throw Error('Central migration part is missing or changed (invalid inventory)');
+    const pieces=new Array(refs.length);
+    const length=refs.reduce((sum,ref)=>sum+ref.length,0);
+    if(!Number.isSafeInteger(length)||length!==Math.ceil(archive.bytes/3)*4)throw Error('Migration archive fingerprint mismatch (part lengths)');
     const finish=globalThis.AtlasPerformance?.start('archive-part-hydration',{parts:refs.length,bytes:archive.bytes});
     let cursor=0,failure=null;
     const check=()=>{if(signal?.aborted)throw signal.reason||new DOMException('Archive hydration cancelled','AbortError');};
@@ -489,7 +539,7 @@
         check();
         const index=cursor++,ref=refs[index];
         try {
-          const row=await client.readDocument(ref.documentKey),data=row?.payload?.data;
+          const row=await client.readDocument(ref.documentKey,{signal}),data=row?.payload?.data;
           check();
           if(typeof data!=='string'||data.length!==ref.length||await digest(new TextEncoder().encode(data))!==ref.sha256)throw Error('Central migration part is missing or changed');
           pieces[index]=data;
@@ -502,7 +552,8 @@
       const rejected=results.find(result=>result.status==='rejected');
       if(rejected)throw rejected.reason;
       check();
-      return {...archive,data:pieces.join('')};
+      const {data,dataBlob,bytesData,...metadata}=archive;
+      return {...metadata,...(length<=maxInline?{data:pieces.join('')}:{dataBlob:new Blob(pieces,{type:'text/plain'})})};
     } finally {pieces.length=0;finish?.({failed:!!failure});}
   }
   // Each callback consumes a verified, bounded token batch. Expose the grammar
@@ -519,5 +570,5 @@
     }
     if(batch.length)await onBatch(batch);
   }
-  return {TYPE,pack,packRecord,packTokenRecord,packRecords,unpack,verifyBundle,verifyRestore,visitSelectedRecords,publish,hydrate,openArchive,readArchiveRecord,visitEntryTokenBatches,createSelectedTokenReader:selectedTokenReader,recordTokens};
+  return {TYPE,pack,packRecord,packTokenRecord,packRecords,unpack,verifyBundle,verifyRestore,visitSelectedRecords,publish,hydrate,toJsonBlob,openArchive,readArchiveRecord,visitEntryTokenBatches,createSelectedTokenReader:selectedTokenReader,recordTokens};
 });

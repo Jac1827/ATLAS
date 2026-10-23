@@ -1,4 +1,4 @@
-import {executeHistory} from './import-history-store.mjs?v=e310a5426db3487e';
+import {executeHistory} from './import-history-store.mjs?v=e61d12d36e6cf36a';
 self.onmessage=async({data})=>{
   try {
     const value=await executeHistory({...data,onArchiveProgress:detail=>self.postMessage({progress:true,detail})});

@@ -19346,6 +19346,15 @@ async function buildAtlasCentralAppStatePayload() {
   const bundle = redactAtlasCentralStorageBundle(await buildDashboardStorageBundle());
   await atlasStateWritePromise;
   const migrationSnapshot = await collectAtlasCentralMigrationSnapshot();
+  // The migration inventory also includes maintenance and marketing stores that
+  // the dashboard-only bundle omits. Retain their already redacted source bytes.
+  // Never replace a dashboard value: reconciliation must still detect conflicts.
+  for (const [key, entry] of Object.entries(migrationSnapshot.storageEntries || {})) {
+    if (Object.prototype.hasOwnProperty.call(bundle.keys, key)) continue;
+    if (typeof entry?.value !== "string") throw new Error(`Migration capture has invalid storage evidence for ${key}. No central publication was performed.`);
+    bundle.keys[key] = entry.value;
+    if (entry.redactedFields?.length) bundle.redactedFields = { ...bundle.redactedFields, [key]: [...entry.redactedFields] };
+  }
   const reconcileBundle = (candidate, stage) => {
     const storage = Object.fromEntries(Object.entries(candidate.keys || {}).map(([key,value]) => [key,{parsed:parseAtlasMigrationJson(value)}]));
     const summary = buildAtlasMigrationReconciliationSummary(candidate.indexedDb.communityData, storage, candidate.indexedDb);

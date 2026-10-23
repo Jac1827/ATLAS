@@ -1,4 +1,4 @@
-import {executeHistory} from './import-history-store.mjs?v=e310a5426db3487e';
+import {executeHistory} from './import-history-store.mjs?v=e61d12d36e6cf36a';
 const READS=new Set(['legacy','load','current','page','snapshot','records','export','exportPacked','recordExportPacked','preferenceValues']);
 export async function historyOperation(request) {
   const {signal,onProgress,onArchiveProgress,...payload}=request;
@@ -7,7 +7,7 @@ export async function historyOperation(request) {
   if(signal?.aborted)throw signal.reason||new DOMException('Import history read cancelled','AbortError');
   if(typeof Worker==='undefined')return local();
   let worker;
-  try {worker=new Worker(new URL('./import-history-worker.mjs?v=818892ed7f8a5f40',import.meta.url),{type:'module'});}
+  try {worker=new Worker(new URL('./import-history-worker.mjs?v=86e8d7f4dcae41b9',import.meta.url),{type:'module'});}
   catch {return local();}
   return new Promise((resolve,reject)=>{
     let settled=false;

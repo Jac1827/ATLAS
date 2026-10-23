@@ -1,5 +1,5 @@
 /* Decode the current workspace/provenance; complete history stays in its verified parent. */
-importScripts('../vendor/jszip.min.js?v=acc7e41455a80765','../migration-archive.js?v=feebb32ebbdf48d8');
+importScripts('../vendor/jszip.min.js?v=acc7e41455a80765','../migration-archive.js?v=ab39d3a4205b4424');
 const IMPORT_KEY='atlas_data_import_2_state_v1';
 const COLLECTIONS=new Set(['batches','sourceArchive','canonicalRecords','lineage','reconciliationLog','mappingAuditTrail','exceptions','leadSourceHistoricalRevisions','temporaryIgnoreHistory']);
 const OMITTED_COLLECTIONS=new Set(['reconciliationLog','mappingAuditTrail','leadSourceHistoricalRevisions','temporaryIgnoreHistory']);
@@ -8,7 +8,7 @@ const FILE_FIELDS=new Set(['fileName','reportType','reportTypeLabel']);
 self.onmessage=async({data:{archive,source}})=>{
   try{
     if(archive?.bundleType!==AtlasMigrationArchive.TYPE||archive.sha256!==source?.archiveHash)throw Error('Central archive fingerprint mismatch.');
-    const {projectCurrentHistory}=await import('./import-history-store.mjs?v=e310a5426db3487e');
+    const {projectCurrentHistory}=await import('./import-history-store.mjs?v=e61d12d36e6cf36a');
     let bundle=null,history=null,historyCounts=null;
     const recordKeys=new Map(),counts=new Map(),unidentifiedValues=new Set();
     await AtlasMigrationArchive.visitSelectedRecords(archive,JSZip,{

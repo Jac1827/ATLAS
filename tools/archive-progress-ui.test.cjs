@@ -8,7 +8,7 @@ const verified=()=>({passed:true,archiveSha256:bundle().sha256,recordsRestored:6
 function fixture(){
  const nodes=[{textContent:'',hidden:true,attributes:{},setAttribute(k,v){this.attributes[k]=v;}}],buttons=[{disabled:false}],stats={builds:0,verifications:0,downloads:0,renders:0,alerts:[]};
  const c={Date,Promise,DOMException,current:true,context:'same',atlasCentralRuntimeMeta:{rollbackTestedAt:'old-check'},JSZip:{},document:{querySelectorAll:selector=>selector==='[data-atlas-archive-progress]'?nodes:buttons},escapeHtml:value=>String(value).replace(/</g,'&lt;'),captureAtlasAuxiliaryContext:()=>({current:()=>c.current}),getAtlasRenderContextKey:()=>c.context,renderTab:()=>stats.renders++,setAtlasCentralRuntimeMessage:(message,error='')=>Object.assign(c.atlasCentralRuntimeMeta,{lastMessage:message,lastError:error}),alert:message=>stats.alerts.push(message),downloadAtlasJsonFile:()=>{stats.downloads++;if(c.downloadError)throw Error('download failed');}};
- c.window={AtlasFeatures:{load:async()=>{}},AtlasMigrationArchive:{verifyRestore:async(bundle,zip,options)=>{stats.verifications++;c.verifyOptions=options;return c.verify?c.verify(options):verified();}}};
+ c.window={AtlasFeatures:{load:async()=>{}},AtlasMigrationArchive:{toJsonBlob:async archive=>c.encode?c.encode(archive):new Blob(['portable fixture']),verifyRestore:async(bundle,zip,options)=>{stats.verifications++;c.verifyOptions=options;return c.verify?c.verify(options):verified();}}};
  c.verifyAtlasTypedRollbackArchive=async(archive,options)=>c.window.AtlasMigrationArchive.verifyRestore(archive,{},options);
  c.buildAtlasCentralAppStatePayload=async options=>{stats.builds++;c.buildOptions=options;return c.build?c.build(options):{bundle:bundle(),reconciliation:{}};};
  vm.createContext(c);vm.runInContext(script,c);return{c,stats,nodes,buttons};
@@ -51,4 +51,15 @@ test('source replay during restore prevents a stale success receipt',async()=>{
  f.c.window.AtlasReplayGeneration=1;assert.equal(f.c.verifyOptions.isCurrent(),false);
  verify.resolve(verified());assert.equal(await task,false);
  assert.equal(f.stats.downloads,0);assert.equal(f.c.atlasCentralRuntimeMeta.rollbackTestedAt,'');
+});
+test('file encoding failures and workspace changes cannot satisfy the rollback gate',async()=>{
+ const failed=fixture();failed.c.encode=()=>{throw Error('portable file encoding failed');};
+ assert.equal(await failed.c.testAtlasCentralRollbackSnapshot(),false);
+ assert.equal(failed.stats.downloads,0);assert.equal(failed.c.atlasCentralRuntimeMeta.rollbackTestedAt,'');
+ assert.match(failed.nodes[0].textContent,/portable file encoding failed/);
+ const changed=fixture(),encoding=deferred();changed.c.encode=()=>encoding.promise;
+ const task=changed.c.testAtlasCentralRollbackSnapshot();await tick();assert.equal(changed.stats.verifications,1);
+ changed.c.context='changed';encoding.resolve(new Blob(['portable fixture']));
+ assert.equal(await task,false);assert.equal(changed.stats.downloads,0);
+ assert.equal(changed.c.atlasCentralRuntimeMeta.rollbackTestedAt,'');assert.equal(changed.stats.alerts.length,0);
 });

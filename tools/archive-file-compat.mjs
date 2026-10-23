@@ -1,0 +1,25 @@
+/** Portable archive file boundaries only; retained activation and storage stay intact. */
+export const ARCHIVE_FILE_BOUNDARY_COUNT=3;
+export const ARCHIVE_FILE_ASSETS=['features/portable-bundle-file.mjs','features/migration-token-stream.mjs','features/bounded-json-integrity.mjs'];
+function fn(source,name){const matches=[...source.matchAll(new RegExp('^(?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','gm'))];if(matches.length!==1)throw Error('Missing or ambiguous archive file boundary: '+name);return matches[0][0];}
+export function patchArchiveFileBoundary(source,current){
+ const original=source,undo=[];
+ const replace=(name,before,after)=>{const body=fn(source,name);if(body.split(before).length!==2)throw Error('Archive file boundary changed: '+name);source=source.replace(body,body.replace(before,after));undo.push([name,after,before]);};
+ const oldDownload=fn(source,'downloadAtlasJsonFile'),newDownload=fn(current,'downloadAtlasJsonFile');
+ if(newDownload!==oldDownload.replace('const blob = new Blob([JSON.stringify(payload, null, 2)]','const blob = payload instanceof Blob ? payload : new Blob([JSON.stringify(payload, null, 2)]'))throw Error('Current archive download boundary changed');
+ source=source.replace(oldDownload,newDownload);undo.push(['downloadAtlasJsonFile',newDownload,oldDownload]);
+ const oldRollback=fn(source,'testAtlasCentralRollbackSnapshot');
+ const rollbackDownload='    downloadAtlasJsonFile({...payload.bundle, rollbackValidation:validation, reconciliation:payload.reconciliation}, `atlas_rollback_test_snapshot_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);';
+ if(oldRollback.split(rollbackDownload).length!==2)throw Error('Retained rollback download boundary changed');
+ const newRollback=oldRollback.replace('  try {','  const identity = () => { const profile = window.ATLAS_CENTRAL?.getStoredProfile?.() ?? null; const {access_verified_at, ...access} = profile || {}; return JSON.stringify([window.ATLAS_CENTRAL?.getSession?.()?.user?.id, profile ? access : null, ATLAS_STATE_DB_NAME, window.AtlasReplayGeneration || 0]); };\n  const capturedIdentity = identity(), current = () => capturedIdentity === identity();\n  const assertCurrent = () => { if (!current()) { const error = new Error("Rollback export context changed."); error.name = "AbortError"; throw error; } };\n  try {').replace(rollbackDownload,'    assertCurrent();\n    const rollbackFile = await window.AtlasMigrationArchive.toJsonBlob({...payload.bundle, rollbackValidation:validation, reconciliation:payload.reconciliation}, {isCurrent:current});\n    assertCurrent();\n    downloadAtlasJsonFile(rollbackFile, `atlas_rollback_test_snapshot_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);').replace('  } catch (error) {','  } catch (error) {\n    if (!current() || error?.name === "AbortError") return;');
+ replace('testAtlasCentralRollbackSnapshot',oldRollback,newRollback);
+ const before='  let payloadText = "";\n  try {\n    payloadText = await file.text();\n  } catch {\n    alert(`Could not read ${file.name || "the selected file"}.`);\n    return;\n  }\n  if (!payloadText.trim()) {\n    alert("The selected file is empty.");\n    return;\n  }\n  let parsed = null;\n  try {\n    parsed = JSON.parse(payloadText);\n  } catch {\n    alert("Could not parse the selected bundle file as JSON.");\n    return;\n  }';
+ const parser=current.match(/const \{readPortableBundleFile\} = await import\('([^']+)'\);/);
+ if(!parser||!/^\.\/features\/portable-bundle-file\.mjs(?:\?v=[a-f0-9]+)?$/.test(parser[1]))throw Error('Current portable bundle parser reference changed');
+ const after='  if (file.size === 0) { alert("The selected file is empty."); return; }\n  const identity = () => { const profile = window.ATLAS_CENTRAL?.getStoredProfile?.() ?? null; const {access_verified_at, ...access} = profile || {}; return JSON.stringify([window.ATLAS_CENTRAL?.getSession?.()?.user?.id, profile ? access : null, ATLAS_STATE_DB_NAME, window.AtlasReplayGeneration || 0]); };\n  const capturedIdentity = identity(), current = () => capturedIdentity === identity();\n  let parsed = null;\n  try {\n    await window.AtlasFeatures?.load("migrationArchive");\n    if (!current()) return;\n    const {readPortableBundleFile} = await import('+JSON.stringify(parser[1])+');\n    parsed = await readPortableBundleFile(file, {api:window.AtlasMigrationArchive,isCurrent:current});\n  } catch (error) {\n    if (!current() || error?.name === "AbortError") return;\n    alert(`Could not read the selected bundle file: ${error?.message || error}`);\n    return;\n  }\n  if (!current()) return;';
+ replace('importDashboardStorageBundleFromFile',before,after);
+ if(undo.length!==ARCHIVE_FILE_BOUNDARY_COUNT)throw Error('Archive file boundary count changed');
+ let proof=source;for(const[name,after,before]of undo.reverse()){const body=fn(proof,name);if(body.split(after).length!==2)throw Error('Archive file reverse proof changed');proof=proof.replace(body,body.replace(after,before));}
+ if(proof!==original)throw Error('Archive file patch changed unrelated operational bytes');
+ return source;
+}

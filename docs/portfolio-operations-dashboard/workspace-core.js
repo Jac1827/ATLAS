@@ -4346,6 +4346,17 @@ async function atlasStateGetValue(key) {
   return record?.value ?? null;
 }
 
+function atlasOpsGlobalChangedOnlyPeopleSyncTime(previous, next) {
+  const isObject = value => Object.prototype.toString.call(value) === "[object Object]";
+  if (!isObject(previous) || !isObject(next) || !isObject(previous.sharedData) || !isObject(next.sharedData)) return false;
+  const withoutSyncTime = value => {
+    const sharedData = { ...value.sharedData };
+    delete sharedData.lastPeopleSyncAt;
+    return { ...value, sharedData };
+  };
+  return JSON.stringify(withoutSyncTime(previous)) === JSON.stringify(withoutSyncTime(next));
+}
+
 async function atlasStateSetValue(key, value) {
   if ([ATLAS_STATE_COMMUNITY_KEY, OPS_GLOBAL_STORAGE_KEY].includes(String(key))) {
     await withAtlasStateStore("readwrite", store => {
@@ -4355,6 +4366,10 @@ async function atlasStateSetValue(key, value) {
           ? window.AtlasOccupancyReplay.protectCommittedOccupancy(value,request.result?.value) : value;
         if (JSON.stringify(next) === JSON.stringify(request.result?.value)) return;
         store.put({key:String(key),value:next,updatedAt:new Date().toISOString()});
+        // The People refresh clock is observation metadata. Persist it for
+        // freshness checks without making an otherwise published workspace dirty.
+        // This never clears an existing dirty receipt or excludes other changes.
+        if (String(key) === OPS_GLOBAL_STORAGE_KEY && atlasOpsGlobalChangedOnlyPeopleSyncTime(request.result?.value, next)) return;
         const source = store.get("atlas_workspace_source_v2");
         source.onsuccess = () => {if(source.result?.value) store.put({...source.result,value:{...source.result.value,dirty:true}});};
       };

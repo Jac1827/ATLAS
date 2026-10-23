@@ -21,7 +21,7 @@ const centralRows = [{
   atlas_roles: {role_id: 'role-1', title: 'Community Manager', bonus_role_type: 'manager'}
 }];
 
-function fixture(seed) {
+function fixture(seed, {actualNormalization = false} = {}) {
   const records = new Map(seed ? clone([...seed]) : [
     [COMMUNITIES, {key: COMMUNITIES, value: {'Synthetic Community': {occupied: 10}}, updatedAt: 'before'}],
     [HISTORY, {key: HISTORY, value: {revision: 7, retainedBeforeSnapshots: ['original evidence']}, updatedAt: 'before'}],
@@ -59,6 +59,7 @@ function fixture(seed) {
     normalizeAtlasSharedData: clone, normalizeSharedEmployeeRecord: clone, normalizeSharedAssignmentRecord: clone,
     inferSharedBonusRoleType: () => 'manager', validateAtlasSharedData: () => [],
     syncAllCommunityStaffingFromPeopleRoster: () => {}, scheduleAtlasSharedRender: () => {},
+    saveAtlasCentralAppState: function () {},
     atlasScopedLocalKey: key => key, localStorage: {getItem: () => null, removeItem: () => {}},
     markAtlasPersistenceError: error => state.errors.push(error),
     alert: message => {throw new Error(message);}, serializeJacsTeamBonus: clone,
@@ -78,12 +79,29 @@ function fixture(seed) {
     'reportHubMonth', 'reportHubYear', 'reportRecommendationOverrides', 'communityCommandState', 'windowshadeState'
   ]) context[name] = {};
   context.applicationResidentDataState = {uploads: [], lastDeletedUpload: null};
+  if (actualNormalization) {
+    Object.assign(context, {
+      ATLAS_SHARED_DATA_SCHEMA_VERSION: 1, SHARED_BONUS_ROLE_LABELS: {manager: 'Community Manager'},
+      BONUS_QUARTERS: ['Q1', 'Q2', 'Q3', 'Q4'], currentMonth: 9, DEFAULT_CURRENT_MONTH: 9,
+      getAtlasTodayISODate: () => '2026-10-23', getBonusQuarterForMonth: () => 'Q4',
+      clampNumber: (value, min, max) => Math.min(max, Math.max(min, value)),
+      defaultPortfolioReportFilters: () => ({}), syncMonthlyTemplateImportTarget: () => {}
+    });
+    for (const name of ['normalizeBonusEngineState', 'normalizeJacsTeamBonus', 'normalizeRegionalAssignments',
+      'normalizeSalarySecurity', 'normalizeMonthlyPresentationCommunities', 'normalizeCommunityProgressReportCommunities',
+      'normalizeWeeklyExecutiveEmailSettings', 'normalizePortfolioReportSections', 'normalizePortfolioMonthScopeByPeriod',
+      'normalizeReportHubType', 'normalizeReportHubPerspective', 'normalizeReportRecommendationOverrides',
+      'normalizeApplicationResidentDataState', 'normalizeCommunityCommandState', 'normalizeWindowshadeState']) context[name] = value => value || {};
+  }
   vm.createContext(context);
   vm.runInContext([
     'atlasOpsGlobalChangedOnlyPeopleSyncTime', 'atlasStateSetValue', 'atlasStateGetValue',
     'writeOpsGlobalStorage', 'hydrateOpsGlobalStorage', 'persistOpsGlobalSnapshot', 'persistOpsGlobalData',
     'loadAtlasCentralPeopleAssignments', 'queueAtlasCentralPeopleLoad'
   ].map(extract).join('\n'), context);
+  if (actualNormalization) vm.runInContext(['simpleHash', 'normalizeSharedDate', 'inferSharedBonusRoleType',
+    'defaultAtlasSharedData', 'normalizeAtlasBonusBoolean', 'normalizeSharedEmployeeRecord', 'normalizeSharedAssignmentRecord',
+    'normalizeAtlasSharedData', 'makeSharedAssignmentId', 'normalizeOpsGlobalData', 'applyOpsGlobalData'].map(extract).join('\n'), context);
   return {records, state, context, withStore};
 }
 
@@ -110,6 +128,77 @@ async function refreshSettings(f) {
   const cleanReceipt = clone(f.records.get(RECEIPT));
   const publishedOps = clone(f.records.get(OPS).value);
   const publishedRecords = new Map(clone([...f.records]));
+  const normalized = fixture(undefined, {actualNormalization: true});
+  normalized.state.rows.push({
+    ...clone(centralRows[0]), assignment_id: 'reporting-assignment', title: 'Regional Manager',
+    atlas_employees: {employee_id: 'regional-1', full_name: 'Synthetic Regional', status: 'Active', email: 'regional@example.invalid'},
+    atlas_roles: {role_id: 'reporting-role', title: 'Regional Manager', bonus_role_type: null}
+  });
+  await refreshSettings(normalized);
+  assert.equal(normalized.records.get(OPS).value.sharedData.assignments.length, 1);
+  assert.equal(normalized.records.get(OPS).value.sharedData.reportingAssignments.length, 1, 'Actual normalization retains reporting roles outside bonus assignments');
+
+  // A fetch already underway before Save can finish after its exact raw capture.
+  // Exercise the real completion/write/readback path against the strict real ack.
+  for (const scenario of ['clock only', 'missing prior clock', 'actual People change', 'actual global change', 'reporting clock only', 'reporting role change']) {
+    const actualNormalization = scenario.startsWith('reporting');
+    const saving = fixture(actualNormalization ? normalized.records : publishedRecords, {actualNormalization});
+    if (actualNormalization) saving.state.rows = clone(normalized.state.rows);
+    if (scenario === 'missing prior clock') delete saving.records.get(OPS).value.sharedData.lastPeopleSyncAt;
+    saving.context.applyOpsGlobalData(clone(saving.records.get(OPS).value));
+    saving.records.get(RECEIPT).value.dirty = true;
+    saving.state.now = '2026-10-23T15:10:00.000Z';
+    let finishFetch;
+    saving.context.window.ATLAS_CENTRAL.fetchJson = () => new Promise(resolve => {finishFetch = resolve;});
+    const refresh = saving.context.loadAtlasCentralPeopleAssignments({silent: true});
+    assert.equal(typeof finishFetch, 'function', 'People request starts before Save');
+    const heldSave = new Promise(() => {});
+    saving.context.saveAtlasCentralAppState.inFlight = heldSave;
+    const saveCapture = await capturePublicationCache(saving.withStore, [COMMUNITIES, OPS, HISTORY, RECEIPT], () => true);
+    const rawOpsAtCapture = clone(saving.records.get(OPS));
+    const rawReceiptAtCapture = clone(saving.records.get(RECEIPT));
+    if (scenario === 'actual People change') saving.state.rows[0].atlas_employees.full_name = 'Changed During Save';
+    if (scenario === 'actual global change') saving.context.reportHubType = 'changed-during-save';
+    if (scenario === 'reporting role change') saving.state.rows[1].title = saving.state.rows[1].atlas_roles.title = 'Regional Director';
+    finishFetch(clone(saving.state.rows));
+    await refresh;
+    await saving.state.queue;
+    assert.equal(saving.state.errors.length, 0, `${scenario}: exact write/readback succeeds`);
+    assert.equal(saving.context.saveAtlasCentralAppState.inFlight, heldSave, 'Refresh never replaces or clears the active save');
+    const onlyClock = ['clock only', 'missing prior clock', 'reporting clock only'].includes(scenario);
+    if (onlyClock) {
+      assert.deepEqual(saving.records.get(OPS), rawOpsAtCapture, `${scenario}: full raw OPS record, including updatedAt, stays exact`);
+      assert.deepEqual(saving.records.get(RECEIPT), rawReceiptAtCapture, 'Refresh never clears pre-save pending work');
+      assert.deepEqual(saving.state.puts, [], 'Clock-only completion performs no storage writes during Save');
+      saving.context.queueAtlasCentralPeopleLoad();
+      assert.equal(saving.context.atlasCentralPeopleLoadPromise, null, 'Automatic refresh waits until Save ends');
+      // Explicit refresh remains usable, including repeated refreshes in one Save.
+      saving.context.window.ATLAS_CENTRAL.fetchJson = async () => clone(saving.state.rows);
+      saving.context.queueAtlasCentralPeopleLoad({force: true});
+      assert(saving.context.atlasCentralPeopleLoadPromise, 'Forced refresh remains available during Save');
+      await saving.context.atlasCentralPeopleLoadPromise.task;
+      await saving.state.queue;
+      assert.deepEqual(saving.records.get(OPS), rawOpsAtCapture);
+    } else {
+      assert.notDeepEqual(saving.records.get(OPS), rawOpsAtCapture, `${scenario}: genuine changes still persist`);
+      assert.equal(saving.records.get(RECEIPT).value.dirty, true);
+      if (scenario === 'actual People change') assert.equal(saving.records.get(OPS).value.sharedData.employees['employee-1'].name, 'Changed During Save');
+      else if (scenario === 'reporting role change') assert.equal(saving.records.get(OPS).value.sharedData.reportingAssignments[0].title, 'Regional Director');
+      else assert.equal(saving.records.get(OPS).value.reportHubType, 'changed-during-save');
+    }
+    const acknowledged = await acknowledgePublicationCache(saving.withStore, saveCapture, {
+      source: publication, binding: {fullProjection: true, scopeFingerprint: 'scope'},
+      projection: {contentHash: 'synthetic-projection-hash', importState: {batches: []}}
+    }, publication, () => true, JSON.stringify);
+    assert.equal(acknowledged, onlyClock, `${scenario}: only an exact capture is acknowledged`);
+    assert.equal(saving.records.get(RECEIPT).value.dirty, !onlyClock);
+    saving.context.saveAtlasCentralAppState.inFlight = null;
+    if (onlyClock) {
+      await refreshSettings(saving);
+      assert.equal(saving.records.get(OPS).value.sharedData.lastPeopleSyncAt, saving.state.now, 'Observation clock resumes after Save');
+      assert.equal(saving.records.get(RECEIPT).value.dirty, false);
+    }
+  }
 
   // Save completion renders Settings; the next due refresh changes only its clock.
   f.state.now = '2026-10-23T15:16:17.660Z';
@@ -178,5 +267,5 @@ async function refreshSettings(f) {
   noReceipt.records.delete(RECEIPT);
   await noReceipt.context.writeOpsGlobalStorage(timestampOnly);
   assert.equal(noReceipt.records.has(RECEIPT), false, 'Refresh cannot invent a publication receipt');
-  console.log('PASS People sync publication status: clean acknowledgement → actual Settings refresh → exact persistence → reload stays clean; genuine People/global/community changes dirty, and unknown pending history remains protected.');
+  console.log('PASS People sync publication status: pre-save People requests preserve exact capture during Save; real People/global changes refuse stale acknowledgement; clean Settings refresh and reload stay clean, with unknown pending history protected.');
 })().catch(error => {console.error(error); process.exitCode = 1;});

@@ -18339,6 +18339,13 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false,
       sharedData.lastPeopleSyncAt = new Date().toISOString();
       sharedData.validationIssues = validateAtlasSharedData(sharedData);
       check();
+      // A request can finish after Central Save captures the exact local records.
+      // Keep a clock-only observation from changing that capture while this save
+      // runs; real People changes and other current settings still persist below.
+      if (typeof saveAtlasCentralAppState === "function" && saveAtlasCentralAppState.inFlight && atlasOpsGlobalChangedOnlyPeopleSyncTime({ sharedData: atlasSharedData }, { sharedData: normalizeAtlasSharedData(sharedData) })) {
+        if (Object.prototype.hasOwnProperty.call(atlasSharedData, "lastPeopleSyncAt")) sharedData.lastPeopleSyncAt = atlasSharedData.lastPeopleSyncAt;
+        else delete sharedData.lastPeopleSyncAt;
+      }
       atlasSharedData = sharedData;
       syncAllCommunityStaffingFromPeopleRoster({ persist: false });
       window.atlasSynchronizeLinkedContacts?.();
@@ -18368,6 +18375,7 @@ function queueAtlasCentralPeopleLoad(options = {}) {
   const status = getAtlasCentralStatus();
   if (!status.configured || !status.signedIn) return;
   if (![1, 9, 10, 13, 14].includes(activeTab)) return;
+  if (!options.force && typeof saveAtlasCentralAppState === "function" && saveAtlasCentralAppState.inFlight) return;
   const lastSync = Date.parse(atlasSharedData?.lastPeopleSyncAt || "");
   if (!options.force && atlasSharedData?.lastPeopleSource === "atlas_central_people" && Number.isFinite(lastSync) && Date.now() - lastSync < 60000) return;
   const context=getAtlasRenderContextKey(),database=ATLAS_STATE_DB_NAME,epoch=atlasWorkspaceAccess.epoch,signal=atlasWorkspaceAccess.controller?.signal;

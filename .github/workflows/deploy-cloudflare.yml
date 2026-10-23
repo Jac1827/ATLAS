@@ -80,6 +80,7 @@ jobs:
             output/test-all/ci/*-reforecast-report-library-browser.test.mjs.log
             output/test-all/ci/*-finance-compat-browser.test.mjs.log
             output/test-all/ci/*-workspace-startup-browser.test.mjs.log
+            output/test-all/ci/*-report-approved-occupancy-browser.test.mjs.log
             output/test-all/ci/*-community-finance-period-warning.test.mjs.log
             output/test-all/ci/*-str-ltr-comparison-browser.test.mjs.log
             output/test-all/ci/*-saved-str-programme-browser.test.mjs.log
@@ -157,6 +158,7 @@ jobs:
             output/test-all/ci/*-reforecast-report-library-browser.test.mjs.log
             output/test-all/ci/*-finance-compat-browser.test.mjs.log
             output/test-all/ci/*-workspace-startup-browser.test.mjs.log
+            output/test-all/ci/*-report-approved-occupancy-browser.test.mjs.log
             output/test-all/ci/*-community-finance-period-warning.test.mjs.log
             output/test-all/ci/*-str-ltr-comparison-browser.test.mjs.log
             output/test-all/ci/*-saved-str-programme-browser.test.mjs.log

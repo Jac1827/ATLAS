@@ -742,8 +742,8 @@
     ]
   },
   "features/occupancy-budget-store.mjs": {
-    "sha256": "755a90378f0450fd",
-    "bytes": 3560,
+    "sha256": "e32b767ebd6ae4ec",
+    "bytes": 4692,
     "references": [
       [
         "workspace-core.js",
@@ -1334,7 +1334,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "da8ba2f804704a21",
+    "sha256": "bfa2a489815c9d99",
     "bytes": 3168730,
     "references": [
       [

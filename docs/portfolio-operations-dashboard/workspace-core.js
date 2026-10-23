@@ -14100,7 +14100,7 @@ function prepareAtlasOccupancyBudgetView() {
   const panel = document.getElementById(`tab-panel-${activeTab}`);
   if (panel) panel.innerHTML = '<div class="card" role="status">Reading saved community budgets…</div>';
   if (!prepareAtlasOccupancyBudgetView.pending) {
-    prepareAtlasOccupancyBudgetView.pending = import('./features/occupancy-budget-store.mjs?v=755a90378f0450fd').then(async module => {
+    prepareAtlasOccupancyBudgetView.pending = import('./features/occupancy-budget-store.mjs?v=e32b767ebd6ae4ec').then(async module => {
       if (!window.AtlasOccupancyBudgets) {
         window.AtlasOccupancyBudgets = module.createOccupancyBudgetStore(central);
         const clear = () => { window.AtlasOccupancyBudgets.clear(); scheduleAtlasSharedRender(); };

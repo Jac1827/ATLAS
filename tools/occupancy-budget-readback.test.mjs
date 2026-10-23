@@ -58,3 +58,45 @@ assert.equal(transportCalls.length,2);assert(transportCalls.some(call=>call.url.
 const rpcCall=transportCalls.find(call=>call.url==='/rpc/atlas_read_active_reforecast'),body=JSON.parse(rpcCall.options.body);
 assert.deepEqual(body.p_community_ids,[cid]);assert.equal(body.p_periods.length,12);assert.equal(body.p_periods[8],'2026-09');
 console.log('PASS approved original/reforecast/missing parity, invalid/overlap rejection, immutable sources and real read-only transport scope.');
+
+// The real transport rejects an annual response when one active month is invalid.
+// An exact-period retry must not carry that failure (or a sibling's successful
+// verification) into another month of the same publication.
+const isolatedCalls=[],isolatedOriginal={...approved,community_id:cid,covered_months:[0,7,8],payload:{occupancyPct:Array(12).fill(92)}};
+const multiPeriod={...publication,communityId:cid,activePeriods:['2026-08','2026-09'],snapshot:{leasing:[
+ {period:'2026-08',sourceKind:'forecast',occupancy:.86,units:100},
+ {period:'2026-09',sourceKind:'forecast',occupancy:.88,units:100}
+]}};
+let unavailableAll=false;
+const isolatedTransport={...transport,fetchJson:async(url,options={})=>{
+ if(url.startsWith('/atlas_approved_budget_versions?'))return [isolatedOriginal];
+ assert.equal(url,'/rpc/atlas_read_active_reforecast');
+ const request=JSON.parse(options.body);isolatedCalls.push(request.p_periods);
+ if(unavailableAll)throw Error('Reforecast service unavailable');
+ return request.p_periods.some(period=>multiPeriod.activePeriods.includes(period))
+  ? [{...multiPeriod,verified:!request.p_periods.includes('2026-08')}] : [];
+}};
+const isolated=createOccupancyBudgetStore(isolatedTransport),isolatedEntries=[{name:'Synthetic',recordId:'synthetic',communityId:cid,year:2026}];
+await isolated.hydrate(isolatedEntries);
+assert.equal(isolatedCalls[0].length,12,'healthy batches retain one yearly request');
+assert.equal(isolatedCalls.length,13,'failed batch is verified at exact period scope');
+assert(isolatedCalls.slice(1).every(periods=>periods.length===1));
+assert.equal(isolated.get({communityId:'synthetic'},0,2026).pct,92,'unaffected original survives a failed active publication in another month');
+assert.equal(isolated.get({communityId:'synthetic'},8,2026).pct,88,'valid sibling month of the same publication remains available');
+const invalidMonth=isolated.get({communityId:'synthetic'},7,2026);
+assert.equal(invalidMonth.status,'error');assert.equal(invalidMonth.pct,undefined,'failed active month cannot fall back to its older original or reuse sibling verification');
+assert.match(invalidMonth.reason,/this month/);
+unavailableAll=true;isolated.clear();await isolated.hydrate(isolatedEntries);
+assert.equal(isolated.get({communityId:'synthetic'},0,2026).status,'error','an unverified active-head read cannot treat an original as current');
+assert.equal(isolated.get({communityId:'synthetic'},8,2026).status,'error');
+let fallbackCalls=0;const releases=[];
+const interrupted=createOccupancyBudgetStore(central,{read:async()=>[approved],readReforecasts:async(_,options)=>{
+ fallbackCalls++;if(options.periods.length>1)throw Error('Annual read rejected');
+ return new Promise(resolve=>releases.push(resolve));
+}});
+const interruptedTask=interrupted.hydrate(entries.slice(0,1));await new Promise(resolve=>setImmediate(resolve));
+assert.equal(releases.length,4,'period retries have bounded concurrency');
+interrupted.clear();for(const resolve of releases)resolve([]);await interruptedTask;
+assert.equal(fallbackCalls,5,'invalidated reads stop before scheduling more periods');
+assert.equal(interrupted.ready(entries.slice(0,1)),false,'late period retries cannot repopulate cleared evidence');
+console.log('PASS exact-period failure isolation across original budgets and shared publications; affected periods and full transport failures remain unavailable.');

@@ -18162,6 +18162,19 @@ async function refreshAtlasDashboardWeather(options = {}) {
 function getAtlasDashboardLatestDataUploadAt(monthIdx = getSelectedDashboardMonthIndex()) {
   const candidates = [];
   const scopedNames = (isPortfolioWorkspaceSelected() && atlasHomeRenderDetails ? atlasHomePortfolioDetails(monthIdx) : getWorkspaceScopedDetails(monthIdx)).map(detail => detail.name).filter(Boolean);
+  // The compact import projection retains approved source receipts separately
+  // from legacy community upload stamps. Unbound history or approval/source
+  // dates cannot establish when a scoped Box Score was uploaded.
+  const importState = typeof dataImport2State === "undefined" ? null : dataImport2State;
+  const batches = new Map((Array.isArray(importState?.batches) ? importState.batches : [])
+    .filter(batch => typeof batch?.id === "string" && batch.id.trim() && batch.status === "Approved" && !batch.deletedAt && !batch.rolledBackAt && !batch.rollback?.rolledBackAt)
+    .map(batch => [batch.id, batch]));
+  for (const source of Array.isArray(importState?.sourceArchive) ? importState.sourceArchive : []) {
+    const batch = batches.get(source?.batchId);
+    if (typeof source?.id !== "string" || !source.id.trim() || source.reportType !== "box_score" || source.importStatus !== "Approved" || source.deletedAt || source.rolledBackAt || !batch) continue;
+    if (Array.isArray(batch.archiveIds) && !batch.archiveIds.includes(source.id)) continue;
+    if (Array.isArray(source.communities) && source.communities.some(name => scopedNames.includes(name))) candidates.push(source.uploadedAt);
+  }
   scopedNames.forEach(name => {
     const record = name === getProp().name
       ? getCurrentCommunityRecord()

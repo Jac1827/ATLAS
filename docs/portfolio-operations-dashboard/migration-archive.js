@@ -495,7 +495,7 @@
       await new Promise((resolve,reject)=>{const request=indexedDB.deleteDatabase(name);request.onsuccess=()=>resolve();request.onerror=()=>reject(request.error);});
     }
   }
-  async function publish(archive,client,chunkSize=524288,{signal,isCurrent=()=>true}={}) {
+  async function publish(archive,client,chunkSize=524288,{signal,isCurrent=()=>true,onProgress}={}) {
     const check=()=>{if(signal?.aborted||!isCurrent())throw new DOMException('Workspace changed during archive publication','AbortError');};
     check();
     if(archive?.bundleType!==TYPE)return archive;
@@ -503,6 +503,11 @@
     const transport=archiveTransport(archive);
     if(typeof archive.data==='string'&&transport.length<=chunkSize){await decodeArchiveTransport(archive,{signal,isCurrent});return archive;}
     const references=[];let decoded=0;
+    const total=Math.ceil(transport.length/chunkSize);
+    // Observers receive only counts, after verification. UI failures cannot
+    // change archive bytes, authorization checks, or publication outcomes.
+    const report=()=>{try{onProgress?.({phase:'publishing_parts',completed:references.length,total});}catch{}};
+    report();
     for await(const part of archiveTextChunks(transport,{signal,isCurrent},chunkSize)){
       check();decoded+=part.bytes.length;
       const data=part.text,sha256=await digest(new TextEncoder().encode(data));
@@ -518,6 +523,7 @@
       }
       if(existing?.payload?.data!==data||existing?.payload?.sha256!==sha256)throw Error('Central migration part readback mismatch');
       references.push({documentKey,sha256,length:data.length});
+      report();
     }
     if(decoded!==archive.bytes)throw Error('Migration archive decoded length mismatch');check();
     const {data,dataBlob,bytesData,dataDocuments,...manifest}=archive;

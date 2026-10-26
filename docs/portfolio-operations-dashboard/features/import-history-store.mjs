@@ -240,7 +240,7 @@ export async function prepareStreamedInitialHistory(key,value,initialSnapshots){
 
 export async function* iterateStoredHistoryTokens(row,{signal,expectedCapturedAt}={}){
   const {tokensFromJsonBlob,createJsonTokenSink}=await import('./migration-token-stream.mjs');
-  const module=await import('../migration-archive.js?v=ab39d3a4205b4424');
+  const module=await import('../migration-archive.js?v=f94960357201ec72');
   const archive=module.default||globalThis.AtlasMigrationArchive;
   const hash=createJsonTokenSink({signal,hashOnly:true});
   const observer=expectedCapturedAt===undefined?null:archive.createSelectedTokenReader(path=>!path.length||path.length===1&&path[0]==='capturedAt');
@@ -340,7 +340,7 @@ export async function executeHistory(request) {
     if(operation==='recordExportPacked'){
       const stored=request.storedRecord;
       if(!stored||stored.encoding!==STORED_JSON_ENCODING||!stored.archiveRecordMetadata||stored.archiveRecordMetadata.key!==stored.key||!/^record-\d+\.json$/.test(request.archiveName))throw fail('Invalid encoded retained archive record.','history_integrity');
-      const module=await import('../migration-archive.js?v=ab39d3a4205b4424');check(signal);
+      const module=await import('../migration-archive.js?v=f94960357201ec72');check(signal);
       const archive=module.default||globalThis.AtlasMigrationArchive;
       const tokens=(async function*(){
         yield [['object']];
@@ -392,7 +392,7 @@ export async function executeHistory(request) {
     if(operation==='current')return await currentState(db,storeName,key,head,request.scope,signal);
     if(operation==='exportPacked'){
       if(request.archiveRecord?.key!==key||!/^record-\d+\.json$/.test(request.archiveName))throw fail('Invalid archive record request.');
-      const module=await import('../migration-archive.js?v=ab39d3a4205b4424');check(signal);
+      const module=await import('../migration-archive.js?v=f94960357201ec72');check(signal);
       const archive=module.default||globalThis.AtlasMigrationArchive;
       const packed=await archive.packTokenRecord(request.archiveName,exportHistoryTokenBatches(db,storeName,key,head,request.archiveRecord,archive,signal),{onProgress:progress=>{check(signal);request.onArchiveProgress?.(progress);}});
       check(signal);const current=await readOne(db,storeName,key,signal);

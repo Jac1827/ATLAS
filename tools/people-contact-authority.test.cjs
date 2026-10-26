@@ -60,7 +60,7 @@ function persistenceFixture() {
   const records=new Map([['communities',{key:'communities',value:{Subject:clone(original),Other:{marketSurveyData:{version:100}}},updatedAt:'before'}],['atlas_workspace_source_v2',{key:'atlas_workspace_source_v2',value:{dirty:false},updatedAt:'before'}]]);
   const state={writes:0,fail:false,readFail:false,access:true,afterCommit:null};
   const c={window:{AtlasPeopleContacts:api,ATLAS_CENTRAL:{getSession:()=>({user:{id:'actor'}})}},Date,Map,Set,JSON,
-    ATLAS_STATE_COMMUNITY_KEY:'communities',OPS_GLOBAL_STORAGE_KEY:'ops',savedData:clone(records.get('communities').value),
+    ATLAS_RENEWAL_REPAIR_KEY:'renewal-repair',atlasRenewalRepairPending:()=>false,atlasRenewalRepairGeneration:()=>"",ATLAS_STATE_COMMUNITY_KEY:'communities',OPS_GLOBAL_STORAGE_KEY:'ops',savedData:clone(records.get('communities').value),
     atlasWorkspaceAccess:{validated:true},getAtlasCentralStatus:()=>({signedIn:true}),isCommunitySettingsAdmin:()=>true,
     captureAtlasAuxiliaryContext:()=>({current:()=>state.access}),atlasDashboardUserCanSeeCommunityName:name=>name==='Subject',getProp:()=>({name:'Subject'}),
     communityGeneralManagerName:original.generalManagerName,communityGeneralManagerEmail:original.generalManagerEmail,

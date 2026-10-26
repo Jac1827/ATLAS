@@ -13,7 +13,7 @@ function deferred() {
   return { result, succeed() { result.pending = false; resolve(); }, fail(message) { result.ok = false; result.pending = false; result.message = message; resolve(); }, reject };
 }
 function context() {
-  const ctx = {
+  const ctx = {atlasRenewalRepairPending:()=>false,atlasRenewalRepairGeneration:()=>"",
     Promise, Error, DOMException, Date, Set, context: 'community-a', ATLAS_STATE_DB_NAME: 'db-a', atlasWorkspaceAccess: { epoch: 1 },
     getAtlasRenderContextKey: () => ctx.context, escapeHtml: s => String(s).replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
     atlasSaveContextSignature: null, atlasSaveContextRevision: 0, portfolioMonthScopeByPeriod: {}, getSelectedDashboardPeriodKey: () => '2026-09',

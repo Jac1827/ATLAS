@@ -93,6 +93,7 @@ entries=[
  ('features/reports-workspace.js',[('performance/feature-loader.js','features/reports-workspace.js')]),
  ('features/import-workspace.js',[('performance/feature-loader.js','features/import-workspace.js')]),
  ('features/bonus-workspace.js',[('performance/feature-loader.js','features/bonus-workspace.js')]),
+ ('features/renewal-workflow-repair.mjs',[('features/admin-workspace.js','./renewal-workflow-repair.mjs')]),
  ('features/admin-workspace.js',[('performance/feature-loader.js','features/admin-workspace.js')]),
  ('features/resident-communication-alerts.js',[('index.html','./features/resident-communication-alerts.js')]),
  ('features/resident-communications.js',[('performance/feature-loader.js','features/resident-communications.js')]),

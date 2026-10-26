@@ -15,6 +15,8 @@ entries=[
  ('workforce-assignment.js',[('index.html','./workforce-assignment.js')]),
  ('application-aging.js',[('index.html','./application-aging.js')]),
  ('property-organization.js',[('index.html','./property-organization.js')]),
+ ('people-contact-authority.js',[('index.html','./people-contact-authority.js')]),
+ ('people-contact-review.js',[('index.html','./people-contact-review.js')]),
  ('concession-insights.js',[('index.html','./concession-insights.js')]),
  ('budget-workbook-import.js',[('RISE-Budget-Builder.html','./budget-workbook-import.js')]),
  ('budget-draft-storage.js',[('RISE-Budget-Builder.html','./budget-draft-storage.js')]),

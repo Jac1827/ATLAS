@@ -1437,16 +1437,17 @@ function ensurePortfolioPropertyListEntry(propName, units = null) {
   if (!exists) PROPERTIES.push({ name: cleanName, units });
 }
 
-function atlasProjectSharedPropertyToCommunityRecord(record, existingRecord = {}) {
+function atlasProjectSharedPropertyToCommunityRecord(record, existingRecord = {}, communityName = "") {
+  const contact = window.AtlasPeopleContacts?.contact(existingRecord, communityName);
   return {
     ...existingRecord,
     communityId: record.communityId,
     communityMarket: record.market || existingRecord.communityMarket || "",
     communityRegionalGrouping: record.regionalGrouping || existingRecord.communityRegionalGrouping || record.market || "",
     communityPropertyType: record.propertyType || existingRecord.communityPropertyType || "",
-    generalManagerName: record.generalManagerName || existingRecord.generalManagerName || "",
-    generalManagerEmail: record.generalManagerEmail || existingRecord.generalManagerEmail || "",
-    generalManagerUserId: record.generalManagerUserId || existingRecord.generalManagerUserId || "",
+    generalManagerName: contact ? contact.name : record.generalManagerName || existingRecord.generalManagerName || "",
+    generalManagerEmail: contact ? contact.email : record.generalManagerEmail || existingRecord.generalManagerEmail || "",
+    generalManagerUserId: contact ? existingRecord.generalManagerUserId || "" : record.generalManagerUserId || existingRecord.generalManagerUserId || "",
     regionalManagerName: record.regionalManagerName || existingRecord.regionalManagerName || "",
     regionalManagerEmail: record.regionalManagerEmail || existingRecord.regionalManagerEmail || "",
     regionalManagerUserId: record.regionalManagerUserId || existingRecord.regionalManagerUserId || "",
@@ -1461,6 +1462,7 @@ function atlasProjectSharedPropertyToCommunityRecord(record, existingRecord = {}
 
 function syncSharedPropertyFromPortfolioRecord(propName, record, options = {}) {
   const normalized = normalizeSavedCommunityRecord(propName, record);
+  const contact = window.AtlasPeopleContacts?.contact(normalized, propName);
   const timestamp = String(options.timestamp || atlasSharedNow());
   const graph = readAtlasSharedPropertyGraph();
   const result = atlasUpsertSharedProperty(graph, {
@@ -1469,9 +1471,9 @@ function syncSharedPropertyFromPortfolioRecord(propName, record, options = {}) {
     market: normalized.communityMarket,
     regionalGrouping: normalized.communityRegionalGrouping,
     propertyType: normalized.communityPropertyType,
-    generalManagerName: normalized.generalManagerName,
-    generalManagerEmail: normalized.generalManagerEmail,
-    generalManagerUserId: normalized.generalManagerUserId,
+    // Reviewed contacts are display bindings, never directory identities.
+    ...(contact ? {} : {generalManagerName: normalized.generalManagerName,
+      generalManagerEmail: normalized.generalManagerEmail, generalManagerUserId: normalized.generalManagerUserId}),
     regionalManagerName: normalized.regionalManagerName,
     regionalManagerEmail: normalized.regionalManagerEmail,
     regionalManagerUserId: normalized.regionalManagerUserId,
@@ -1496,7 +1498,7 @@ function syncSharedPropertyFromPortfolioRecord(propName, record, options = {}) {
     strictPropertyType: options.strictPropertyType !== false
   });
   if (result.record) {
-    Object.assign(record, atlasProjectSharedPropertyToCommunityRecord(result.record, record));
+    Object.assign(record, atlasProjectSharedPropertyToCommunityRecord(result.record, record, propName));
   }
   if (options.persist !== false) writeAtlasSharedPropertyGraph(graph, { source: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID, updatedAt: timestamp });
   return result;
@@ -1571,6 +1573,7 @@ function syncSharedPropertiesFromPortfolio(options = {}) {
     if (!cleanName || seen.has(atlasNormalizeSharedText(cleanName))) return;
     seen.add(atlasNormalizeSharedText(cleanName));
     const normalized = normalizeSavedCommunityRecord(cleanName, record || savedData[cleanName]);
+    const contact = window.AtlasPeopleContacts?.contact(normalized, cleanName);
     const timestamp = String(options.timestamp || normalized.sharedSyncUpdatedAt || normalized.financialUpdatedAt || "1970-01-01T00:00:00.000Z");
     const result = atlasUpsertSharedProperty(graph, {
       communityId: normalized.communityId,
@@ -1578,9 +1581,8 @@ function syncSharedPropertiesFromPortfolio(options = {}) {
       market: normalized.communityMarket,
       regionalGrouping: normalized.communityRegionalGrouping,
       propertyType: normalized.communityPropertyType,
-      generalManagerName: normalized.generalManagerName,
-      generalManagerEmail: normalized.generalManagerEmail,
-      generalManagerUserId: normalized.generalManagerUserId,
+      ...(contact ? {} : {generalManagerName: normalized.generalManagerName,
+        generalManagerEmail: normalized.generalManagerEmail, generalManagerUserId: normalized.generalManagerUserId}),
       regionalManagerName: normalized.regionalManagerName,
       regionalManagerEmail: normalized.regionalManagerEmail,
       regionalManagerUserId: normalized.regionalManagerUserId,
@@ -1607,7 +1609,7 @@ function applySharedPropertyGraphToPortfolio(options = {}) {
     if (!portfolioName) return;
     ensurePortfolioPropertyListEntry(portfolioName);
     const existing = normalizeSavedCommunityRecord(portfolioName, savedData[portfolioName]);
-    const projectedInput = applyAtlasSharedManualFieldLocks(portfolioName, atlasProjectSharedPropertyToCommunityRecord(record, existing), record);
+    const projectedInput = applyAtlasSharedManualFieldLocks(portfolioName, atlasProjectSharedPropertyToCommunityRecord(record, existing, portfolioName), record);
     const projected = normalizeSavedCommunityRecord(portfolioName, projectedInput);
     if (JSON.stringify(savedData[portfolioName] || null) !== JSON.stringify(projected)) {
       savedData[portfolioName] = projected;
@@ -1717,6 +1719,7 @@ function renderPortfolioSharedPropertyFields() {
       </div>
       ${issueHtml}
       ${atlasOrganizationWarnings()}
+      ${window.atlasPeopleContactReviewPanel?.() || ""}
     </div>`;
 }
 
@@ -4359,12 +4362,19 @@ function atlasOpsGlobalChangedOnlyPeopleSyncTime(previous, next) {
 
 async function atlasStateSetValue(key, value, options = {}) {
   if ([ATLAS_STATE_COMMUNITY_KEY, OPS_GLOBAL_STORAGE_KEY].includes(String(key))) {
+    const contactWriteAtStart = window.AtlasPeopleContactWrite, contactGeneration = Number(window.AtlasPeopleContactGeneration || 0);
     let accepted = true, writeError = null;
     try {
       await withAtlasStateStore("readwrite", store => {
         const request = store.get(String(key));
         request.onsuccess = () => {
           try {
+            if (String(key) === ATLAS_STATE_COMMUNITY_KEY && window.AtlasPeopleContactRecovery) throw new Error(window.AtlasPeopleContactRecovery);
+            if (String(key) === ATLAS_STATE_COMMUNITY_KEY && (
+              contactGeneration !== Number(window.AtlasPeopleContactGeneration || 0)
+              || (contactWriteAtStart?.started && options.peopleContactWrite !== contactWriteAtStart)
+              || (window.AtlasPeopleContactWrite?.started && options.peopleContactWrite !== window.AtlasPeopleContactWrite)
+            )) throw new Error("People contacts changed while this save was waiting. Review the current workspace before saving again.");
             if (options.acceptCurrent && !options.acceptCurrent(request.result?.value ?? null)) { accepted = false; return; }
             const prepared = options.prepareValue ? options.prepareValue() : value;
             const next = String(key) === ATLAS_STATE_COMMUNITY_KEY && window.AtlasOccupancyReplay?.protectCommittedOccupancy
@@ -8746,6 +8756,7 @@ function normalizeCommunityMonthlySources(input = {}) {
 function normalizeSavedCommunityRecord(propName, data) {
   const defaults = defaultSavedCommunityRecord(propName);
   const input = data ?? {};
+  const reviewedContact = window.AtlasPeopleContacts?.contact(input, propName);
   const propertyConfig = normalizePropertyTeamConfig(input.propertyTeamConfig);
   const communityProfiles = normalizeCommunityTeamProfiles(input.communityTeamProfiles, propertyConfig);
   const legacyPropertyTurnover = normalizePropertyTurnoverConfig(input.propertyTurnoverConfig);
@@ -8779,6 +8790,7 @@ function normalizeSavedCommunityRecord(propName, data) {
     communityRegionalGrouping: String(input.communityRegionalGrouping ?? input.communityMarket ?? defaults.communityRegionalGrouping).trim(),
     communityPropertyType: String(input.communityPropertyType ?? defaults.communityPropertyType).trim(),
     generalManagerEmployeeId: String(input.generalManagerEmployeeId || ""),
+    ...(reviewedContact ? {peopleContactAuthority: reviewedContact} : {}),
     regionalManagerEmployeeId: String(input.regionalManagerEmployeeId || ""),
     boxScoreHistory: Array.isArray(input.boxScoreHistory) ? input.boxScoreHistory : [],
     websiteSettingsUpdatedAt: String(input.websiteSettingsUpdatedAt || ""),
@@ -8786,8 +8798,8 @@ function normalizeSavedCommunityRecord(propName, data) {
     ...(Object.prototype.hasOwnProperty.call(input, "websiteSettingsExpectedRevision") ? {websiteSettingsExpectedRevision: String(input.websiteSettingsExpectedRevision || "")} : {}),
     websiteSettingsSyncPending: input.websiteSettingsSyncPending === true,
     ...(input.websiteSettingsBaseUrls && typeof input.websiteSettingsBaseUrls === "object" ? {websiteSettingsBaseUrls: {communityWebsiteUrl: String(input.websiteSettingsBaseUrls.communityWebsiteUrl || ""), floorPlanRatesPageUrl: String(input.websiteSettingsBaseUrls.floorPlanRatesPageUrl || "")}} : {}),
-    generalManagerName: String(input.generalManagerName ?? defaults.generalManagerName).trim(),
-    generalManagerEmail: atlasNormalizeSharedEmail(input.generalManagerEmail ?? defaults.generalManagerEmail),
+    generalManagerName: reviewedContact ? reviewedContact.name : String(input.generalManagerName ?? defaults.generalManagerName).trim(),
+    generalManagerEmail: reviewedContact ? reviewedContact.email : atlasNormalizeSharedEmail(input.generalManagerEmail ?? defaults.generalManagerEmail),
     generalManagerUserId: String(input.generalManagerUserId ?? defaults.generalManagerUserId).trim(),
     regionalManagerName: String(input.regionalManagerName ?? defaults.regionalManagerName).trim(),
     regionalManagerEmail: atlasNormalizeSharedEmail(input.regionalManagerEmail ?? defaults.regionalManagerEmail),
@@ -9096,6 +9108,8 @@ async function awaitAtlasPersistenceResults(saves) {
 }
 
 function persistSaved() {
+  if(window.AtlasPeopleContactWrite)return {ok:false,pending:false,completion:Promise.resolve(false),message:"People contacts are being verified. Wait before saving again."};
+  if(window.AtlasPeopleContactRecovery)return {ok:false,pending:false,completion:Promise.resolve(false),message:window.AtlasPeopleContactRecovery};
   if(window.AtlasReplayWriteFence)return {ok:false,pending:false,completion:Promise.resolve(false),message:"Saving is paused during source replay or checkpoint recovery."};
   const serialized = buildSerializedSavedDataPayload();
   const result = { ok: true, pending: true, completion: null, message: "" };
@@ -19493,6 +19507,8 @@ async function buildAtlasCentralAppStatePayload() {
 }
 
 async function saveAtlasCentralAppState({ silent = false, source = "manual_central_save" } = {}) {
+  if(window.AtlasPeopleContactWrite){const message="People contacts are being verified. Wait before Central Save.";setAtlasCentralRuntimeMessage("",message);if(!silent)alert(message);return false;}
+  if(window.AtlasPeopleContactRecovery){setAtlasCentralRuntimeMessage("",window.AtlasPeopleContactRecovery);if(!silent)alert(window.AtlasPeopleContactRecovery);return false;}
   if(window.AtlasReplayWriteFence){const message="Central Save is paused during source replay or checkpoint recovery. Reload if recovery is pending.";setAtlasCentralRuntimeMessage("",message);if(!silent)alert(message);return false;}
   if (saveAtlasCentralAppState.inFlight) {
     if (!silent) alert("A Central Save is already running. Newer edits remain in this browser; save again after it finishes.");
@@ -19504,7 +19520,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
   const actor = atlasWorkspaceActorKey(), database = ATLAS_STATE_DB_NAME;
   const replayGeneration = Number(window.AtlasReplayGeneration || 0);
   const current = () => saveContext() && actor === atlasWorkspaceActorKey() && database === ATLAS_STATE_DB_NAME
-    && !window.AtlasReplayWriteFence && replayGeneration === Number(window.AtlasReplayGeneration || 0);
+    && !window.AtlasReplayWriteFence && !window.AtlasPeopleContactRecovery && replayGeneration === Number(window.AtlasReplayGeneration || 0);
   const pendingKey = "atlas_workspace_projection_pending_v1";
   let committedParent = null;
   let publicationCacheCapture = null;
@@ -34907,6 +34923,76 @@ function updateCommunitySharedField(field, value) {
     communityRegionalManagerName = String(value ?? "").trim();
   } else if (field === "regionalManagerEmail") {
     communityRegionalManagerEmail = atlasNormalizeSharedEmail(value);
+  }
+}
+
+async function persistReviewedPeopleContacts(rows) {
+  const api = window.AtlasPeopleContacts, context = captureAtlasAuxiliaryContext();
+  const check = () => {
+    if (window.AtlasPeopleContactRecovery) throw new Error(window.AtlasPeopleContactRecovery);
+    if (typeof saveAtlasCentralAppState === "function" && saveAtlasCentralAppState.inFlight) throw new Error("Wait for Central Save to finish, then review People contacts again.");
+    if (!context.current() || !atlasWorkspaceAccess.validated || !getAtlasCentralStatus().signedIn || !isCommunitySettingsAdmin()
+      || rows.some(row => !atlasDashboardUserCanSeeCommunityName(row.community))) throw new Error("Access changed. Review People contacts again.");
+  };
+  if (!api || !Array.isArray(rows) || !rows.length || rows.length > 100 || new Set(rows.map(row => row.community)).size !== rows.length) throw new Error("Select the contacts to apply.");
+  check();
+  const reviewedAt = new Date().toISOString(), reviewedBy = String(window.ATLAS_CENTRAL?.getSession?.()?.user?.id || "");
+  const selections = rows.map(row => {
+    const candidate = api.normalize({...row.candidate, reviewedAt, reviewedBy});
+    if (!candidate || candidate.community !== row.community || typeof row.baseline !== "string") throw new Error("The reviewed contact source changed.");
+    return {...row, candidate};
+  });
+  if (window.AtlasPeopleContactWrite) throw new Error("Another People contact review is being applied. Wait for it to finish.");
+  const operation = {started: false};
+  window.AtlasPeopleContactWrite = operation;
+  window.AtlasPeopleContactGeneration = Number(window.AtlasPeopleContactGeneration || 0) + 1;
+  let verified = false, prepared = null, failure;
+  try {
+    await queueAtlasStateWrite(async () => {
+      try {
+        check(); operation.started = true;
+        let stored;
+        const accepted = await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, null, {
+          peopleContactWrite: operation,
+          acceptCurrent: previous => {
+            check(); stored = previous;
+            // A later ordinary Save serializes this runtime. Do not accept a newer
+            // stored workspace that this tab could otherwise overwrite afterward.
+            if (JSON.stringify(stored) !== JSON.stringify(buildSerializedSavedDataPayload())) throw new Error("Workspace data changed. Reload the current workspace and review People contacts again.");
+            return Boolean(stored) && selections.every(row => api.baseline(stored[row.community]) === row.baseline && api.baseline(savedData[row.community]) === row.baseline);
+          },
+          prepareValue: () => {
+            prepared = {...stored};
+            for (const row of selections) prepared[row.community] = api.apply(stored[row.community], row.candidate);
+            return prepared;
+          }
+        });
+        if (!accepted) throw new Error("A contact changed since review. Review the current choices before applying.");
+        check();
+        const readback = await atlasStateGetValue(ATLAS_STATE_COMMUNITY_KEY); check();
+        if (JSON.stringify(readback) !== JSON.stringify(prepared)) throw new Error("Contact storage verification failed. Keep this tab open and review again.");
+        verified = true;
+      } catch (error) {
+        if (prepared) window.AtlasPeopleContactRecovery = "Contact storage could not be verified. Reload the current workspace and review its contacts before saving again.";
+        failure = prepared ? new Error(`${error.message} ${window.AtlasPeopleContactRecovery}`) : error;
+        throw failure;
+      }
+    }, "reviewed_people_contacts");
+    if (!verified) throw failure || new Error("Contacts could not be saved. Keep this tab open and retry.");
+    check();
+    if (selections.some(row => api.baseline(savedData[row.community]) !== row.baseline)) throw new Error("A newer contact edit remains in this tab. Review it before continuing.");
+    for (const row of selections) savedData[row.community] = api.apply(savedData[row.community], row.candidate);
+    const selected = selections.find(row => row.community === getProp().name);
+    if (selected) {communityGeneralManagerName = selected.candidate.name; communityGeneralManagerEmail = selected.candidate.email;}
+    return selections.length;
+  } catch (error) {
+    if (prepared) {
+      window.AtlasPeopleContactRecovery = "Contact storage could not be verified. Reload the current workspace and review its contacts before saving again.";
+      if (!error.message.includes(window.AtlasPeopleContactRecovery)) throw new Error(`${error.message} ${window.AtlasPeopleContactRecovery}`);
+    }
+    throw error;
+  } finally {
+    if (window.AtlasPeopleContactWrite === operation) delete window.AtlasPeopleContactWrite;
   }
 }
 

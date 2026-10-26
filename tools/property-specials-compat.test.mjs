@@ -19,6 +19,10 @@ assert.throws(() => patchPropertySpecialsClient(retained,current+'\n'+current), 
 const core=readFileSync(new URL('../docs/portfolio-operations-dashboard/workspace-core.js',import.meta.url),'utf8');
 const normalizer='retained preface\n    websiteSettingsUpdatedAt: String(input.websiteSettingsUpdatedAt || ""),\n    generalManagerName: String(input.generalManagerName ?? defaults.generalManagerName).trim(),\nretained tail';
 const revised=patchPropertySpecialsSettings(normalizer,core);
+const legacyCore=core.replace('generalManagerName: reviewedContact ? reviewedContact.name : String(input.generalManagerName', 'generalManagerName: String(input.generalManagerName');
+assert.equal(patchPropertySpecialsSettings(normalizer,legacyCore),revised,'Both known GM delimiters copy exactly the same website fields');
+assert.equal(revised.includes('reviewedContact'),false,'Reviewed contact runtime must not enter the retained host');
+assert.throws(()=>patchPropertySpecialsSettings(normalizer,core.replace('generalManagerName: reviewedContact ? reviewedContact.name :', 'generalManagerName: unknownContact ? unknownContact.name :')),/normalizer boundary changed/);
 assert.ok(revised.startsWith('retained preface\n'));assert.ok(revised.endsWith('    generalManagerName: String(input.generalManagerName ?? defaults.generalManagerName).trim(),\nretained tail'));
 const fields=revised.slice(revised.indexOf('    websiteSettingsUpdatedAt:'),revised.indexOf('    generalManagerName:'));
 const normalize=vm.runInNewContext('(input)=>({'+fields+'})');

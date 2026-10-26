@@ -1344,8 +1344,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "980e3c749abbebeb",
-    "bytes": 3175671,
+    "sha256": "d26810abd90874c2",
+    "bytes": 3182750,
     "references": [
       [
         "index.html",
@@ -1394,12 +1394,32 @@
     ]
   },
   "property-organization.js": {
-    "sha256": "ba937e1dd61b3b58",
-    "bytes": 29163,
+    "sha256": "e7b72ce140fa8c2c",
+    "bytes": 29911,
     "references": [
       [
         "index.html",
         "./property-organization.js"
+      ]
+    ]
+  },
+  "people-contact-authority.js": {
+    "sha256": "d0e3fb3e08bdbe61",
+    "bytes": 8088,
+    "references": [
+      [
+        "index.html",
+        "./people-contact-authority.js"
+      ]
+    ]
+  },
+  "people-contact-review.js": {
+    "sha256": "a4ce5bee167241fc",
+    "bytes": 5662,
+    "references": [
+      [
+        "index.html",
+        "./people-contact-review.js"
       ]
     ]
   },

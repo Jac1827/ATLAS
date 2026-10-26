@@ -99,3 +99,36 @@ test('an event already retained in Central Services is not duplicated', async ()
   const result = applyReviewedRenewalWorkflowRepair(review, f.options);
   assert.deepEqual(JSON.parse(result.centralServicesRaw), cs);
 });
+
+test('history missing only from Central Services remains reviewable without changing dashboard data', async () => {
+  const f = fixture();
+  const record = f.communityData.Example;
+  record.renewalDetailRowsByPeriod['2026-11'][0].activity.unshift(clone(f.priorEvent));
+  record.renewalDetailRowsByMonth[10][0].activity.unshift(clone(f.priorEvent));
+  record.renewalDetailRowsByMonth[10][0].activity.push({ at: '2026-10-26T16:01:00Z', label: 'Unrelated mirror observation' });
+  const before = clone(f.communityData), review = await reviewRenewalWorkflowRepair(f.snapshot, f.options);
+  assert.equal(review.issues.length, 0);
+  assert.equal(review.rows.length, 1, 'The UI can apply the Central Services-only repair');
+  assert.equal(review.counts.historicalEvents, 1);
+  assert.equal(review.counts.dashboardHistoricalEvents, 0);
+  assert.equal(review.counts.centralHistoricalEvents, 1);
+  const result = applyReviewedRenewalWorkflowRepair(review, f.options);
+  assert.deepEqual(result.communityData, before);
+  const cs = JSON.parse(f.centralServicesRaw); cs.renewals[0].activity.unshift(f.priorEvent);
+  assert.deepEqual(JSON.parse(result.centralServicesRaw), cs);
+  assert.equal(result.counts.historicalEvents, 1);
+  assert.equal(result.counts.dashboardHistoricalEvents, 0);
+  assert.equal(result.counts.centralHistoricalEvents, 1);
+  assert.equal(result.counts.mirrors, 0);
+});
+
+test('unaffected dashboard agreements do not require a loaded Central Services match', async () => {
+  for (const renewals of [[], [{ id: 'synthetic-agreement', propertyName: 'Other' }]]) {
+    const f = fixture();
+    f.communityData.Example.renewalDetailRowsByPeriod['2026-11'][0].activity.unshift(clone(f.priorEvent));
+    f.options.centralServicesRaw = JSON.stringify({ renewals });
+    const review = await reviewRenewalWorkflowRepair(f.snapshot, f.options);
+    assert.equal(review.issues.length, 0);
+    assert.equal(review.rows.length, 0);
+  }
+});

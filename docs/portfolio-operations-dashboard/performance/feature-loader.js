@@ -7,7 +7,7 @@
     reports: { src: new URL('features/reports-workspace.js?v=9e9cd3a7526079b1', base).href, ready: () => !!root.AtlasReports },
     importWorkspace: { src: new URL('features/import-workspace.js?v=986e7977a8f02a78', base).href, ready: () => !!root.AtlasImportWorkspace },
     bonusWorkspace: { src: new URL('features/bonus-workspace.js?v=5b55a9f8df2d0326', base).href, ready: () => !!root.AtlasBonusWorkspace },
-    adminWorkspace: { src: new URL('features/admin-workspace.js?v=5668895f18323be6', base).href, ready: () => !!root.AtlasAdminWorkspace },
+    adminWorkspace: { src: new URL('features/admin-workspace.js?v=6d52b4b91691542d', base).href, ready: () => !!root.AtlasAdminWorkspace },
     residentCommunications: { src: new URL('features/resident-communications.js?v=877a0ce805f91383', base).href, css: new URL('features/resident-communications.css?v=8f84c3003c7be5b8', base).href, ready: () => !!root.AtlasResidentCommunications },
     centralServices: { src: new URL('central-services.js?v=bb7345a244e8a803', base).href, ready: () => typeof root.renderCentralServicesTab === 'function' },
     historyRestore: { src: new URL('atlas_historical_restore_data.js?v=43f55dab14d794f6', base).href, ready: () => !!root.ATLAS_HISTORICAL_RESTORE_COMMUNITY_DATA },

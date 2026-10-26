@@ -668,15 +668,15 @@ function reviewAtlasRenewalHistory() {
       if(file.size>64*1024*1024)throw new Error("Choose the pre-import Snapshot JSON export, not the full rollback archive.");
       const text=await file.text(),snapshot=JSON.parse(text);
       atlasRenewalRepairCheck(context);
-      const api=await import("./renewal-workflow-repair.mjs?v=ac95bb6ddf2bf08e");
+      const api=await import("./renewal-workflow-repair.mjs?v=89230126580e53e0");
       const review=await api.reviewRenewalWorkflowRepair(snapshot,{communityData:buildSerializedSavedDataPayload(),centralServicesRaw:localStorage.getItem(ATLAS_RENEWAL_CS_KEY),sourceHash:await atlasRenewalRepairDigest(text),digest:atlasRenewalRepairDigest});
       atlasRenewalRepairCheck(context);
       if([...review.rows,...review.scalarComparisons,...review.issues].some(row=>!atlasDashboardUserCanSeeCommunityName(row.community)))throw new Error("This review contains communities outside your access.");
       const dialog=document.createElement("dialog");dialog.style.cssText="max-width:950px;width:90%;max-height:85vh;overflow:auto;padding:24px";
       dialog.innerHTML=`<h2>Review Renewal History</h2><p>Retained snapshot: ${escapeHtml(file.name)} · ${escapeHtml(review.source.generatedAt)}</p>
-        <p>${review.counts.historicalEvents} historical import events across ${review.counts.agreements} agreements in ${review.counts.communities} communities.</p>
+        <p>${review.counts.historicalEvents} historical import events across ${review.counts.agreements} agreements in ${review.counts.communities} communities. Dashboard: ${review.counts.dashboardHistoricalEvents} events to restore. Central Services: ${review.counts.centralHistoricalEvents} events to restore.</p>
         <p>This repair restores missing import history in the dashboard and Central Services. Current notes, statuses, next actions, dates, amounts and source files stay unchanged.</p>
-        <details><summary>Review affected agreements</summary><table><thead><tr><th>Community</th><th>Period</th><th>Agreement</th><th>Events restored</th></tr></thead><tbody>${review.rows.map(row=>`<tr><td>${escapeHtml(row.community)}</td><td>${escapeHtml(row.periodKey)}</td><td>${escapeHtml(row.id)}</td><td>${row.missingEvents}</td></tr>`).join("")}</tbody></table></details>
+        <details><summary>Review affected agreements</summary><table><thead><tr><th>Community</th><th>Period</th><th>Agreement</th><th>Dashboard events</th><th>Central Services events</th></tr></thead><tbody>${review.rows.map(row=>`<tr><td>${escapeHtml(row.community)}</td><td>${escapeHtml(row.periodKey)}</td><td>${escapeHtml(row.id)}</td><td>${row.dashboardMissingEvents}</td><td>${row.centralMissingEvents}</td></tr>`).join("")}</tbody></table></details>
         ${review.scalarComparisons.length?`<details><summary>${review.scalarComparisons.length} changed source/workflow fields will keep their current values</summary><table><thead><tr><th>Community / period</th><th>Field</th><th>Earlier snapshot</th><th>Current value retained</th></tr></thead><tbody>${review.scalarComparisons.map(row=>`<tr><td>${escapeHtml(row.community)} / ${escapeHtml(row.periodKey)}</td><td>${escapeHtml(row.field)}</td><td>${escapeHtml(row.prior)}</td><td>${escapeHtml(row.current)}</td></tr>`).join("")}</tbody></table></details>`:""}
         ${review.issues.length?`<div class="alert-red">${review.issues.length} agreement issues must be resolved before applying.<ul>${review.issues.map(issue=>`<li>${escapeHtml(issue.community)} / ${escapeHtml(issue.periodKey)}: ${escapeHtml(issue.reason)}</li>`).join("")}</ul></div>`:""}
         <p role="status" data-renewal-history-status></p><button type="button" data-renewal-history-apply ${review.issues.length||!review.rows.length?"disabled":""}>Restore Reviewed Import History</button> <button type="button" data-renewal-history-close>Close</button>`;
@@ -690,7 +690,7 @@ function reviewAtlasRenewalHistory() {
         try {
           atlasRenewalRepairCheck(context);
           const receipt=await persistReviewedRenewalHistory(review,api);applied=true;
-          status.textContent=`Verified ${receipt.counts.historicalEvents} restored import events across ${receipt.counts.agreements} agreements. Current source values are unchanged. Ready for Central Save.`;
+          status.textContent=`Verified restored import events across ${receipt.counts.agreements} agreements: ${receipt.counts.dashboardHistoricalEvents} in the dashboard and ${receipt.counts.centralHistoricalEvents} in Central Services. Current source values are unchanged. Ready for Central Save.`;
         } catch(error){status.textContent=`${error.message} ${atlasRenewalRepairPending()?"Use Resume Renewal History Repair in ATLAS Settings after reviewing the saved workspace.":"Review the snapshot again."}`;}
         finally{applying=false;}
       };
@@ -702,6 +702,6 @@ function reviewAtlasRenewalHistory() {
 async function resumeAtlasRenewalHistoryFromPanel() {
   try {
     const receipt=await resumeAtlasRenewalHistoryRepair();
-    alert(`Renewal history verified: ${receipt.counts.historicalEvents} restored import events. Current source values are unchanged.`);renderTab();
+    alert(`Renewal history verified: ${receipt.counts.dashboardHistoricalEvents} restored import events in the dashboard and ${receipt.counts.centralHistoricalEvents} in Central Services. Current source values are unchanged.`);renderTab();
   } catch(error){alert(`Renewal history recovery: ${error.message}`);}
 }

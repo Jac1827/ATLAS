@@ -2456,8 +2456,8 @@
     ]
   },
   "features/renewal-workflow-repair.mjs": {
-    "sha256": "ac95bb6ddf2bf08e",
-    "bytes": 9087,
+    "sha256": "89230126580e53e0",
+    "bytes": 9674,
     "references": [
       [
         "features/admin-workspace.js",
@@ -2466,8 +2466,8 @@
     ]
   },
   "features/admin-workspace.js": {
-    "sha256": "5668895f18323be6",
-    "bytes": 65760,
+    "sha256": "6d52b4b91691542d",
+    "bytes": 66174,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2536,7 +2536,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "b4843459e8efe35c",
+    "sha256": "6aab0c9db9a1dcbb",
     "bytes": 3962,
     "references": [
       [

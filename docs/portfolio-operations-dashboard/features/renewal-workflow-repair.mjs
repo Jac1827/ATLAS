@@ -74,15 +74,20 @@ export async function reviewRenewalWorkflowRepair(snapshot, { communityData, cen
     }
     try {
       const dashboard = unionPriorEvents(before.row, found.row, snapshot.generatedAt);
-      if (!dashboard.additions.length) continue;
       const cs = central.byId.get(found.row.id);
-      if (!cs || identity(cs.row) !== identity(found.row)) throw new Error('The current Central Services agreement must match before repairing its history.');
+      if (!cs || identity(cs.row) !== identity(found.row)) {
+        if (!dashboard.additions.length) continue; // An unaffected cohort may not be loaded in Central Services.
+        throw new Error('The current Central Services agreement must match before repairing its history.');
+      }
       const csHistory = unionPriorEvents(before.row, cs.row, snapshot.generatedAt);
+      if (!dashboard.additions.length && !csHistory.additions.length) continue;
       const row = { key, community: before.community, periodKey: before.periodKey, id: before.row.id,
-        missingEvents: dashboard.additions.length, currentEventCount: events(found.row).length, proposedEventCount: dashboard.activity.length,
+        missingEvents: new Set([...dashboard.additions, ...csHistory.additions].map(eventKey)).size,
+        dashboardMissingEvents: dashboard.additions.length, currentEventCount: events(found.row).length, proposedEventCount: dashboard.activity.length,
         centralMissingEvents: csHistory.additions.length, defaultSelected: true };
       rows.push(row); patches.set(key, { community: before.community, periodKey: before.periodKey, id: before.row.id,
-        activity: dashboard.activity, centralActivity: csHistory.activity, centralIndex: cs.index });
+        activity: dashboard.activity, dashboardHasChanges: dashboard.additions.length > 0,
+        centralActivity: csHistory.activity, centralIndex: cs.index });
     } catch (error) { issues.push({ community: before.community, periodKey: before.periodKey, id: before.row.id, reason: error.message }); }
   }
   const review = {
@@ -90,6 +95,7 @@ export async function reviewRenewalWorkflowRepair(snapshot, { communityData, cen
     communityBaseline, centralServicesBaseline, rows, issues, scalarComparisons,
     counts: { agreements: rows.length, communities: new Set(rows.map(row => row.community)).size,
       historicalEvents: rows.reduce((sum, row) => sum + row.missingEvents, 0), centralHistoricalEvents: rows.reduce((sum, row) => sum + row.centralMissingEvents, 0),
+      dashboardHistoricalEvents: rows.reduce((sum, row) => sum + row.dashboardMissingEvents, 0),
       scalarComparisons: scalarComparisons.length, scalarChanges: 0, issues: issues.length }
   };
   plans.set(review, { communityBaseline, centralServicesBaseline, patches, source: clone(review.source), issues: clone(issues), rows: clone(rows) });
@@ -108,11 +114,13 @@ export function applyReviewedRenewalWorkflowRepair(review, { communityData, cent
   for (const key of selected) {
     const patch = plan.patches.get(key), record = nextCommunityData[patch.community];
     const row = record.renewalDetailRowsByPeriod[patch.periodKey].find(value => value.id === patch.id);
-    row.activity = clone(patch.activity);
-    // Mirror only this exact identity and cohort; never replace another year.
-    for (const values of Array.isArray(record.renewalDetailRowsByMonth) ? record.renewalDetailRowsByMonth : []) {
-      for (const mirror of Array.isArray(values) ? values : []) {
-        if (identity(mirror) === identity(row)) { mirror.activity = clone(patch.activity); mirrors++; }
+    if (patch.dashboardHasChanges) {
+      row.activity = clone(patch.activity);
+      // Mirror only this exact identity and cohort; never replace another year.
+      for (const values of Array.isArray(record.renewalDetailRowsByMonth) ? record.renewalDetailRowsByMonth : []) {
+        for (const mirror of Array.isArray(values) ? values : []) {
+          if (identity(mirror) === identity(row)) { mirror.activity = clone(patch.activity); mirrors++; }
+        }
       }
     }
     nextCentral.renewals[patch.centralIndex].activity = clone(patch.centralActivity);
@@ -120,5 +128,6 @@ export function applyReviewedRenewalWorkflowRepair(review, { communityData, cent
   const chosen = plan.rows.filter(row => selected.includes(row.key));
   return { communityData: nextCommunityData, centralServicesRaw: JSON.stringify(nextCentral),
     counts: { agreements: selected.length, historicalEvents: chosen.reduce((sum, row) => sum + row.missingEvents, 0),
+      dashboardHistoricalEvents: chosen.reduce((sum, row) => sum + row.dashboardMissingEvents, 0),
       centralHistoricalEvents: chosen.reduce((sum, row) => sum + row.centralMissingEvents, 0), mirrors, scalarChanges: 0 } };
 }

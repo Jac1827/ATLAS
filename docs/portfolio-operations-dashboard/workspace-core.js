@@ -49447,6 +49447,7 @@ async function approveDataImportBatch() {
           archiveEntry.coverage = importResult.coverage || [];
           archiveEntry.coverageExpected = Number(importResult.coverageExpected || 0);
           archiveEntry.coverageGaps = importResult.coverageGaps || [];
+          if(plan.aptiqSource?.kind === "aptiq_market_workbook" && plan.aptiqSource.status === "valid")archiveEntry.aptiqSource={kind:plan.aptiqSource.kind,status:plan.aptiqSource.status,communityName:plan.aptiqSource.communityName};
           routeMessages.push(`${plan.name}: ${importResult.message || "Import route completed."}`);
         } catch (error) {
           checkApprovalCurrent();
@@ -50302,6 +50303,7 @@ async function reprocessDataImportBoxScore(archiveId) {
   try { await ensureDataImportFullState(); } catch(error) { alert(error.message); return; } finally { dataImportApprovalPreflight = false; }
   const entry = (dataImport2State.sourceArchive || []).find(item => item.id === archiveId);
   if (!entry || !["box_score", "trending_occupancy", "delinquency", "leasing_resident_data", "rent_roll", "marketing_iq"].includes(entry.reportType) || entry.importStatus !== "Approved") return;
+  if(entry.reportType === "marketing_iq" && !dataImportMarketReplaySupported(entry)){alert("Check this market workbook's recovery support before reconciling it.");return;}
   dataImportApprovalInProgress = true;
   let checkpoint=null,beforeSaved=null,beforeImport=null,published=false;
   try {
@@ -50391,6 +50393,41 @@ async function reprocessDataImportBoxScore(archiveId) {
   }
 }
 
+function dataImportMarketReplaySupported(entry) {
+  if(entry?.reportType!=="marketing_iq" || entry.importStatus!=="Approved" || entry.deletedAt || !/\.(?:xlsx|xlsm|xls)$/i.test(entry.fileName || "") || entry.communities?.length!==1)return false;
+  const source=entry.aptiqSource;
+  if(source?.kind==="aptiq_market_workbook" && source.status==="valid" && source.communityName===entry.communities[0])return true;
+  const checked=window.AtlasMarketReplaySupport?.get(entry.id);
+  return Boolean(checked && checked.context===getAtlasRenderContextKey() && checked.fileHash===entry.fileHash && checked.fileName===entry.fileName && checked.communityName===entry.communities[0]);
+}
+
+async function checkDataImportMarketReplaySupport(archiveId) {
+  if(!dataImportCanManageArchitecture() || !atlasAccessDecision(7).ok || dataImportApprovalInProgress || dataImportApprovalPreflight)return;
+  const current=captureAtlasSaveContext();
+  dataImportApprovalPreflight=true;
+  try{
+    await ensureDataImportFullState();
+    if(!current())return;
+    const entry=(dataImport2State.sourceArchive || []).find(row=>row.id===archiveId);
+    if(!entry || entry.reportType!=="marketing_iq" || entry.importStatus!=="Approved" || entry.deletedAt || !/\.(?:xlsx|xlsm|xls)$/i.test(entry.fileName || "") || entry.communities?.length!==1 || !atlasDashboardUserCanSeeCommunityName(entry.communities[0]))throw new Error("This source does not support AptIQ workbook recovery.");
+    const hash=entry.fileHash,name=entry.fileName,community=entry.communities[0];
+    const stored=await atlasStateGetValue(`${DATA_IMPORT_FILE_ARCHIVE_PREFIX}${archiveId}`);
+    if(!stored?.blob)throw new Error("The retained original workbook is unavailable.");
+    const file=new File([stored.blob],name,{type:stored.type || "application/octet-stream"});
+    if(!hash || await dataImportFileHash(file)!==hash)throw new Error("The retained original does not match its approved source hash.");
+    if(typeof XLSX==="undefined")await window.AtlasFeatures.load("xlsx");
+    const qualified=dataImportAptiqSourceFromWorkbook(XLSX.read(await file.arrayBuffer(),{type:"array",cellNF:true}));
+    if(!current())return;
+    if(!(dataImport2State.sourceArchive || []).includes(entry) || entry.fileHash!==hash || entry.fileName!==name || entry.communities?.length!==1 || entry.communities[0]!==community)throw new Error("The selected source changed. Check it again.");
+    if(qualified?.status!=="valid" || qualified.communityName!==community)throw new Error("This retained source is not a supported AptIQ market workbook for its approved community.");
+    window.AtlasMarketReplaySupport ||= new Map();
+    window.AtlasMarketReplaySupport.set(entry.id,{context:getAtlasRenderContextKey(),fileHash:hash,fileName:name,communityName:community});
+    dataImportApprovalPreflight=false;
+    renderTab();
+  }catch(error){if(current())alert(String(error?.message || error));}
+  finally{dataImportApprovalPreflight=false;}
+}
+
 async function dataImportReconcileMarketSource(file, plan, entry, assertCurrent) {
   assertCurrent();
   const names=[...new Set(entry.communities || [])],name=names[0];
@@ -50404,8 +50441,19 @@ async function dataImportReconcileMarketSource(file, plan, entry, assertCurrent)
       || (dataImport2State.closedPeriods || []).includes(period))throw new Error("Select the original open reporting month before reconciling this market source.");
   const sourceTime=row=>Date.parse(row.dataDateIso || row.metadata?.dataAsOf || row.uploadedAt || "");
   if(!Number.isFinite(sourceTime(entry)) || !Number.isFinite(Date.parse(entry.uploadedAt || "")))throw new Error("The approved market source date or upload receipt is missing.");
+  const approvedTime=row=>Date.parse((dataImport2State.batches || []).find(item=>item.id===row.batchId)?.approvedAt || row.uploadedAt || "");
+  const supersedes=row=>{
+    for(const getTime of [sourceTime,approvedTime,row=>Date.parse(row.uploadedAt || "")]){
+      const candidate=getTime(row),selected=getTime(entry);
+      if(!Number.isFinite(candidate) || !Number.isFinite(selected))return true;
+      if(candidate!==selected)return candidate>selected;
+    }
+    // Different accepted content with indistinguishable receipts has no safe
+    // replay order. Do not guess from random IDs or archive array position.
+    return !row.fileHash || row.fileHash!==entry.fileHash;
+  };
   if((dataImport2State.sourceArchive || []).some(row=>row.id!==entry.id && row.reportType==="marketing_iq" && row.importStatus==="Approved" && !row.deletedAt
-      && (row.communities || []).includes(name) && sourceTime(row)>sourceTime(entry)))throw new Error("A newer approved market survey controls this community. Reconcile that source instead.");
+      && (row.communities || []).includes(name) && supersedes(row)))throw new Error("A newer or ambiguously ordered approved market survey controls this community. Reconcile the latest verified source instead.");
   const workbook=XLSX.read(await file.arrayBuffer(),{type:"array",cellNF:true});
   assertCurrent();
   const qualified=dataImportAptiqSourceFromWorkbook(workbook);

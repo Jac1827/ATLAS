@@ -10,7 +10,7 @@ const clone = value => structuredClone(value);
 const digest = async value => createHash('sha256').update(value).digest('hex');
 const extract = name => {const start = core.search(new RegExp(`(?:async )?function ${name}\\(`)); assert(start >= 0); return core.slice(start, core.indexOf('\n}', start) + 2);};
 const employee = {id:'employee-a',name:'Approved Person',email:'approved@example.invalid',role:'General Manager',community:'Source alias',status:'Active',managerId:'emp:supervisor',managerName:'Recorded Supervisor'};
-const assignment = {...employee,id:'assignment-a',employeeId:employee.id,effectiveStart:'2026-01-01',effectiveEnd:'',recordStatus:'current'};
+const assignment = {...employee,id:'assignment-a',employeeId:employee.id,effectiveStart:'2026-01-01',effectiveEnd:'',recordStatus:'active'};
 const supervisor = {id:'supervisor',name:'Recorded Supervisor',email:'supervisor@example.invalid',role:'Regional Director',status:'Active'};
 const original = {generalManagerName:'Old Placeholder',generalManagerEmail:'old@example.invalid',generalManagerUserId:'legacy-person',generalManagerEmployeeId:'people:legacy-person',regionalManagerName:'Retained Regional',regionalManagerUserId:'retained-regional',marketSurveyData:{version:'new Oct26 import'},monthlyData:[{occupied:82}],communityRegionalGrouping:'North'};
 async function source(people = {employees:[employee,supervisor],employeeAssignments:[assignment]}) {
@@ -45,10 +45,12 @@ test('unverified, conflicting, out-of-scope and inactive People evidence is reje
   await assert.rejects(api.review(disagree,options()),/disagree/);
   const duplicate=await source({employees:[employee,employee],employeeAssignments:[assignment]});
   await assert.rejects(api.review(duplicate,options()),/duplicate/);
-  for (const change of [{effectiveStart:'2026-02-30'},{effectiveEnd:'2026-01-02'},{community:'Not authorized'},{managerId:'emp:someone-else'},{status:'Terminated'},{recordStatus:'draft'},{recordStatus:'rejected'},{recordStatus:''}]) {
+  for (const change of [{effectiveStart:'2026-02-30'},{effectiveEnd:'2026-01-02'},{community:'Not authorized'},{managerId:'emp:someone-else'},{status:'Terminated'},{recordStatus:'draft'},{recordStatus:'rejected'},{recordStatus:''},{recordStatus:'superseded'}]) {
     const result=await api.review(await source({employees:[employee,supervisor],employeeAssignments:[{...assignment,...change}]}),options());
     assert.equal(result.rows.length,0,JSON.stringify(change));
   }
+  const establishedCurrent=await api.review(await source({employees:[employee,supervisor],employeeAssignments:[{...assignment,recordStatus:'current'}]}),options());
+  assert.equal(establishedCurrent.rows.length,1,'Both established active and current assignment states are supported');
   const duplicateAssignment=await api.review(await source({employees:[employee,supervisor],employeeAssignments:[assignment,{...assignment,id:'equivalent-current'}]}),options());
   assert.equal(duplicateAssignment.rows.length,1,'Equivalent duplicated source evidence does not create another contact');
   const unauthorized=await api.review(await source(),{...options(),communities:['Different']});assert.equal(unauthorized.rows.length,0);

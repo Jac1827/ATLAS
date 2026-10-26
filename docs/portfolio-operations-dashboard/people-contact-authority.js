@@ -61,7 +61,7 @@
       const community = resolve(employee.community);
       if (!community) continue;
       const current = people.employeeAssignments.filter(row => row.employeeId === employee.id
-        && /^current$/i.test(text(row.recordStatus)) && active(row)
+        && /^(active|current)$/i.test(text(row.recordStatus)) && active(row)
         && date(row.effectiveStart) && row.effectiveStart <= asOf && (!row.effectiveEnd || date(row.effectiveEnd) && row.effectiveEnd >= asOf));
       const identity = row => JSON.stringify([resolve(row.community), text(row.role), text(row.managerId), text(row.managerName), text(row.regionalManagerId), text(row.regionalManagerName)]);
       if (!current.length || new Set(current.map(identity)).size !== 1 || identity(employee) !== identity(current[0]) || current.some(row => !text(row.id))) {

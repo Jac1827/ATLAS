@@ -1404,8 +1404,8 @@
     ]
   },
   "people-contact-authority.js": {
-    "sha256": "1d4f8c0553052c5f",
-    "bytes": 8079,
+    "sha256": "d0e3fb3e08bdbe61",
+    "bytes": 8088,
     "references": [
       [
         "index.html",

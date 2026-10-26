@@ -4357,25 +4357,32 @@ function atlasOpsGlobalChangedOnlyPeopleSyncTime(previous, next) {
   return JSON.stringify(withoutSyncTime(previous)) === JSON.stringify(withoutSyncTime(next));
 }
 
-async function atlasStateSetValue(key, value) {
+async function atlasStateSetValue(key, value, options = {}) {
   if ([ATLAS_STATE_COMMUNITY_KEY, OPS_GLOBAL_STORAGE_KEY].includes(String(key))) {
-    await withAtlasStateStore("readwrite", store => {
-      const request = store.get(String(key));
-      request.onsuccess = () => {
-        const next = String(key) === ATLAS_STATE_COMMUNITY_KEY && window.AtlasOccupancyReplay?.protectCommittedOccupancy
-          ? window.AtlasOccupancyReplay.protectCommittedOccupancy(value,request.result?.value) : value;
-        if (JSON.stringify(next) === JSON.stringify(request.result?.value)) return;
-        store.put({key:String(key),value:next,updatedAt:new Date().toISOString()});
-        // The People refresh clock is observation metadata. Persist it for
-        // freshness checks without making an otherwise published workspace dirty.
-        // This never clears an existing dirty receipt or excludes other changes.
-        if (String(key) === OPS_GLOBAL_STORAGE_KEY && atlasOpsGlobalChangedOnlyPeopleSyncTime(request.result?.value, next)) return;
-        const source = store.get("atlas_workspace_source_v2");
-        source.onsuccess = () => {if(source.result?.value) store.put({...source.result,value:{...source.result.value,dirty:true}});};
-      };
-      return request;
-    });
-    return;
+    let accepted = true, writeError = null;
+    try {
+      await withAtlasStateStore("readwrite", store => {
+        const request = store.get(String(key));
+        request.onsuccess = () => {
+          try {
+            if (options.acceptCurrent && !options.acceptCurrent(request.result?.value ?? null)) { accepted = false; return; }
+            const prepared = options.prepareValue ? options.prepareValue() : value;
+            const next = String(key) === ATLAS_STATE_COMMUNITY_KEY && window.AtlasOccupancyReplay?.protectCommittedOccupancy
+              ? window.AtlasOccupancyReplay.protectCommittedOccupancy(prepared,request.result?.value) : prepared;
+            if (JSON.stringify(next) === JSON.stringify(request.result?.value)) return;
+            store.put({key:String(key),value:next,updatedAt:new Date().toISOString()});
+            // The People refresh clock is observation metadata. Persist it for
+            // freshness checks without making an otherwise published workspace dirty.
+            // This never clears an existing dirty receipt or excludes other changes.
+            if (String(key) === OPS_GLOBAL_STORAGE_KEY && atlasOpsGlobalChangedOnlyPeopleSyncTime(request.result?.value, next)) return;
+            const source = store.get("atlas_workspace_source_v2");
+            source.onsuccess = () => {if(source.result?.value) store.put({...source.result,value:{...source.result.value,dirty:true}});};
+          } catch (error) { writeError = error; store.transaction.abort(); }
+        };
+        return request;
+      });
+    } catch (error) { throw writeError || error; }
+    return accepted;
   }
   await withAtlasStateStore("readwrite", store => store.put({
     key: String(key),
@@ -7024,17 +7031,22 @@ function readOpsGlobalStorageRaw() {
   return opsGlobalStorageCache === null ? localStorage.getItem(atlasScopedLocalKey(OPS_GLOBAL_STORAGE_KEY)) : JSON.stringify(opsGlobalStorageCache);
 }
 
-async function writeOpsGlobalStorage(payload, {checkCurrent = () => {}} = {}) {
+async function writeOpsGlobalStorage(payload, {checkCurrent = () => {}, acceptCurrent, prepareValue} = {}) {
   checkCurrent();
   if (!await openAtlasStateDb()) throw new Error("ATLAS browser database is unavailable. Keep this tab open and retry saving.");
   checkCurrent();
-  await atlasStateSetValue(OPS_GLOBAL_STORAGE_KEY, payload);
+  const accepted = await atlasStateSetValue(OPS_GLOBAL_STORAGE_KEY, payload, {
+    acceptCurrent,
+    prepareValue: prepareValue ? () => (payload = prepareValue()) : null
+  });
+  if (accepted === false) return false;
   checkCurrent();
   const verified = await atlasStateGetValue(OPS_GLOBAL_STORAGE_KEY);
   checkCurrent();
   if (JSON.stringify(verified) !== JSON.stringify(payload)) throw new Error("ATLAS settings storage verification failed. Keep this tab open.");
   // Remove only the duplicate small-store copy, after the larger-store transaction is verified.
   try { localStorage.removeItem(atlasScopedLocalKey(OPS_GLOBAL_STORAGE_KEY)); } catch {}
+  return true;
 }
 
 async function hydrateOpsGlobalStorage() {
@@ -7140,6 +7152,7 @@ function persistOpsGlobalData(options = {}) {
   });
   // Shared rows stay session-only, but saving unrelated settings must not erase them.
   applicationResidentDataState = currentApplicationState;
+  if (options.prepareOnly) return opsGlobalData;
   return persistOpsGlobalSnapshot(opsGlobalData, options);
 }
 
@@ -18248,6 +18261,43 @@ function buildAtlasCentralPeoplePayload() {
   };
 }
 
+async function persistAtlasCentralPeopleRefresh(sharedData, check) {
+  const previousCache = opsGlobalStorageCache;
+  const expected = JSON.stringify(opsGlobalStorageCache);
+  let applied = false, preparedCache = null;
+  try { await queueAtlasStateWrite(async () => {
+    check();
+    applied = await writeOpsGlobalStorage(null, {
+      checkCurrent: check,
+      // Check the stored value and this tab's queued snapshot in the same write
+      // transaction. A stale background refresh must not replace another edit.
+      acceptCurrent: previous => {
+        check();
+        return JSON.stringify(previous) === expected && JSON.stringify(opsGlobalStorageCache) === expected;
+      },
+      prepareValue: () => {
+        // A request can finish after Central Save captures the exact local records.
+        // Keep a clock-only observation from changing that capture while this save
+        // runs; real People changes and other current settings still persist below.
+        if (typeof saveAtlasCentralAppState === "function" && saveAtlasCentralAppState.inFlight && atlasOpsGlobalChangedOnlyPeopleSyncTime({ sharedData: atlasSharedData }, { sharedData: normalizeAtlasSharedData(sharedData) })) {
+          if (Object.prototype.hasOwnProperty.call(atlasSharedData, "lastPeopleSyncAt")) sharedData.lastPeopleSyncAt = atlasSharedData.lastPeopleSyncAt;
+          else delete sharedData.lastPeopleSyncAt;
+        }
+        atlasSharedData = sharedData;
+        syncAllCommunityStaffingFromPeopleRoster({ persist: false });
+        const snapshot = JSON.parse(JSON.stringify(persistOpsGlobalData({ prepareOnly: true })));
+        opsGlobalStorageCache = preparedCache = snapshot;
+        return snapshot;
+      }
+    });
+  }, "central_people_refresh"); } finally {
+    if (!applied && preparedCache && opsGlobalStorageCache === preparedCache) opsGlobalStorageCache = previousCache;
+  }
+  check();
+  if (applied) window.atlasSynchronizeLinkedContacts?.({ persist: false });
+  return applied;
+}
+
 async function loadAtlasCentralPeopleAssignments({ silent = true, force = false, employeeIds = null } = {}) {
   const central=window.ATLAS_CENTRAL,context=getAtlasRenderContextKey(),database=ATLAS_STATE_DB_NAME;
   const epoch=atlasWorkspaceAccess.epoch,signal=atlasWorkspaceAccess.controller?.signal;
@@ -18357,17 +18407,7 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false,
       sharedData.lastPeopleSyncAt = new Date().toISOString();
       sharedData.validationIssues = validateAtlasSharedData(sharedData);
       check();
-      // A request can finish after Central Save captures the exact local records.
-      // Keep a clock-only observation from changing that capture while this save
-      // runs; real People changes and other current settings still persist below.
-      if (typeof saveAtlasCentralAppState === "function" && saveAtlasCentralAppState.inFlight && atlasOpsGlobalChangedOnlyPeopleSyncTime({ sharedData: atlasSharedData }, { sharedData: normalizeAtlasSharedData(sharedData) })) {
-        if (Object.prototype.hasOwnProperty.call(atlasSharedData, "lastPeopleSyncAt")) sharedData.lastPeopleSyncAt = atlasSharedData.lastPeopleSyncAt;
-        else delete sharedData.lastPeopleSyncAt;
-      }
-      atlasSharedData = sharedData;
-      syncAllCommunityStaffingFromPeopleRoster({ persist: false });
-      window.atlasSynchronizeLinkedContacts?.();
-      persistOpsGlobalData();
+      if (!await persistAtlasCentralPeopleRefresh(sharedData, check)) return null;
       if (!silent) {
         setAtlasCentralRuntimeMessage(`Loaded ${Object.keys(employees).length} central People employees and ${assignments.length} assignments.`);
         renderTab();
@@ -18399,7 +18439,8 @@ function queueAtlasCentralPeopleLoad(options = {}) {
   const context=getAtlasRenderContextKey(),database=ATLAS_STATE_DB_NAME,epoch=atlasWorkspaceAccess.epoch,signal=atlasWorkspaceAccess.controller?.signal;
   loadAtlasCentralPeopleAssignments({ silent: true, force: Boolean(options.force) }).then((result) => {
     if (!result || signal?.aborted || !atlasWorkspaceAccess.validated || context!==getAtlasRenderContextKey() || database!==ATLAS_STATE_DB_NAME || epoch!==atlasWorkspaceAccess.epoch || ![1, 9, 10, 13, 14].includes(activeTab)) return;
-    syncAllCommunityStaffingFromPeopleRoster({ persist: true });
+    // The accepted loader already synchronized staffing. A second unguarded
+    // whole-workspace save here could race another tab after the guarded commit.
     if (activeTab === 13) return;
     if (activeTab === 14) refreshAtlasPeopleAccessPanel({ deferWhileInteracting: true });
     else scheduleAtlasSharedRender();

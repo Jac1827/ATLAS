@@ -3,7 +3,7 @@ const source=fs.readFileSync('docs/portfolio-operations-dashboard/workspace-core
 const deferred=()=>{let resolve;const promise=new Promise(done=>resolve=done);return {promise,resolve};};
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 function block(start,end){const a=source.indexOf(start),b=source.indexOf(end,a);assert(a>=0&&b>a);return source.slice(a,b);}
-const people=block('async function loadAtlasCentralPeopleAssignments(', '\nfunction atlasCentralMonthDate(');
+const people=block('async function persistAtlasCentralPeopleRefresh(', '\nfunction atlasCentralMonthDate(');
 const financial=block('if (typeof BroadcastChannel !== "undefined") {\n  const financialPublicationChannel', '\nfunction buildDailyBackupDateKey(');
 const daily=block('async function hydrateDailyBackupState()', '\nasync function writeDailyBackupSnapshot(');
 const weekly=block('async function hydrateWeeklySnapshotState()', '\nasync function hydrateDashboardPersistentState(');
@@ -38,6 +38,8 @@ function peopleFixture(){
   c.window.ATLAS_CENTRAL={getSession:()=>({user:{id:'same-actor'}}),getAccessContextKey:()=>c.context,fetchJson:(url,options)=>{const held=deferred();c.calls.push({url,options,...held});return held.promise;}};
   c.normalizeAtlasSharedData=data=>structuredClone(data);c.normalizeSharedEmployeeRecord=data=>data;c.normalizeSharedAssignmentRecord=data=>data;
   c.inferSharedBonusRoleType=()=>'';c.validateAtlasSharedData=()=>[];c.persistOpsGlobalData=()=>c.writes.push(structuredClone(c.atlasSharedData));
+  c.queueAtlasStateWrite=task=>Promise.resolve().then(task);
+  c.writeOpsGlobalStorage=async(_value,options)=>{if(!options.acceptCurrent(c.opsGlobalStorageCache))return false;options.prepareValue();return true;};
   c.syncAllCommunityStaffingFromPeopleRoster=options=>c.staffing.push(options.persist);c.scheduleAtlasSharedRender=()=>{c.scheduled=(c.scheduled||0)+1;};
   c.refreshAtlasPeopleAccessPanel=()=>{};return c;
 }

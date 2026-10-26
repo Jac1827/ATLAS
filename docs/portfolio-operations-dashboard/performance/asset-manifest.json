@@ -1344,8 +1344,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "d4074a8f67fa9965",
-    "bytes": 3173242,
+    "sha256": "b3be119f3717680b",
+    "bytes": 3175282,
     "references": [
       [
         "index.html",
@@ -1394,8 +1394,8 @@
     ]
   },
   "property-organization.js": {
-    "sha256": "2684c797e6823472",
-    "bytes": 29137,
+    "sha256": "ba937e1dd61b3b58",
+    "bytes": 29163,
     "references": [
       [
         "index.html",

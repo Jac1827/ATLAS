@@ -42,7 +42,7 @@ jobs:
       - name: Validate multi-month renewal refresh
         run: |
           node tools/renewal-multiperiod.test.cjs
-          node --test tools/renewal-template-headers.test.cjs
+          node --test tools/renewal-template-headers.test.cjs tools/renewal-report-csv.test.cjs
       - name: Validate saved budget readback and observed portfolio history
         run: |
           node tools/occupancy-budget-readback.test.mjs

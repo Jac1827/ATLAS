@@ -37,9 +37,12 @@ function peopleFixture(){
   c.calls=[];c.writes=[];c.staffing=[];
   c.window.ATLAS_CENTRAL={getSession:()=>({user:{id:'same-actor'}}),getAccessContextKey:()=>c.context,fetchJson:(url,options)=>{const held=deferred();c.calls.push({url,options,...held});return held.promise;}};
   c.normalizeAtlasSharedData=data=>structuredClone(data);c.normalizeSharedEmployeeRecord=data=>data;c.normalizeSharedAssignmentRecord=data=>data;
-  c.inferSharedBonusRoleType=()=>'';c.validateAtlasSharedData=()=>[];c.persistOpsGlobalData=()=>c.writes.push(structuredClone(c.atlasSharedData));
+  c.inferSharedBonusRoleType=()=>'';c.validateAtlasSharedData=()=>[];
+  c.applicationResidentDataState={uploads:[]};
+  c.persistOpsGlobalData=options=>({sharedData:structuredClone(options?.sharedData??c.atlasSharedData)});
+  c.applyOpsGlobalData=value=>{c.atlasSharedData=structuredClone(value.sharedData);};
   c.queueAtlasStateWrite=task=>Promise.resolve().then(task);
-  c.writeOpsGlobalStorage=async(_value,options)=>{if(!options.acceptCurrent(c.opsGlobalStorageCache))return false;options.prepareValue();return true;};
+  c.writeOpsGlobalStorage=async(_value,options)=>{if(!options.acceptCurrent(c.opsGlobalStorageCache))return false;c.writes.push(structuredClone(options.prepareValue().sharedData));return true;};
   c.syncAllCommunityStaffingFromPeopleRoster=options=>c.staffing.push(options.persist);c.scheduleAtlasSharedRender=()=>{c.scheduled=(c.scheduled||0)+1;};
   c.refreshAtlasPeopleAccessPanel=()=>{};return c;
 }

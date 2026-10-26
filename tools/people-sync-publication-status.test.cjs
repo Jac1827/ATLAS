@@ -29,6 +29,7 @@ function fixture(seed, {actualNormalization = false, sharedRecords = false} = {}
   ]);
   const state = {now: '2026-10-23T14:00:00.000Z', rows: clone(centralRows), queue: Promise.resolve(), puts: [], errors: []};
   const withStore = async (mode, action) => {
+    if (mode === 'readonly' && state.failReadback) {state.failReadback = false; throw new Error('Synthetic storage readback failure');}
     const pending = [], writes = [];
     const store = {
       get(key) {
@@ -42,6 +43,8 @@ function fixture(seed, {actualNormalization = false, sharedRecords = false} = {}
     for (const run of pending) run();
     if (mode === 'readwrite' && state.failCommit) {state.failCommit = false; throw new Error('Synthetic storage commit failure');}
     for (const record of writes) {records.set(record.key, record); state.puts.push(record.key);}
+    if (mode === 'readwrite' && state.failReadbackAfterWrite) {state.failReadbackAfterWrite = false; state.failReadback = true;}
+    if (mode === 'readwrite' && state.afterCommit) {const after = state.afterCommit; state.afterCommit = null; await after();}
     return request?.result ?? null;
   };
   class Clock extends Date {
@@ -57,14 +60,14 @@ function fixture(seed, {actualNormalization = false, sharedRecords = false} = {}
     atlasSharedData: {employees: {}, assignments: [], reportingAssignments: [], validationIssues: [], nested: {lastPeopleSyncAt: 'retained evidence'}},
     getAtlasRenderContextKey: () => 'settings:verified-workspace', activeTab: 13,
     getAtlasCentralStatus: () => ({configured: true, signedIn: true}),
-    normalizeAtlasSharedData: clone, normalizeSharedEmployeeRecord: clone, normalizeSharedAssignmentRecord: clone,
+    normalizeAtlasSharedData: clone, normalizeSharedEmployeeRecord: clone, normalizeSharedAssignmentRecord: clone, normalizeOpsGlobalData: clone,
     inferSharedBonusRoleType: () => 'manager', validateAtlasSharedData: () => [],
     syncAllCommunityStaffingFromPeopleRoster: () => {}, scheduleAtlasSharedRender: () => {},
     saveAtlasCentralAppState: function () {},
     atlasScopedLocalKey: key => key, localStorage: {getItem: () => null, removeItem: () => {}},
     markAtlasPersistenceError: error => state.errors.push(error),
     alert: message => {throw new Error(message);}, serializeJacsTeamBonus: clone,
-    queueAtlasStateWrite: task => (state.queue = state.queue.then(task)),
+    queueAtlasStateWrite: task => (state.queue = state.queue.then(task).catch(error => {state.errors.push(error); return null;})),
     applyOpsGlobalData: payload => {context.opsGlobalData = clone(payload); context.atlasSharedData = context.opsGlobalData.sharedData;},
     window: {ATLAS_CENTRAL: {
       getAccessContextKey: () => 'verified-access', getSession: () => ({user: {id: 'actor'}}),
@@ -195,19 +198,76 @@ async function refreshSettings(f) {
     assert.equal(current.records.get(RECEIPT).value.dirty, true);
   }
 
-  const failed = fixture(normalized.records, {actualNormalization: true});
-  failed.context.applyOpsGlobalData(clone(failed.records.get(OPS).value));
-  failed.state.rows = clone(normalized.state.rows);
-  failed.state.rows[0].atlas_employees.full_name = 'Uncommitted incoming person';
-  const cacheBeforeFailure = clone(failed.context.opsGlobalStorageCache);
-  const recordsBeforeFailure = clone([...failed.records]);
-  let failedContacts = 0;
-  failed.context.window.atlasSynchronizeLinkedContacts = () => {failedContacts++;};
-  failed.state.failCommit = true;
-  assert.equal(await failed.context.loadAtlasCentralPeopleAssignments({silent: true}), null);
-  assert.deepEqual(clone([...failed.records]), recordsBeforeFailure, 'A failed commit cannot alter the stored record or pending receipt');
-  assert.deepEqual(failed.context.opsGlobalStorageCache, cacheBeforeFailure, 'Uncommitted cache is not retained as a verified baseline');
-  assert.equal(failedContacts, 0, 'Failed writes cannot trigger follow-on contact persistence');
+  for (const failure of ['commit', 'readback', 'competing readback']) {
+    const failed = fixture(normalized.records, {actualNormalization: true});
+    failed.context.applyOpsGlobalData(clone(failed.records.get(OPS).value));
+    failed.context.savedData = {'Synthetic Community': {staffing: 'original staffing'}};
+    failed.state.rows = clone(normalized.state.rows);
+    failed.state.rows[0].atlas_employees.full_name = 'Unverified incoming person';
+    const cacheBeforeFailure = clone(failed.context.opsGlobalStorageCache);
+    const recordsBeforeFailure = clone([...failed.records]);
+    const runtimeBeforeFailure = clone({shared: failed.context.atlasSharedData, globals: failed.context.opsGlobalData, staffing: failed.context.savedData, payload: failed.context.persistOpsGlobalData({prepareOnly: true})});
+    let failedContacts = 0, competingRecord;
+    failed.context.syncAllCommunityStaffingFromPeopleRoster = () => {failed.context.savedData['Synthetic Community'].staffing = 'changed by failed refresh';};
+    failed.context.window.atlasSynchronizeLinkedContacts = () => {failedContacts++;};
+    if (failure === 'commit') failed.state.failCommit = true;
+    else if (failure === 'readback') failed.state.failReadbackAfterWrite = true;
+    else failed.state.afterCommit = async () => {
+      const editor = fixture(failed.records, {actualNormalization: true, sharedRecords: true});
+      const competing = clone(editor.records.get(OPS).value);
+      competing.reportHubType = 'other-tab-won-before-readback';
+      await editor.context.writeOpsGlobalStorage(competing);
+      competingRecord = clone(editor.records.get(OPS));
+    };
+    assert.equal(await failed.context.loadAtlasCentralPeopleAssignments({silent: true}), null, failure);
+    if (failure === 'commit') assert.deepEqual(clone([...failed.records]), recordsBeforeFailure, 'Failed commit leaves stored records and receipt exact');
+    if (competingRecord) assert.deepEqual(failed.records.get(OPS), competingRecord, 'Readback competition preserves the other tab’s exact row');
+    assert.deepEqual(clone({shared: failed.context.atlasSharedData, globals: failed.context.opsGlobalData, staffing: failed.context.savedData, payload: failed.context.persistOpsGlobalData({prepareOnly: true})}), runtimeBeforeFailure, `${failure}: failed preparation cannot change any live People/staffing/global value`);
+    assert.deepEqual(failed.context.opsGlobalStorageCache, cacheBeforeFailure, 'An unverified snapshot cannot become this tab’s baseline');
+    assert.equal(failedContacts, 0);
+    assert.equal(failed.state.errors.length, 1, 'The real write/readback failure is reported');
+    if (!competingRecord) {
+      failed.context.reportHubType = 'later unrelated setting';
+      await failed.context.persistOpsGlobalData().completion;
+      assert.deepEqual(failed.records.get(OPS).value.sharedData, cacheBeforeFailure.sharedData, 'Later unrelated Save cannot publish the failed incoming roster');
+      assert.equal(failed.context.savedData['Synthetic Community'].staffing, 'original staffing');
+    }
+  }
+
+  for (const newer of ['direct setting', 'queued setting', 'session-only application']) {
+    const delayed = fixture(normalized.records, {actualNormalization: true});
+    delayed.context.applyOpsGlobalData(clone(delayed.records.get(OPS).value));
+    delayed.state.rows = clone(normalized.state.rows);
+    delayed.state.rows[0].atlas_employees.full_name = 'Verified incoming person';
+    const oldRoster = clone(delayed.context.atlasSharedData);
+    const originalRead = delayed.context.atlasStateGetValue;
+    let releaseReadback, held = false, queuedEdit;
+    delayed.context.atlasStateGetValue = async key => {
+      const value = await originalRead(key);
+      if (key === OPS && !held) {held = true; await new Promise(resolve => {releaseReadback = resolve;});}
+      return value;
+    };
+    const pending = delayed.context.loadAtlasCentralPeopleAssignments({silent: true});
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(typeof releaseReadback, 'function');
+    if (newer === 'session-only application') delayed.context.applicationResidentDataState.uploads.push({centralImportId: 'live-session-row'});
+    else {
+      delayed.context.reportHubType = 'newer same-tab value';
+      if (newer === 'queued setting') queuedEdit = delayed.context.persistOpsGlobalData();
+    }
+    releaseReadback();
+    const result = await pending;
+    if (newer === 'session-only application') {
+      assert(result);
+      assert.equal(delayed.context.atlasSharedData.employees['employee-1'].name, 'Verified incoming person');
+      assert.equal(delayed.context.applicationResidentDataState.uploads[0].centralImportId, 'live-session-row', 'Verified application preserves current session-only rows');
+    } else {
+      assert.equal(result, null, 'A newer live or queued setting blocks application of the older result');
+      assert.equal(delayed.context.reportHubType, 'newer same-tab value');
+      assert.deepEqual(clone(delayed.context.atlasSharedData), oldRoster);
+      if (queuedEdit) {await queuedEdit.completion; assert.equal(delayed.records.get(OPS).value.reportHubType, 'newer same-tab value');}
+    }
+  }
 
   // Save can start after fetch completion while the queued write opens its DB.
   const lateSave = fixture(normalized.records, {actualNormalization: true});
@@ -399,5 +459,5 @@ async function refreshSettings(f) {
   noReceipt.records.delete(RECEIPT);
   await noReceipt.context.writeOpsGlobalStorage(timestampOnly);
   assert.equal(noReceipt.records.has(RECEIPT), false, 'Refresh cannot invent a publication receipt');
-  console.log('PASS People refresh preserves other-tab and queued edits atomically, skips stale side effects, restores a failed-write baseline, retains exact Save capture, and preserves genuine People/global changes and unknown pending history.');
+  console.log('PASS People refresh stages without live mutation, preserves failed-write state through later saves, rejects concurrent edits, retains session-only rows and exact Save capture, and updates contacts without automatic community persistence.');
 })().catch(error => {console.error(error); process.exitCode = 1;});

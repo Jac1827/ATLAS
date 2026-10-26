@@ -7117,7 +7117,7 @@ function queuePersistedPhotoStorageCompaction() {
 
 function persistOpsGlobalData(options = {}) {
   const currentApplicationState = applicationResidentDataState;
-  applyOpsGlobalData({
+  const payload = {
     investorPacketState: atlasInvestorPacketState,
     bonusQuarter,
     bonusQuarterManualOverride,
@@ -7148,11 +7148,12 @@ function persistOpsGlobalData(options = {}) {
     },
     communityCommandState,
     windowshadeState,
-    sharedData: atlasSharedData
-  });
+    sharedData: options.sharedData ?? atlasSharedData
+  };
+  if (options.prepareOnly) return normalizeOpsGlobalData(payload);
+  applyOpsGlobalData(payload);
   // Shared rows stay session-only, but saving unrelated settings must not erase them.
   applicationResidentDataState = currentApplicationState;
-  if (options.prepareOnly) return opsGlobalData;
   return persistOpsGlobalSnapshot(opsGlobalData, options);
 }
 
@@ -18262,12 +18263,11 @@ function buildAtlasCentralPeoplePayload() {
 }
 
 async function persistAtlasCentralPeopleRefresh(sharedData, check) {
-  const previousCache = opsGlobalStorageCache;
   const expected = JSON.stringify(opsGlobalStorageCache);
-  let applied = false, preparedCache = null;
-  try { await queueAtlasStateWrite(async () => {
+  let verified = false, prepared = null, runtimeBefore = null;
+  await queueAtlasStateWrite(async () => {
     check();
-    applied = await writeOpsGlobalStorage(null, {
+    verified = await writeOpsGlobalStorage(null, {
       checkCurrent: check,
       // Check the stored value and this tab's queued snapshot in the same write
       // transaction. A stale background refresh must not replace another edit.
@@ -18283,19 +18283,23 @@ async function persistAtlasCentralPeopleRefresh(sharedData, check) {
           if (Object.prototype.hasOwnProperty.call(atlasSharedData, "lastPeopleSyncAt")) sharedData.lastPeopleSyncAt = atlasSharedData.lastPeopleSyncAt;
           else delete sharedData.lastPeopleSyncAt;
         }
-        atlasSharedData = sharedData;
-        syncAllCommunityStaffingFromPeopleRoster({ persist: false });
-        const snapshot = JSON.parse(JSON.stringify(persistOpsGlobalData({ prepareOnly: true })));
-        opsGlobalStorageCache = preparedCache = snapshot;
-        return snapshot;
+        runtimeBefore = JSON.stringify(persistOpsGlobalData({ prepareOnly: true }));
+        prepared = JSON.parse(JSON.stringify(persistOpsGlobalData({ prepareOnly: true, sharedData })));
+        return prepared;
       }
     });
-  }, "central_people_refresh"); } finally {
-    if (!applied && preparedCache && opsGlobalStorageCache === preparedCache) opsGlobalStorageCache = previousCache;
-  }
+  }, "central_people_refresh");
   check();
-  if (applied) window.atlasSynchronizeLinkedContacts?.({ persist: false });
-  return applied;
+  // Staging never mutates the live roster or settings. After verified storage,
+  // do not apply an older result over edits made while the write was awaiting.
+  if (!verified || JSON.stringify(opsGlobalStorageCache) !== expected || JSON.stringify(persistOpsGlobalData({ prepareOnly: true })) !== runtimeBefore) return false;
+  const currentApplicationState = applicationResidentDataState;
+  opsGlobalStorageCache = prepared;
+  applyOpsGlobalData(prepared);
+  applicationResidentDataState = currentApplicationState;
+  syncAllCommunityStaffingFromPeopleRoster({ persist: false });
+  window.atlasSynchronizeLinkedContacts?.({ persist: false });
+  return true;
 }
 
 async function loadAtlasCentralPeopleAssignments({ silent = true, force = false, employeeIds = null } = {}) {

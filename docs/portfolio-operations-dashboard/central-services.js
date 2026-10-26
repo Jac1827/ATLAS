@@ -10928,6 +10928,11 @@
 
   function renewalReportCsv(payload = buildRenewalPerformanceReportPayload()) {
     const rows = renewalReportFlatRows(payload);
+    // Match the report's money display: normalized zero is an unset amount.
+    const moneyColumns = new Set([
+      "currentRent", "originalTargetRent", "originalTargetGrowthAmount",
+      "finalNegotiatedRent", "finalExecutedRent", "achievedGrowthAmount"
+    ]);
     const headers = Object.keys(rows[0] || {
       property: "",
       portfolio: "",
@@ -10938,7 +10943,7 @@
     });
     return [
       headers.join(","),
-      ...rows.map(row => headers.map(header => escapeCsvCell(row[header])).join(","))
+      ...rows.map(row => headers.map(header => escapeCsvCell(moneyColumns.has(header) && row[header] === 0 ? "" : row[header])).join(","))
     ].join("\n");
   }
 

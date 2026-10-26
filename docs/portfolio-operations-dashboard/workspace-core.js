@@ -4363,12 +4363,18 @@ function atlasOpsGlobalChangedOnlyPeopleSyncTime(previous, next) {
 async function atlasStateSetValue(key, value, options = {}) {
   if ([ATLAS_STATE_COMMUNITY_KEY, OPS_GLOBAL_STORAGE_KEY].includes(String(key))) {
     const contactWriteAtStart = window.AtlasPeopleContactWrite, contactGeneration = Number(window.AtlasPeopleContactGeneration || 0);
+    const importGuard = String(key) === ATLAS_STATE_COMMUNITY_KEY ? (options.importGuard || window.AtlasImportCommunityGuard) : null;
+    const importGeneration = Number(window.AtlasImportCommunityGeneration || 0), importToken = importGuard?.capture();
+    let committedValue;
     let accepted = true, writeError = null;
     try {
       await withAtlasStateStore("readwrite", store => {
         const request = store.get(String(key));
         request.onsuccess = () => {
           try {
+            if (String(key) === ATLAS_STATE_COMMUNITY_KEY && window.AtlasImportCommunityRecovery) throw new Error(window.AtlasImportCommunityRecovery);
+            if (String(key) === ATLAS_STATE_COMMUNITY_KEY && importGeneration !== Number(window.AtlasImportCommunityGeneration || 0)) throw new Error("Import approval changed while this write was waiting. Reload before saving.");
+            importGuard?.assertStored(request.result?.value ?? null, importToken);
             if (String(key) === ATLAS_STATE_COMMUNITY_KEY && window.AtlasPeopleContactRecovery) throw new Error(window.AtlasPeopleContactRecovery);
             if (String(key) === ATLAS_STATE_COMMUNITY_KEY && (
               contactGeneration !== Number(window.AtlasPeopleContactGeneration || 0)
@@ -4379,6 +4385,7 @@ async function atlasStateSetValue(key, value, options = {}) {
             const prepared = options.prepareValue ? options.prepareValue() : value;
             const next = String(key) === ATLAS_STATE_COMMUNITY_KEY && window.AtlasOccupancyReplay?.protectCommittedOccupancy
               ? window.AtlasOccupancyReplay.protectCommittedOccupancy(prepared,request.result?.value) : prepared;
+            committedValue = next;
             if (JSON.stringify(next) === JSON.stringify(request.result?.value)) return;
             store.put({key:String(key),value:next,updatedAt:new Date().toISOString()});
             // The People refresh clock is observation metadata. Persist it for
@@ -4392,6 +4399,7 @@ async function atlasStateSetValue(key, value, options = {}) {
         return request;
       });
     } catch (error) { throw writeError || error; }
+    if (accepted && committedValue !== undefined) importGuard?.committed(committedValue);
     return accepted;
   }
   await withAtlasStateStore("readwrite", store => store.put({
@@ -9108,14 +9116,16 @@ async function awaitAtlasPersistenceResults(saves) {
 }
 
 function persistSaved() {
+  if(window.AtlasImportCommunityRecovery)return {ok:false,pending:false,completion:Promise.resolve(false),message:window.AtlasImportCommunityRecovery};
   if(window.AtlasPeopleContactWrite)return {ok:false,pending:false,completion:Promise.resolve(false),message:"People contacts are being verified. Wait before saving again."};
   if(window.AtlasPeopleContactRecovery)return {ok:false,pending:false,completion:Promise.resolve(false),message:window.AtlasPeopleContactRecovery};
   if(window.AtlasReplayWriteFence)return {ok:false,pending:false,completion:Promise.resolve(false),message:"Saving is paused during source replay or checkpoint recovery."};
   const serialized = buildSerializedSavedDataPayload();
+  const importGuard = window.AtlasImportCommunityGuard;
   const result = { ok: true, pending: true, completion: null, message: "" };
   result.completion = queueAtlasStateWrite(async () => {
     try {
-      await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, serialized);
+      await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, serialized, {importGuard});
       removeLegacyCommunityStorageKeys();
       result.pending = false;
     } catch (error) {
@@ -14351,6 +14361,7 @@ function syncAtlasTopbar() {
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 function saveBudgetCurve() {
+  if(window.AtlasImportCommunityGuard||window.AtlasImportCommunityRecovery){alert(window.AtlasImportCommunityRecovery||"Wait for import approval to finish before saving.");return false;}
   if(window.AtlasReplayWriteFence){alert("Saving is paused during source replay or checkpoint recovery. Reload if recovery is pending.");return false;}
   savedBudgetTargets = deriveSavedBudgetTargetsFromMonthlyData(monthlyData, savedBudgetTargets);
   monthlyData = repairMonthlyBudgetTargets(monthlyData, savedBudgetTargets);
@@ -14397,6 +14408,7 @@ function carryForwardMonthlyData(fromMonth) {
 }
 
 function saveCommunityData(silent = false) {
+  if(window.AtlasImportCommunityGuard||window.AtlasImportCommunityRecovery){alert(window.AtlasImportCommunityRecovery||"Wait for import approval to finish before saving.");return false;}
   if(window.AtlasReplayWriteFence){alert("Saving is paused during source replay or checkpoint recovery. Reload if recovery is pending.");return false;}
   if (activeTab === 1 && !isCommunitySettingsAdmin()) return false;
   const isCurrent = captureAtlasSaveContext();
@@ -19507,6 +19519,7 @@ async function buildAtlasCentralAppStatePayload() {
 }
 
 async function saveAtlasCentralAppState({ silent = false, source = "manual_central_save" } = {}) {
+  if(window.AtlasImportCommunityGuard||window.AtlasImportCommunityRecovery){const message=window.AtlasImportCommunityRecovery||"Wait for import approval to finish before Central Save.";setAtlasCentralRuntimeMessage("",message);if(!silent)alert(message);return false;}
   if(window.AtlasPeopleContactWrite){const message="People contacts are being verified. Wait before Central Save.";setAtlasCentralRuntimeMessage("",message);if(!silent)alert(message);return false;}
   if(window.AtlasPeopleContactRecovery){setAtlasCentralRuntimeMessage("",window.AtlasPeopleContactRecovery);if(!silent)alert(window.AtlasPeopleContactRecovery);return false;}
   if(window.AtlasReplayWriteFence){const message="Central Save is paused during source replay or checkpoint recovery. Reload if recovery is pending.";setAtlasCentralRuntimeMessage("",message);if(!silent)alert(message);return false;}
@@ -19519,7 +19532,9 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
   const saveContext = captureAtlasSaveContext();
   const actor = atlasWorkspaceActorKey(), database = ATLAS_STATE_DB_NAME;
   const replayGeneration = Number(window.AtlasReplayGeneration || 0);
+  const importGeneration = Number(window.AtlasImportCommunityGeneration || 0);
   const current = () => saveContext() && actor === atlasWorkspaceActorKey() && database === ATLAS_STATE_DB_NAME
+    && !window.AtlasImportCommunityGuard && !window.AtlasImportCommunityRecovery && importGeneration === Number(window.AtlasImportCommunityGeneration || 0)
     && !window.AtlasReplayWriteFence && !window.AtlasPeopleContactRecovery && replayGeneration === Number(window.AtlasReplayGeneration || 0);
   const pendingKey = "atlas_workspace_projection_pending_v1";
   let committedParent = null;
@@ -28434,7 +28449,7 @@ function renderImportFreshnessNeedsPanel(details = [], options = {}) {
   </div>`;
 }
 
-function applyMarketSurveyDataToProperty(propName, surveyInput) {
+function applyMarketSurveyDataToProperty(propName, surveyInput, options = {}) {
   const matchedName = matchPropertyName(propName);
   const known = getAllCommunityNames();
   if (!known.includes(matchedName)) return null;
@@ -28442,7 +28457,7 @@ function applyMarketSurveyDataToProperty(propName, surveyInput) {
     ? getCurrentCommunityRecord()
     : normalizeSavedCommunityRecord(matchedName, savedData[matchedName]);
   const existingSurvey = normalizeMarketSurveyData(record.marketSurveyData);
-  const nextSurvey = normalizeMarketSurveyData({
+  let nextSurvey = normalizeMarketSurveyData({
     ...existingSurvey,
     sourceFileName: surveyInput.sourceFileName || existingSurvey.sourceFileName,
     uploadedAt: surveyInput.uploadedAt || existingSurvey.uploadedAt,
@@ -28482,6 +28497,10 @@ function applyMarketSurveyDataToProperty(propName, surveyInput) {
   });
   nextSurvey.floorPlanRates = seedAptiqFloorPlanRatesFromCommunity(record, nextSurvey.floorPlanRates);
   record.marketSurveyData = nextSurvey;
+  if (options.preserveApprovedBoxScoreRates) {
+    window.syncApprovedBoxScoreFloorPlanRates(record);
+    nextSurvey = record.marketSurveyData;
+  }
   syncCommunityFloorPlanRentMetrics(record, record.currentMonth);
   const periodKey = getSelectedDashboardPeriodKey();
   const nextHistory = normalizeMarketSurveyHistory({
@@ -46488,6 +46507,8 @@ function persistDataImport2State(options = {}) {
 }
 async function persistDataImportPublication(replay = {}) {
   replay.assertCurrent?.();
+  const importGuard = window.AtlasImportCommunityGuard;
+  if (window.AtlasImportCommunityRecovery) throw new Error(window.AtlasImportCommunityRecovery);
   const communitySnapshot=buildSerializedSavedDataPayload(),importSnapshot=serializeDataImport2State(),context=getAtlasRenderContextKey();
   if(importSnapshot.historyStorage?.view!=='full')throw new Error('Complete canonical import evidence is required before publication.');
   let failure=null,publicationCommitted=false;
@@ -46500,13 +46521,15 @@ async function persistDataImportPublication(replay = {}) {
       replay.assertCurrent?.();
       if(replay.receiptKey&&captured.records[1].value!==null)throw new Error("A replay receipt already exists for this checkpoint.");
       const prior=captured.records[0],protect=window.AtlasOccupancyReplay?.protectCommittedOccupancy;
+      importGuard?.assertStored(prior.value);
       const value=protect?protect(communitySnapshot,prior.value):communitySnapshot;
       const receiptRecord=replay.publicationReceipt?.();
       const receipt=await dataImportHistoryOperation('publish',{value:importSnapshot,expectedRevision:dataImportHistoryRevision,records:[{key:ATLAS_STATE_COMMUNITY_KEY,value,expectedHash:prior.hash},...(receiptRecord?[{key:replay.receiptKey,value:receiptRecord,expectedHash:captured.records[1].hash}]:[])]});
       publicationCommitted=true;
+      importGuard?.committed(value);
       if(context!==getAtlasRenderContextKey())return;
       dataImport2State=normalizeDataImport2State(receipt.state);rememberDataImportHistoryState();removeLegacyCommunityStorageKeys();
-    }catch(error){failure=error;throw error;}
+    }catch(error){if(importGuard&&!publicationCommitted){try{importGuard.failed();}catch{}}failure=error;throw error;}
   },'community_and_import_publication',null,replay);
   replay.ownWrite?.(write);
   await write;
@@ -49276,6 +49299,28 @@ async function persistDataImportFailedReceipts(entries, checkCurrent = () => {})
   }
 }
 
+async function dataImportCreateCommunityGuard(assertCurrent) {
+  await atlasStateWritePromise;
+  assertCurrent();
+  if(typeof saveAtlasCentralAppState === "function" && saveAtlasCentralAppState.inFlight)throw new Error("Wait for Central Save to finish before approving imports.");
+  const {jsonEqual}=await import('./features/bounded-json-integrity.mjs?v=a4ea8821996c3b57');
+  const captured=await dataImportHistoryOperation('records',{keys:[ATLAS_STATE_COMMUNITY_KEY]});
+  assertCurrent();
+  let expected=captured.records[0].value, active=true, version=0;
+  const reject=()=>{
+    window.AtlasImportCommunityRecovery="Community data changed in another tab or no longer matches saved storage. Reload before importing or saving; the newer saved data was preserved.";
+    throw new Error(window.AtlasImportCommunityRecovery);
+  };
+  if(!jsonEqual(buildSerializedSavedDataPayload(),expected))reject();
+  return {
+    capture(){return version;},
+    assertStored(value,token=version){assertCurrent();if(!active || token!==version || !jsonEqual(value,expected))reject();},
+    committed(value){expected=structuredClone(value);version++;},
+    close(){active=false;},
+    failed(){assertCurrent();window.AtlasImportCommunityRecovery="Import publication could not be verified. Reload before importing or saving; newer saved data must be reviewed first.";}
+  };
+}
+
 async function approveDataImportBatch() {
   if (dataImportApprovalInProgress || dataImportApprovalPreflight) return;
   const approvalCurrent = captureAtlasSaveContext();
@@ -49329,6 +49374,13 @@ async function approveDataImportBatch() {
     alert(csvError);
     return;
   }
+  let communityGuard;
+  dataImportApprovalPreflight = true;
+  try { communityGuard=await dataImportCreateCommunityGuard(checkApprovalCurrent); }
+  catch(error) { if(approvalCurrent())alert(error.message);return; }
+  finally { dataImportApprovalPreflight=false; }
+  window.AtlasImportCommunityGeneration=Number(window.AtlasImportCommunityGeneration || 0)+1;
+  window.AtlasImportCommunityGuard=communityGuard;
   dataImportApprovalInProgress = true;
   dataImportApprovalProgress = {
     filesDone: 0,
@@ -49395,6 +49447,7 @@ async function approveDataImportBatch() {
           archiveEntry.coverage = importResult.coverage || [];
           archiveEntry.coverageExpected = Number(importResult.coverageExpected || 0);
           archiveEntry.coverageGaps = importResult.coverageGaps || [];
+          if(plan.aptiqSource?.kind === "aptiq_market_workbook" && plan.aptiqSource.status === "valid")archiveEntry.aptiqSource={kind:plan.aptiqSource.kind,status:plan.aptiqSource.status,communityName:plan.aptiqSource.communityName};
           routeMessages.push(`${plan.name}: ${importResult.message || "Import route completed."}`);
         } catch (error) {
           checkApprovalCurrent();
@@ -49528,6 +49581,8 @@ async function approveDataImportBatch() {
 
   } finally {
     if (!approvalCurrent()) {
+      communityGuard.close?.();
+      if(window.AtlasImportCommunityGuard===communityGuard)delete window.AtlasImportCommunityGuard;
       dataImportDiscardApprovalRuntime(approvalRuntime);
       dataImportApprovalInProgress = false;
       return;
@@ -49552,6 +49607,8 @@ async function approveDataImportBatch() {
           : `${csvError ? csvError + " " : ""}The final display could not be refreshed: ${message}`;
       }
     } finally {
+      communityGuard.close?.();
+      if(window.AtlasImportCommunityGuard===communityGuard)delete window.AtlasImportCommunityGuard;
       dataImportApprovalInProgress = false;
       if (approvalCurrent()) {
         dataImportUpdateApprovalProgress({ stage: "", fileName: "" });
@@ -49731,7 +49788,7 @@ function dataImportReplayRecoveryReader(entry) {
     if(!actor||typeof source.archiveId!=="string"||!source.archiveId||typeof source.fileHash!=="string"||!source.fileHash||central!==window.ATLAS_CENTRAL||actor!==(central?.getSession?.()?.user?.id||"")||access!==authScope()||database!==ATLAS_STATE_DB_NAME
       ||(borrowedPrimaryPromise&&borrowedPrimaryPromise!==(typeof atlasStateDbPromise==="undefined"?null:atlasStateDbPromise))
       ||!dataImportCanManageArchitecture()||!atlasAccessDecision(7).ok||!(dataImport2State.sourceArchive||[]).includes(entry)
-      ||entry.importStatus!=="Approved"||!["rent_roll","trending_occupancy","box_score"].includes(entry.reportType)||!Array.isArray(entry.communities)||!entry.communities.length||!entry.communities.every(name=>atlasDashboardUserCanSeeCommunityName(name))
+      ||entry.importStatus!=="Approved"||!["rent_roll","trending_occupancy","box_score","marketing_iq"].includes(entry.reportType)||!Array.isArray(entry.communities)||!entry.communities.length||!entry.communities.every(name=>atlasDashboardUserCanSeeCommunityName(name))
       ||entry.id!==source.archiveId||entry.fileHash!==source.fileHash||entry.batchId!==source.batchId||entry.reportType!==source.reportType)throw new Error("The authorized source or workspace changed. Reopen the intended source before inspecting.");
   };
   const names=async()=>{check();if(typeof indexedDB.databases!=="function")return null;const list=await indexedDB.databases();check();return new Set(list.map(row=>row.name));};
@@ -49873,7 +49930,7 @@ async function inspectDataImportReplayReceipt(archiveId) {
   if(!dataImportCanManageArchitecture()||!atlasAccessDecision(7).ok)return;
   const entry=(dataImport2State.sourceArchive||[]).find(row=>row.id===archiveId);
   if(!entry)throw new Error("The selected source is not loaded.");
-  if(!["rent_roll","trending_occupancy","box_score"].includes(entry.reportType)){alert("Replay receipts are available only for Rent Roll, Trending Occupancy and Box Score sources.");return;}
+  if(!["rent_roll","trending_occupancy","box_score","marketing_iq"].includes(entry.reportType)){alert("Replay receipts are available only for Rent Roll, Trending Occupancy, Box Score and Market Survey sources.");return;}
   try{
     const reader=dataImportReplayRecoveryReader(entry);
     const name=await selectDataImportReplayCheckpoint(entry,reader);if(!name)return;
@@ -50245,11 +50302,12 @@ async function reprocessDataImportBoxScore(archiveId) {
   dataImportApprovalPreflight = true;
   try { await ensureDataImportFullState(); } catch(error) { alert(error.message); return; } finally { dataImportApprovalPreflight = false; }
   const entry = (dataImport2State.sourceArchive || []).find(item => item.id === archiveId);
-  if (!entry || !["box_score", "trending_occupancy", "delinquency", "leasing_resident_data", "rent_roll"].includes(entry.reportType) || entry.importStatus !== "Approved") return;
+  if (!entry || !["box_score", "trending_occupancy", "delinquency", "leasing_resident_data", "rent_roll", "marketing_iq"].includes(entry.reportType) || entry.importStatus !== "Approved") return;
+  if(entry.reportType === "marketing_iq" && !dataImportMarketReplaySupported(entry)){alert("Check this market workbook's recovery support before reconciling it.");return;}
   dataImportApprovalInProgress = true;
   let checkpoint=null,beforeSaved=null,beforeImport=null,published=false;
   try {
-    if (["rent_roll","trending_occupancy"].includes(entry.reportType)) checkpoint=await dataImportCreateReplayCheckpoint(entry);
+    if (["rent_roll","trending_occupancy","marketing_iq"].includes(entry.reportType)) checkpoint=await dataImportCreateReplayCheckpoint(entry);
     else {beforeSaved=JSON.stringify(savedData);beforeImport=JSON.stringify(dataImport2State);}
     if(checkpoint)window.showDataImportReplayCheckpoint?.(checkpoint);
     const stored = await atlasStateGetValue(`${DATA_IMPORT_FILE_ARCHIVE_PREFIX}${archiveId}`);
@@ -50282,7 +50340,9 @@ async function reprocessDataImportBoxScore(archiveId) {
     plan.reprocessArchivedSource = true;
     plan.mappingVersion = "ATLAS-source-reconciliation-20260917";
     dataImportBeginApprovalRuntime();
-    let result = entry.reportType === "leasing_resident_data"
+    let result = entry.reportType === "marketing_iq"
+      ? await dataImportReconcileMarketSource(file, plan, entry, checkpoint.assertCurrent)
+      : entry.reportType === "leasing_resident_data"
       ? {communities:entry.communities || [], rowsHeld:0, issues:[]}
       : await dataImportRouteStructuredFile(file,plan,entry.batchId);
     if (entry.reportType === "leasing_resident_data" && typeof window.ATLAS_CENTRAL?.publishApplicationImport === "function") {
@@ -50331,6 +50391,81 @@ async function reprocessDataImportBoxScore(archiveId) {
     dataImportApprovalInProgress = false;
     if (!checkpoint || checkpoint.mayRender()) renderTab();
   }
+}
+
+function dataImportMarketReplaySupported(entry) {
+  if(entry?.reportType!=="marketing_iq" || entry.importStatus!=="Approved" || entry.deletedAt || !/\.(?:xlsx|xlsm|xls)$/i.test(entry.fileName || "") || entry.communities?.length!==1)return false;
+  const source=entry.aptiqSource;
+  if(source?.kind==="aptiq_market_workbook" && source.status==="valid" && source.communityName===entry.communities[0])return true;
+  const checked=window.AtlasMarketReplaySupport?.get(entry.id);
+  return Boolean(checked && checked.context===getAtlasRenderContextKey() && checked.fileHash===entry.fileHash && checked.fileName===entry.fileName && checked.communityName===entry.communities[0]);
+}
+
+async function checkDataImportMarketReplaySupport(archiveId) {
+  if(!dataImportCanManageArchitecture() || !atlasAccessDecision(7).ok || dataImportApprovalInProgress || dataImportApprovalPreflight)return;
+  const current=captureAtlasSaveContext();
+  dataImportApprovalPreflight=true;
+  try{
+    await ensureDataImportFullState();
+    if(!current())return;
+    const entry=(dataImport2State.sourceArchive || []).find(row=>row.id===archiveId);
+    if(!entry || entry.reportType!=="marketing_iq" || entry.importStatus!=="Approved" || entry.deletedAt || !/\.(?:xlsx|xlsm|xls)$/i.test(entry.fileName || "") || entry.communities?.length!==1 || !atlasDashboardUserCanSeeCommunityName(entry.communities[0]))throw new Error("This source does not support AptIQ workbook recovery.");
+    const hash=entry.fileHash,name=entry.fileName,community=entry.communities[0];
+    const stored=await atlasStateGetValue(`${DATA_IMPORT_FILE_ARCHIVE_PREFIX}${archiveId}`);
+    if(!stored?.blob)throw new Error("The retained original workbook is unavailable.");
+    const file=new File([stored.blob],name,{type:stored.type || "application/octet-stream"});
+    if(!hash || await dataImportFileHash(file)!==hash)throw new Error("The retained original does not match its approved source hash.");
+    if(typeof XLSX==="undefined")await window.AtlasFeatures.load("xlsx");
+    const qualified=dataImportAptiqSourceFromWorkbook(XLSX.read(await file.arrayBuffer(),{type:"array",cellNF:true}));
+    if(!current())return;
+    if(!(dataImport2State.sourceArchive || []).includes(entry) || entry.fileHash!==hash || entry.fileName!==name || entry.communities?.length!==1 || entry.communities[0]!==community)throw new Error("The selected source changed. Check it again.");
+    if(qualified?.status!=="valid" || qualified.communityName!==community)throw new Error("This retained source is not a supported AptIQ market workbook for its approved community.");
+    window.AtlasMarketReplaySupport ||= new Map();
+    window.AtlasMarketReplaySupport.set(entry.id,{context:getAtlasRenderContextKey(),fileHash:hash,fileName:name,communityName:community});
+    dataImportApprovalPreflight=false;
+    renderTab();
+  }catch(error){if(current())alert(String(error?.message || error));}
+  finally{dataImportApprovalPreflight=false;}
+}
+
+async function dataImportReconcileMarketSource(file, plan, entry, assertCurrent) {
+  assertCurrent();
+  const names=[...new Set(entry.communities || [])],name=names[0];
+  const batch=(dataImport2State.batches || []).find(row=>row.id===entry.batchId && row.status==="Approved" && !row.rolledBackAt);
+  const period=buildPeriodKey(entry.reportingMonthIdx,entry.reportingYear);
+  if(entry.deletedAt || names.length!==1 || !batch || !Array.isArray(batch.archiveIds) || !batch.archiveIds.includes(entry.id)
+      || !dataImportIsActiveReportingCommunity(name) || !dataImportCommunitySupportsReport(name,"marketing_iq") || !atlasDashboardUserCanSeeCommunityName(name)) {
+    throw new Error("Market reconciliation requires one authorized community and its original approved batch receipt.");
+  }
+  if(!Number.isInteger(entry.reportingMonthIdx) || !Number.isInteger(entry.reportingYear) || period!==getSelectedDashboardPeriodKey()
+      || (dataImport2State.closedPeriods || []).includes(period))throw new Error("Select the original open reporting month before reconciling this market source.");
+  const sourceTime=row=>Date.parse(row.dataDateIso || row.metadata?.dataAsOf || row.uploadedAt || "");
+  if(!Number.isFinite(sourceTime(entry)) || !Number.isFinite(Date.parse(entry.uploadedAt || "")))throw new Error("The approved market source date or upload receipt is missing.");
+  const approvedTime=row=>Date.parse((dataImport2State.batches || []).find(item=>item.id===row.batchId)?.approvedAt || row.uploadedAt || "");
+  const supersedes=row=>{
+    for(const getTime of [sourceTime,approvedTime,row=>Date.parse(row.uploadedAt || "")]){
+      const candidate=getTime(row),selected=getTime(entry);
+      if(!Number.isFinite(candidate) || !Number.isFinite(selected))return true;
+      if(candidate!==selected)return candidate>selected;
+    }
+    // Different accepted content with indistinguishable receipts has no safe
+    // replay order. Do not guess from random IDs or archive array position.
+    return !row.fileHash || row.fileHash!==entry.fileHash;
+  };
+  if((dataImport2State.sourceArchive || []).some(row=>row.id!==entry.id && row.reportType==="marketing_iq" && row.importStatus==="Approved" && !row.deletedAt
+      && (row.communities || []).includes(name) && supersedes(row)))throw new Error("A newer or ambiguously ordered approved market survey controls this community. Reconcile the latest verified source instead.");
+  const workbook=XLSX.read(await file.arrayBuffer(),{type:"array",cellNF:true});
+  assertCurrent();
+  const qualified=dataImportAptiqSourceFromWorkbook(workbook);
+  if(!qualified || qualified.status!=="valid" || qualified.communityName!==name)throw new Error("The retained market workbook does not match its approved community.");
+  const parsed=extractMarketSurveyWorkbookData(workbook,entry.fileName);
+  if(parsed.communityName!==name)throw new Error("The market parser no longer matches the approved community.");
+  const applied=applyMarketSurveyDataToProperty(name,{...parsed,sourceFileName:entry.fileName,uploadedAt:entry.uploadedAt},{preserveApprovedBoxScoreRates:true});
+  if(!applied)throw new Error("The approved market destination is unavailable.");
+  // Recovery changes destination data only; the exact original canonical rows,
+  // batch, source receipt and upload time remain the accepted evidence.
+  Object.assign(plan,{communities:names,selectedCommunities:names,reportingMonthIdx:entry.reportingMonthIdx,reportingYear:entry.reportingYear,reportingPeriodLabel:entry.reportingPeriodLabel});
+  return {communities:names,rowsHeld:0,issues:[],destinations:["Marketing Performance"],destinationRestored:true};
 }
 
 async function downloadDataImportArchiveFile(archiveId) {

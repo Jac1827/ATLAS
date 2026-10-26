@@ -4361,8 +4361,32 @@ function atlasOpsGlobalChangedOnlyPeopleSyncTime(previous, next) {
   return JSON.stringify(withoutSyncTime(previous)) === JSON.stringify(withoutSyncTime(next));
 }
 
+// Observe a completed local write without changing its persistence or access guards.
+function captureAtlasLocalPublicationStatus() {
+  try {
+    const viewer = captureAtlasAuxiliaryContext(), context = getAtlasRenderContextKey();
+    const identityOf = source => JSON.stringify([source?.documentKey, source?.version, source?.archiveHash, source?.effectiveAt]);
+    const identity = identityOf(atlasWorkspaceAccess.source);
+    if (!atlasWorkspaceAccess.source || !viewer.current()) return null;
+    const current = () => viewer.current() && context === getAtlasRenderContextKey()
+      && identity === identityOf(atlasWorkspaceAccess.source);
+    return async () => {
+      try {
+        if (!current()) return false;
+        const stored = await atlasStateGetValue("atlas_workspace_source_v2");
+        if (!current() || stored?.dirty !== true || identityOf(stored.identity) !== identity) return false;
+        atlasWorkspaceAccess.source = { ...atlasWorkspaceAccess.source, localChanges: true };
+        refreshAtlasWorkspaceSourceStatus();
+        return true;
+      } catch { return false; } // Status observation cannot fail a committed write.
+    };
+  } catch { return null; }
+}
+
 async function atlasStateSetValue(key, value, options = {}) {
   if ([ATLAS_STATE_COMMUNITY_KEY, OPS_GLOBAL_STORAGE_KEY].includes(String(key))) {
+    const observeStatus = typeof captureAtlasLocalPublicationStatus === "function" ? captureAtlasLocalPublicationStatus() : null;
+    let dirtyWritten = false;
     const renewalPendingAtStart = atlasRenewalRepairPending(), renewalGeneration = atlasRenewalRepairGeneration();
     const contactWriteAtStart = window.AtlasPeopleContactWrite, contactGeneration = Number(window.AtlasPeopleContactGeneration || 0);
     const importGuard = String(key) === ATLAS_STATE_COMMUNITY_KEY ? (options.importGuard || window.AtlasImportCommunityGuard) : null;
@@ -4396,7 +4420,7 @@ async function atlasStateSetValue(key, value, options = {}) {
             // This never clears an existing dirty receipt or excludes other changes.
             if (String(key) === OPS_GLOBAL_STORAGE_KEY && atlasOpsGlobalChangedOnlyPeopleSyncTime(request.result?.value, next)) return;
             const source = store.get("atlas_workspace_source_v2");
-            source.onsuccess = () => {if(source.result?.value) store.put({...source.result,value:{...source.result.value,dirty:true}});};
+            source.onsuccess = () => {if(source.result?.value) {store.put({...source.result,value:{...source.result.value,dirty:true}});dirtyWritten = true;}};
           } catch (error) { writeError = error; store.transaction.abort(); }
         };
         request.onsuccess = () => {
@@ -4411,6 +4435,7 @@ async function atlasStateSetValue(key, value, options = {}) {
       });
     } catch (error) { throw writeError || error; }
     if (accepted && committedValue !== undefined) importGuard?.committed(committedValue);
+    if (accepted && dirtyWritten) void observeStatus?.();
     return accepted;
   }
   await withAtlasStateStore("readwrite", store => store.put({
@@ -14333,6 +14358,11 @@ function renderTab() {
   }
 }
 
+function refreshAtlasWorkspaceSourceStatus() {
+  const status = document.getElementById("atlas-workspace-source"), source = atlasWorkspaceAccess.source;
+  if (status) status.textContent = source ? `${source.cached ? "Cached workspace" : "Central workspace"} · version ${source.version} · source effective ${source.effectiveAt || "unknown"} · verified ${source.verifiedAt || "not yet checked"}${source.localChanges ? " · local changes pending publication" : ""}${atlasWorkspaceAccess.error ? " · " + atlasWorkspaceAccess.error : ""}` : "Source version not verified";
+}
+
 // Keeps compact status chips in step with the sidebar workspace controls.
 function syncAtlasTopbar() {
   try {
@@ -14354,8 +14384,7 @@ function syncAtlasTopbar() {
     const freshChip = document.getElementById("atlas-chip-freshness");
     let sourceStatus = document.getElementById("atlas-workspace-source");
     if (!sourceStatus) { sourceStatus = document.createElement("div"); sourceStatus.id = "atlas-workspace-source"; sourceStatus.setAttribute("role","status"); sourceStatus.style.cssText="font-size:11px;padding:5px 12px;color:#486581"; document.getElementById("atlas-topbar")?.after(sourceStatus); }
-    const source = atlasWorkspaceAccess.source;
-    sourceStatus.textContent = source ? `${source.cached ? "Cached workspace" : "Central workspace"} · version ${source.version} · source effective ${source.effectiveAt || "unknown"} · verified ${source.verifiedAt || "not yet checked"}${source.localChanges ? " · local changes pending publication" : ""}${atlasWorkspaceAccess.error ? " · " + atlasWorkspaceAccess.error : ""}` : "Source version not verified";
+    refreshAtlasWorkspaceSourceStatus();
     if (freshChip) {
       if (isPortfolioWorkspaceSelected() && activeTab === 1) {
         const count = getPortfolioSetupCommunityRecordsForMonth(getSelectedDashboardMonthIndex(), savedData, { includeInactive: true }).length;
@@ -46628,6 +46657,7 @@ async function dataImportHistoryOperation(operation, extra = {}) {
   // Bind the request before the lazy import. A superseded caller must never
   // adopt the next account's database or apply an old worker's revision marker.
   const database=ATLAS_STATE_DB_NAME,context=getAtlasRenderContextKey(),epoch=atlasWorkspaceAccess.epoch;
+  const observeStatus = typeof captureAtlasLocalPublicationStatus === "function" ? captureAtlasLocalPublicationStatus() : null;
   const controller=new AbortController(),signal=controller.signal;
   const sourceSignals=[atlasWorkspaceAccess.controller?.signal,extra.signal].filter(Boolean);
   const abort=()=>controller.abort(new DOMException('Workspace changed while loading import evidence.','AbortError'));
@@ -46647,6 +46677,7 @@ async function dataImportHistoryOperation(operation, extra = {}) {
     // The storage adapter lets accepted writes settle atomically. This signal
     // cancels reads and prevents a canceled request from dispatching a new write.
     const result=await historyOperation({...extra,operation,dbName:database,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal});check();
+    if (result?.verified === true && extra.markDirty !== false && ["save", "publish", "update", "rollback"].includes(operation)) void observeStatus?.();
     return result;
   } finally {
     for(const sourceSignal of sourceSignals)sourceSignal.removeEventListener('abort',abort);

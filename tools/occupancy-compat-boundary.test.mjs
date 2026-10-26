@@ -8,6 +8,7 @@ const old=fs.readFileSync(new URL('./fixtures/occupancy-retained-import-boundary
 function functionText(s,name){return s.match(new RegExp(`^(?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?^\\}`,'m'))[0];}
 const oldTypes='["box_score", "trending_occupancy", "delinquency", "leasing_resident_data"].includes(entry.reportType)';
 const newTypes='["box_score", "trending_occupancy", "delinquency", "leasing_resident_data", "rent_roll"].includes(entry.reportType)';
+const currentTypes='["box_score", "trending_occupancy", "delinquency", "leasing_resident_data", "rent_roll", "marketing_iq"].includes(entry.reportType)';
 const oldIndex='<html>retained startup and storage bytes\n'+old+'\nuntouched operational footer</html>';
 const patch=(source=oldIndex,core=current,ui=archiveUi)=>patchOccupancyImportBoundary(source,core,ui);
 test('twelve exact boundaries preserve all other retained operational bytes',()=>{
@@ -43,7 +44,8 @@ test('changed or missing retained anchors fail closed instead of replacing opera
  assert.throws(()=>patch(oldIndex,current.replace('occupancyEvidence:','unreviewedMetadata:')),/aggregate contract/);
  assert.throws(()=>patch(oldIndex.replace('  const sectionDate = sourceRow.period?.start || sourceRow.period?.asOf;','  const sectionDate = newReportingPolicy();')),/anchor changed/);
  assert.throws(()=>patch(oldIndex.replaceAll(oldTypes,oldTypes.replace('"box_score"','"unapproved_type"'))),/anchor changed/);
- assert.throws(()=>patch(oldIndex,current,archiveUi.replace(newTypes,oldTypes)),/replay boundary changed/);
+ assert.throws(()=>patch(oldIndex,current,archiveUi.replace(currentTypes,oldTypes)),/replay boundary changed/);
+ assert.throws(()=>patch(oldIndex,current.replace(currentTypes,newTypes)),/replay boundary changed/);
  assert.throws(()=>patch(oldIndex,current.replace('Rent roll reporting period is missing','Ignore missing report month')),/period boundary is incomplete/);
  assert.throws(()=>patch(oldIndex,current.replace('result.periodCorrection = dataImportSupersedeRentRollPeriods(plan, entry, result)','result.periodCorrection = skipCorrection()')),/anchors are missing or ambiguous|correction call is incomplete/);
  assert.throws(()=>patch(oldIndex,current.replace('function dataImportSupersedeRentRollPeriods','function unreviewedCorrection')),/function missing/);

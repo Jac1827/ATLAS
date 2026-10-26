@@ -61,6 +61,8 @@ jobs:
           node-version: '22'
       - name: Install pinned local Postgres test engine
         run: npm install --no-save --ignore-scripts @electric-sql/pglite@0.3.14
+      - name: Validate governed market recovery and stale import protection
+        run: node --test tools/governed-market-recovery.test.cjs
       - name: Validate Community Command calculations and shared-plan security
         run: |
           node tools/community-command-contract.test.cjs

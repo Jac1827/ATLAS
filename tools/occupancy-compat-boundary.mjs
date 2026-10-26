@@ -23,9 +23,12 @@ function changes(currentCore,currentImportWorkspace) {
   if(!currentCore.includes(correction+'\n\n'+replayAnchor))throw new Error('Current rent roll correction helper boundary changed.');
   const oldTypes='["box_score", "trending_occupancy", "delinquency", "leasing_resident_data"].includes(entry.reportType)';
   const newTypes='["box_score", "trending_occupancy", "delinquency", "leasing_resident_data", "rent_roll"].includes(entry.reportType)';
+  // Market reconciliation belongs to the current workspace and its guarded
+  // publisher. Retained hosts keep their existing reviewed replay allowlist.
+  const currentTypes='["box_score", "trending_occupancy", "delinquency", "leasing_resident_data", "rent_roll", "marketing_iq"].includes(entry.reportType)';
   const allowlist=(source,name)=>{
     const reviewed=functionRange(source,name).text;
-    if(reviewed.split(newTypes).length!==2||reviewed.includes(oldTypes))throw new Error(`Current rent roll replay boundary changed: ${name}`);
+    if(reviewed.split(currentTypes).length!==2||reviewed.includes(oldTypes))throw new Error(`Current rent roll replay boundary changed: ${name}`);
     return {name,before:oldTypes,after:newTypes};
   };
   const edits=[

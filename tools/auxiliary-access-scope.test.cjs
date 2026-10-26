@@ -4,6 +4,7 @@ const deferred=()=>{let resolve;const promise=new Promise(done=>resolve=done);re
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 function section(source,start,end){const a=source.indexOf(start),b=source.indexOf(end,a);assert(a>=0&&b>a);return source.slice(a,b);}
 const code=[
+  section(core,'let atlasCentralSaveUiProgress = null;', 'async function saveAtlasCentralAppState('),
   section(core,'function captureAtlasAuxiliaryContext()', 'const ATLAS_ACCESS_TABS ='),
   section(core,'async function loadAtlasEmployeeNotifications(', 'async function updateAtlasEmployeeNotification('),
   section(core,'async function refreshAtlasLivePresence(', 'function startAtlasLivePresence('),
@@ -24,7 +25,7 @@ function fixture(){
   setInterval:fn=>{const id=nextTimer++;timers.set(id,fn);return id;},clearInterval:id=>timers.delete(id),
   renderAtlasEmployeeNotificationTicker:()=>calls.push('notification-render'),renderAtlasLiveUsersTicker:()=>calls.push('presence-render'),
   renderTab:()=>calls.push('render'),refreshAtlasPeopleAccessPanel:()=>calls.push('admin-render'),setAtlasCentralRuntimeMessage:()=>calls.push('message'),alert:()=>calls.push('alert'),
-  document:{querySelector:()=>null,getElementById:()=>null},activeTab:0,
+  document:{querySelector:()=>null,getElementById:()=>null,querySelectorAll:()=>[]},activeTab:0,saveAtlasCentralAppState:()=>{},
   atlasEmployeeNoticeIsActive:()=>true,getAtlasAccessTab:()=>({id:'0',label:'Home'}),getAtlasSharedPropertyByName:()=>null,getProp:()=>({name:'Allowed Community'}),
   getAtlasLiveSessionId:()=> 'test-session',isPortfolioWorkspaceSelected:()=>false,PORTFOLIO_SCOPE_LABEL:'Portfolio',
   pullAtlasSharedPropertyGraphFromCentral:async()=>({changed:false}),scheduleAtlasSharedRender:()=>calls.push('shared-render'),

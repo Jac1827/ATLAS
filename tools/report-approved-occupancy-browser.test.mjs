@@ -63,6 +63,9 @@ try{
  };
  const initializeSession=({actor,profile,namespace})=>{
   const NativeDate=Date;window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:['2026-10-21T16:00:00Z']));}static now(){return new NativeDate('2026-10-21T16:00:00Z').getTime();}};
+  // Export popups share this origin's verified session. Re-seeding their profile
+  // would send storage/auth events to the parent and restart its workspace.
+  if(window.opener || window.top!==window)return;
   localStorage.setItem('atlas_central_auth_session_v1',JSON.stringify({access_token:'synthetic-test-only',refresh_token:'synthetic-test-only',expires_at:Math.floor(Date.now()/1000)+3600,user:{id:actor,email:profile.email}}));
   localStorage.setItem('atlas_central_profile_v1',JSON.stringify(profile));
   localStorage.setItem(namespace+':atlas_dashboard_preferences_v1',JSON.stringify({hasSeenWelcome:true}));
@@ -89,6 +92,7 @@ try{
  const normalized=text=>text.replace(/\s+/g,' ');
  async function exported(target,label,expect){
   const before=await capture(target);
+  const accessEpoch=await target.evaluate(()=>atlasWorkspaceAccess.epoch);
   const expectedNames=await target.evaluate(()=>buildMonthlyInvestorPresentationData().communityNames);
   const scopeCheck=text=>{for(const name of expectedNames)assert(text.includes(name),'export contains selected '+name);for(const item of roster)if(!expectedNames.includes(item.display_name))assert(!text.includes(item.display_name),'export excludes unselected '+item.display_name);};
   const download=target.waitForEvent('download');await target.evaluate(()=>downloadMonthlyInvestorPresentationBrief());const htmlFile=await download;const htmlPath=path.join(output,label+'.html');await htmlFile.saveAs(htmlPath);const html=fs.readFileSync(htmlPath,'utf8');expect(html);scopeCheck(html);
@@ -101,6 +105,7 @@ try{
   const zip=await runtime.JSZip.loadAsync(fs.readFileSync(pptPath)),slideNames=Object.keys(zip.files).filter(name=>/^ppt\/slides\/slide\d+\.xml$/.test(name));assert(slideNames.length>3);
   const text=(await Promise.all(slideNames.map(name=>zip.file(name).async('string')))).join(' ');expect(text);scopeCheck(text);
   assert.equal((await capture(target)).source,before.source,'exports never mutate source records');
+  assert.equal(await target.evaluate(()=>atlasWorkspaceAccess.epoch),accessEpoch,'export popups never reset the parent verified session');
  }
  const expectMissing=text=>{assert.match(text,/Approved occupancy budget unavailable/);assert.doesNotMatch(text,/Goal 97(?:\.0)?%|97\.0% budget line|0 of 0 communities are.*on track/);};
  await exported(page,'monthly-missing',expectMissing);

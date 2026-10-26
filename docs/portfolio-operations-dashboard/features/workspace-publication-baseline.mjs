@@ -1,4 +1,4 @@
-import {accessNamespace,readWorkspace,sourceIdentity,stableJson} from './workspace-bootstrap.mjs?v=f87156592e1bc83d';
+import {accessNamespace,readWorkspace,sourceIdentity,stableJson} from './workspace-bootstrap.mjs?v=1f015e0fb32243a3';
 
 // Scoped startup already captures a verified central ancestor. Reuse that
 // ancestor only when the current authenticated read proves its exact identity;

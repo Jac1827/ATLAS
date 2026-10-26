@@ -1,6 +1,6 @@
 import {createJsonTokenSink} from './migration-token-stream.mjs';
-import {historyNamespace,prepareStreamedInitialHistory} from './import-history-store.mjs?v=e61d12d36e6cf36a';
-import {stableJson} from './workspace-bootstrap.mjs?v=f87156592e1bc83d';
+import {historyNamespace,prepareStreamedInitialHistory} from './import-history-store.mjs?v=183247e2c6de8d73';
+import {stableJson} from './workspace-bootstrap.mjs?v=1f015e0fb32243a3';
 import {Sha256,hashJson,jsonChunks} from './bounded-json-integrity.mjs?v=a4ea8821996c3b57';
 
 // An isolated staging namespace is invisible to normal history readers. Only a

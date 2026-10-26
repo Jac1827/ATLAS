@@ -1,5 +1,5 @@
 const stopped=()=>new DOMException('Your account or workspace changed. Preview the older local evidence again.','AbortError');
-export function createLegacyEvidenceRecovery({central,getContext,onState=()=>{},workerFactory=()=>new Worker(new URL('./legacy-evidence-worker.js?v=01aa20d1fedb45f6',import.meta.url))}){
+export function createLegacyEvidenceRecovery({central,getContext,onState=()=>{},workerFactory=()=>new Worker(new URL('./legacy-evidence-worker.js?v=183e97079020c954',import.meta.url))}){
   let generation=0,active=null,preview=null,state={phase:'idle',message:'Preview and download older local import evidence without changing this workspace.'};
   const emit=next=>{state=Object.freeze(next);onState(state);};
   const identity=()=>{

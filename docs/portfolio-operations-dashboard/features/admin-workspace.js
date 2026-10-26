@@ -295,7 +295,7 @@ function renderAtlasCentralPlatformPanel() {
         <div style="font-size:0.66rem;color:var(--muted);line-height:1.5;margin-bottom:8px">${escapeHtml(documentVersion)} ${escapeHtml(lastActivity)}</div>
         <div style="font-size:0.64rem;color:${autosaveReady ? "#3fb950" : "#d29922"};line-height:1.5;margin-bottom:8px">${safetyItems.map(item => escapeHtml(item)).join(" · ")}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-blue btn-sm" onclick="saveAtlasCentralAppState({ silent:false, source:'manual_central_save' })" ${status.signedIn ? "" : "disabled"}>Save Current State To Central</button>
+          <button class="btn btn-blue btn-sm" data-atlas-central-save onclick="saveAtlasCentralAppState({ silent:false, source:'manual_central_save' })" ${status.signedIn && !saveAtlasCentralAppState.inFlight ? "" : "disabled"}>${saveAtlasCentralAppState.inFlight ? "Saving To Central…" : "Save Current State To Central"}</button>
           <button class="btn btn-gray btn-sm" onclick="pullAtlasCentralAppState({ silent:false })" ${status.signedIn ? "" : "disabled"}>Pull Central State</button>
           <button class="btn btn-gray btn-sm" onclick="inspectAtlasOccupancyReadback()">Check Published Occupancy</button>
           <button class="btn btn-gray btn-sm" onclick="uploadAtlasCentralMigrationSnapshot({ silent:false })" ${status.signedIn && !atlasCentralSnapshotUploadInProgress ? "" : "disabled"}>${atlasCentralSnapshotUploadInProgress ? "Uploading Snapshot..." : "Upload Read-Only Snapshot"}</button>

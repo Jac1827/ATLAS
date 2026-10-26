@@ -2476,8 +2476,8 @@
     ]
   },
   "central-services.js": {
-    "sha256": "82e2b09ae3d1f81b",
-    "bytes": 785698,
+    "sha256": "7607f2eee09ad9c1",
+    "bytes": 787774,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2506,7 +2506,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "d32f66f45e1bd7bc",
+    "sha256": "5f88c4f461ce2c3a",
     "bytes": 3962,
     "references": [
       [

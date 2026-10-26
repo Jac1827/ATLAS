@@ -1,0 +1,218 @@
+{
+  "format": 1,
+  "kind": "client-recovery-hosting-and-backend-preservation",
+  "verifiedAt": "2026-09-24T23:48:13.626791+00:00",
+  "workflow": {
+    "runId": 36073964558,
+    "jobId": 107880936140,
+    "conclusion": "success",
+    "headCommit": "71a5d69407cf8f2ec117f512d6e70d72830f1842",
+    "trigger": "workflow_dispatch",
+    "target": "production"
+  },
+  "selection": {
+    "clientCommit": "3d80173de32f227410663662a523932c50ecaa2b",
+    "releaseId": "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540",
+    "retentionCommit": "09f271122e2436bc642deddabe1dfc7f8cecf93e",
+    "releaseCount": 2,
+    "manifestHash": "42c52b6607fe67f4a2ddf21269820c123c706c57b881f74bebf1e473cb1c2796"
+  },
+  "tests": {
+    "discovered": 193,
+    "passed": 191,
+    "failed": 0,
+    "skipped": 2,
+    "sourceChangedDuringRun": false,
+    "privateFixtureSkips": [
+      "tools/budget-workbook-import.test.cjs",
+      "tools/collections-import.test.cjs"
+    ],
+    "recoveryPackagingTestElapsedMs": 7898,
+    "source": "hosted job logs",
+    "note": "Recovery branch suite; distinct from final performance working-tree suite."
+  },
+  "worker": {
+    "id": "af28c476-fff7-47ca-a126-208371f99e4b",
+    "source": "wrangler",
+    "strategy": "percentage",
+    "versions": [
+      {
+        "version_id": "e0d8029c-3be0-413e-9743-465f0c8aa1ea",
+        "percentage": 100
+      }
+    ],
+    "created_on": "2026-09-24T23:45:04.965884Z"
+  },
+  "pages": {
+    "deploymentId": "71a5d69407cf8f2ec117f512d6e70d72830f1842",
+    "jobStepConclusion": "success"
+  },
+  "artifacts": [
+    {
+      "id": 10838894853,
+      "name": "tests-production",
+      "digest": "sha256:fc18e8408884bc9f70c3259823adba45ca6cc1bafd631f8d3d11c9e0aa9f2b61"
+    },
+    {
+      "id": 10838964744,
+      "name": "client-rollback-evidence",
+      "digest": "sha256:a70f234e5ce8e9a9ab964d3c966a5e5c4c629a55ee99f4a05423b7ea3ecd12dc"
+    },
+    {
+      "id": 10839009433,
+      "name": "github-pages",
+      "digest": "sha256:addd42290679acae963d13a7cadb746e02e21ebfbaaafa0e15e10436e6b7c84b"
+    }
+  ],
+  "publicHosts": {
+    "observedAt": "2026-09-24T23:47:53.330342+00:00",
+    "hosts": [
+      {
+        "host": "worker",
+        "manifestStatus": 200,
+        "manifestSha256": "42c52b6607fe67f4a2ddf21269820c123c706c57b881f74bebf1e473cb1c2796",
+        "releaseId": "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540",
+        "retainedReleaseIds": [
+          "75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370",
+          "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540"
+        ],
+        "htmlStatus": 200,
+        "htmlBytes": 3384460,
+        "htmlSha256": "486019decee3b96dfb64ab880113ebdce958abcd99fbede08be6f1c45f195faa",
+        "htmlMatchesCanonicalManifest": true,
+        "htmlSelectsPriorRelease": true,
+        "retainedNamespaces": [
+          {
+            "releaseId": "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540",
+            "status": 200,
+            "manifestReleaseMatches": true,
+            "fileCount": 235,
+            "manifestSha256": "e782dcd10368c412094adb93bc4ab43b24b0fbc81a0a9cf8b895afa3504c64ee"
+          },
+          {
+            "releaseId": "75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370",
+            "status": 200,
+            "manifestReleaseMatches": true,
+            "fileCount": 264,
+            "manifestSha256": "8d1977443a207dd7ac58ffe2a27eaa198d053a07d434d7a06f60a90fc584c716"
+          }
+        ],
+        "htmlEffectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/portfolio-operations-dashboard/",
+        "htmlInitialRedirectStatus": 307
+      },
+      {
+        "host": "pages",
+        "manifestStatus": 200,
+        "manifestSha256": "42c52b6607fe67f4a2ddf21269820c123c706c57b881f74bebf1e473cb1c2796",
+        "releaseId": "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540",
+        "retainedReleaseIds": [
+          "75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370",
+          "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540"
+        ],
+        "htmlStatus": 200,
+        "htmlBytes": 3384460,
+        "htmlSha256": "486019decee3b96dfb64ab880113ebdce958abcd99fbede08be6f1c45f195faa",
+        "htmlMatchesCanonicalManifest": true,
+        "htmlSelectsPriorRelease": true,
+        "retainedNamespaces": [
+          {
+            "releaseId": "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540",
+            "status": 200,
+            "manifestReleaseMatches": true,
+            "fileCount": 235,
+            "manifestSha256": "e782dcd10368c412094adb93bc4ab43b24b0fbc81a0a9cf8b895afa3504c64ee"
+          },
+          {
+            "releaseId": "75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370",
+            "status": 200,
+            "manifestReleaseMatches": true,
+            "fileCount": 264,
+            "manifestSha256": "8d1977443a207dd7ac58ffe2a27eaa198d053a07d434d7a06f60a90fc584c716"
+          }
+        ]
+      }
+    ],
+    "manifestsEqual": true,
+    "htmlEqual": true
+  },
+  "backendPreservation": {
+    "parent": {
+      "version": 1,
+      "unchanged": true,
+      "updatedAt": "2026-09-19T02:36:25.886387+00:00",
+      "archiveHash": "44fff7341af4fe69f97dffe49736f7d6b81c1c465a59ac1477cdc745443d261f",
+      "payloadHash": "05c889b5561ad4b74ac0440891e6e5600b0371aa40c1662792106c07ed59ea92"
+    },
+    "observedAt": "2026-09-24T23:47:05.101881+00:00",
+    "migrationCount": 80,
+    "publisherBodyMd5": "6315aea283cbecdcabc816846a9e814d",
+    "doroReportedVersions": [
+      {
+        "name": "reforecast_governed_close_scope",
+        "version": "20260924232842",
+        "statementsMd5": "a3bac7947703b466941c142ddc6e6b4b",
+        "statementCount": 1
+      },
+      {
+        "name": "bounded_workbook_audit_transport",
+        "version": "20260924232845",
+        "statementsMd5": "00169a28cd9b6bb6451471d99a7fd0cc",
+        "statementCount": 1
+      },
+      {
+        "name": "reforecast_str_overlay_isolation",
+        "version": "20260924232853",
+        "statementsMd5": "439e1e84d76f3752acfd39e9bf83321e",
+        "statementCount": 1
+      }
+    ],
+    "projectionCurrentRows": 0,
+    "projectionVersionRows": 0,
+    "projectionAuditRowsAll": 0
+  },
+  "normalActivationGate": {
+    "name": "ATLAS_SCOPED_WORKSPACE_READY",
+    "state": "unset",
+    "verificationMethod": "Release coordinator fresh signed-in owner UI observation",
+    "observedAtApproximate": "2026-09-24T23:38:00Z",
+    "repositoryMessage": "This repository has no variables",
+    "environmentMessage": "This environment has no variables",
+    "settingsChanged": false,
+    "apiReadUnsupported": true
+  },
+  "limits": {
+    "authenticatedRuntimeAcceptance": "Prior-client functional recovery verified in one signed-in session across Home, Reports, Data Import, Community Command and Bonus. Repaired-client production acceptance remains pending.",
+    "performanceAcceptance": false,
+    "allImmutableAssetBytesRefetched": false,
+    "immutableVerification": "Hosted namespaces/manifests match both releases; full trees were hash-verified by recovery packaging and post-Worker verification."
+  },
+  "reviewActions": {
+    "productionWrites": 0,
+    "databaseMetadataQueries": 1,
+    "browserInteractions": 0,
+    "serviceChanges": 0
+  },
+  "signedInRecovery": {
+    "observedAt": "2026-09-24T23:50:38.552638+00:00",
+    "host": "Pages",
+    "clientCommit": "3d80173de32f227410663662a523932c50ecaa2b",
+    "releaseId": "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540",
+    "signedInRole": "admin",
+    "usableHome": true,
+    "authorizedCommunityCount": 14,
+    "openedWorkspaces": [
+      "Home",
+      "Reports",
+      "Data Import",
+      "Community Command",
+      "Bonus"
+    ],
+    "checks": "Visible authenticated workspace content inspected through browser UI. No import, save, approval, payroll, payment or export action performed.",
+    "limits": [
+      "Prior client retains responsiveness defects: Reports click and Bonus snapshot exceeded browser-control deadlines before content became visible.",
+      "Community Command displayed two effective-baseline-unavailable fields; finance source acceptance has not passed.",
+      "This is functional recovery, not repaired-client performance, full data validation or two-session acceptance."
+    ],
+    "originalBudgetTabTouched": false
+  }
+}

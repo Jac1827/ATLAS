@@ -76,9 +76,10 @@ assert.equal(vm.runInContext('portfolio=false;atlasHomeRenderDetails=new Map();g
 vm.runInContext('let dataImport2State={batches:[],sourceArchive:[]};portfolio=true;',freshness);
 const approvedUpload='2026-10-22T19:43:42.373Z';
 const approvedBatch={id:'batch-approved',status:'Approved',archiveIds:['source-approved'],approvedAt:'2026-10-23T12:00:00Z'};
-const approvedReceipt={id:'source-approved',batchId:'batch-approved',reportType:'box_score',importStatus:'Approved',communities:['Other'],uploadedAt:approvedUpload,dataDateIso:'2026-10-24T12:00:00Z'};
-function uploadLabelFor(batch=approvedBatch,receipt=approvedReceipt){
-  freshness.nextImportState={batches:[batch],sourceArchive:[receipt]};
+const approvedReceipt={id:'source-approved',batchId:'batch-approved',reportType:'box_score',importStatus:'Approved',communities:['Other'],fileHash:'approved-source-hash',uploadedAt:approvedUpload,dataDateIso:'2026-10-24T12:00:00Z'};
+const appliedRecord={reportType:'box_score',batchId:'batch-approved',fileHash:'approved-source-hash',communityName:'Other'};
+function uploadLabelFor(batch=approvedBatch,receipt=approvedReceipt,canonicalRecords=[appliedRecord]){
+  freshness.nextImportState={batches:[batch],sourceArchive:[receipt],canonicalRecords};
   vm.runInContext('dataImport2State=nextImportState',freshness);
   const before=JSON.stringify(freshness.nextImportState);
   const timestamp=vm.runInContext('getAtlasDashboardLatestDataUploadAt()',freshness);
@@ -99,12 +100,34 @@ for(const change of [{id:undefined},{id:''},{id:'  '},{deletedAt:'2026-10-23'},{
 for(const id of [undefined,'','  ']){
   assert.equal(uploadLabelFor({...approvedBatch,id,archiveIds:undefined},{...approvedReceipt,batchId:id}),legacyUpload,'Missing or empty batch IDs never bind to unbound receipts');
 }
-for(const change of [{id:undefined},{id:''},{batchId:'unknown'},{reportType:'renewals'},{communities:['Outside Scope']},{communities:undefined},{deletedAt:'2026-10-23'},{rolledBackAt:'2026-10-23'},{uploadedAt:'invalid'},{uploadedAt:undefined}]){
+for(const change of [{id:undefined},{id:''},{batchId:'unknown'},{reportType:'renewals'},{deletedAt:'2026-10-23'},{rolledBackAt:'2026-10-23'},{uploadedAt:'invalid'},{uploadedAt:undefined}]){
   assert.equal(uploadLabelFor(approvedBatch,{...approvedReceipt,...change}),legacyUpload,'Invalid or out-of-scope receipt cannot substitute an approval/source date');
 }
 assert.equal(uploadLabelFor({...approvedBatch,archiveIds:undefined}),Date.parse(approvedUpload),'Compatible summaries without archive IDs still bind by explicit approved batch ID');
+const multiCommunityReceipt={...approvedReceipt,communities:['Other','Current']};
+uploadLabelFor(approvedBatch,multiCommunityReceipt);
+assert.equal(vm.runInContext('portfolio=false;getAtlasDashboardLatestDataUploadAt()',freshness),Date.parse('2026-09-23'),'Detected but deselected community does not inherit the approved source upload');
+vm.runInContext('portfolio=true',freshness);
+for(const change of [{communityName:'Outside Scope'},{batchId:'unrelated-batch'},{fileHash:'unrelated-hash'},{reportType:'renewals'},{deletedAt:'2026-10-23'},{status:'held'},{downstreamEligible:false}]){
+  assert.equal(uploadLabelFor(approvedBatch,approvedReceipt,[{...appliedRecord,...change}]),legacyUpload,'Only applied canonical rows with matching source provenance establish community scope');
+}
+assert.equal(uploadLabelFor(approvedBatch,approvedReceipt,[]),legacyUpload,'Detection metadata alone cannot establish applied community scope');
+
 vm.runInContext("savedData.Other.boxScoreHistory=[{importedAt:'2026-10-30T12:00:00Z'}];dataImport2State={batches:[],sourceArchive:[]}",freshness);
 assert.equal(vm.runInContext('getAtlasDashboardLatestDataUploadAt()',freshness),legacyUpload,'Unbound Box Score history cannot establish governed approval');
 uploadLabelFor();
 assert.equal(vm.runInContext('portfolio=false;getAtlasDashboardLatestDataUploadAt()',freshness),Date.parse('2026-09-23'),'Another community cannot inherit the portfolio receipt timestamp');
 console.log('PASS scoped approved Box Score upload freshness, receipt binding, missing IDs, rejection/rollback guards and read-only bounded metadata lookup.');
+// Verify the actual startup projection retains the provenance used by the label
+// while dropping full batch-file selections and excluding held communities.
+import('../docs/portfolio-operations-dashboard/features/import-history-store.mjs').then(({projectCurrentHistory})=>{
+  const record={...appliedRecord,periodKey:'2026-10',dataAsOf:'2026-10-22T11:43:00Z',values:{occupied_units:10}};
+  const full={batches:[{...approvedBatch,files:[{fileName:'synthetic.xlsx',reportType:'box_score',communities:['Other','Current'],selectedCommunities:['Other']}]}],sourceArchive:[multiCommunityReceipt],canonicalRecords:[record],lineage:[{...record,currentState:true,atlasField:'occupied_units'}]};
+  const before=JSON.stringify(full);
+  freshness.nextImportState=projectCurrentHistory(full);
+  assert.equal(freshness.nextImportState.batches[0].files[0].selectedCommunities,undefined,'Exercise the real compact batch summary');
+  assert.equal(vm.runInContext('dataImport2State=nextImportState;portfolio=true;getAtlasDashboardLatestDataUploadAt()',freshness),Date.parse(approvedUpload));
+  assert.equal(vm.runInContext('portfolio=false;getAtlasDashboardLatestDataUploadAt()',freshness),Date.parse('2026-09-23'));
+  assert.equal(JSON.stringify(full),before,'Projection and label preserve full evidence');
+  console.log('PASS actual compact import projection preserves applied-source freshness without promoting a deselected community.');
+}).catch(error=>{console.error(error);process.exitCode=1;});

@@ -18169,11 +18169,16 @@ function getAtlasDashboardLatestDataUploadAt(monthIdx = getSelectedDashboardMont
   const batches = new Map((Array.isArray(importState?.batches) ? importState.batches : [])
     .filter(batch => typeof batch?.id === "string" && batch.id.trim() && batch.status === "Approved" && !batch.deletedAt && !batch.rolledBackAt && !batch.rollback?.rolledBackAt)
     .map(batch => [batch.id, batch]));
+  // Receipt communities include detected-but-held rows. Applied canonical
+  // provenance establishes which communities actually received this source.
+  const appliedSources = new Set((Array.isArray(importState?.canonicalRecords) ? importState.canonicalRecords : [])
+    .filter(record => record?.reportType === "box_score" && !record.deletedAt && record.status !== "held" && record.downstreamEligible !== false && typeof record.fileHash === "string" && record.fileHash && scopedNames.includes(record.communityName))
+    .map(record => JSON.stringify([record.batchId, record.fileHash])));
   for (const source of Array.isArray(importState?.sourceArchive) ? importState.sourceArchive : []) {
     const batch = batches.get(source?.batchId);
     if (typeof source?.id !== "string" || !source.id.trim() || source.reportType !== "box_score" || source.importStatus !== "Approved" || source.deletedAt || source.rolledBackAt || !batch) continue;
     if (Array.isArray(batch.archiveIds) && !batch.archiveIds.includes(source.id)) continue;
-    if (Array.isArray(source.communities) && source.communities.some(name => scopedNames.includes(name))) candidates.push(source.uploadedAt);
+    if (appliedSources.has(JSON.stringify([source.batchId, source.fileHash]))) candidates.push(source.uploadedAt);
   }
   scopedNames.forEach(name => {
     const record = name === getProp().name

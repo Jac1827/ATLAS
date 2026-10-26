@@ -21,14 +21,15 @@ const centralRows = [{
   atlas_roles: {role_id: 'role-1', title: 'Community Manager', bonus_role_type: 'manager'}
 }];
 
-function fixture(seed, {actualNormalization = false} = {}) {
-  const records = new Map(seed ? clone([...seed]) : [
+function fixture(seed, {actualNormalization = false, sharedRecords = false} = {}) {
+  const records = sharedRecords ? seed : new Map(seed ? clone([...seed]) : [
     [COMMUNITIES, {key: COMMUNITIES, value: {'Synthetic Community': {occupied: 10}}, updatedAt: 'before'}],
     [HISTORY, {key: HISTORY, value: {revision: 7, retainedBeforeSnapshots: ['original evidence']}, updatedAt: 'before'}],
     [RECEIPT, {key: RECEIPT, value: {identity: {version: 4}, dirty: true}, updatedAt: 'before'}]
   ]);
   const state = {now: '2026-10-23T14:00:00.000Z', rows: clone(centralRows), queue: Promise.resolve(), puts: [], errors: []};
   const withStore = async (mode, action) => {
+    if (mode === 'readonly' && state.failReadback) {state.failReadback = false; throw new Error('Synthetic storage readback failure');}
     const pending = [], writes = [];
     const store = {
       get(key) {
@@ -40,7 +41,10 @@ function fixture(seed, {actualNormalization = false} = {}) {
     };
     const request = action(store);
     for (const run of pending) run();
+    if (mode === 'readwrite' && state.failCommit) {state.failCommit = false; throw new Error('Synthetic storage commit failure');}
     for (const record of writes) {records.set(record.key, record); state.puts.push(record.key);}
+    if (mode === 'readwrite' && state.failReadbackAfterWrite) {state.failReadbackAfterWrite = false; state.failReadback = true;}
+    if (mode === 'readwrite' && state.afterCommit) {const after = state.afterCommit; state.afterCommit = null; await after();}
     return request?.result ?? null;
   };
   class Clock extends Date {
@@ -52,18 +56,18 @@ function fixture(seed, {actualNormalization = false} = {}) {
     ATLAS_STATE_COMMUNITY_KEY: COMMUNITIES, OPS_GLOBAL_STORAGE_KEY: OPS, ATLAS_STATE_DB_NAME: 'verified-workspace',
     withAtlasStateStore: withStore, openAtlasStateDb: async () => true,
     atlasWorkspaceAccess: {validated: true, epoch: 1, controller: new AbortController()},
-    atlasCentralPeopleLoadPromise: null, opsGlobalStorageCache: null,
+    atlasCentralPeopleLoadPromise: null, opsGlobalStorageCache: clone(records.get(OPS)?.value ?? null),
     atlasSharedData: {employees: {}, assignments: [], reportingAssignments: [], validationIssues: [], nested: {lastPeopleSyncAt: 'retained evidence'}},
     getAtlasRenderContextKey: () => 'settings:verified-workspace', activeTab: 13,
     getAtlasCentralStatus: () => ({configured: true, signedIn: true}),
-    normalizeAtlasSharedData: clone, normalizeSharedEmployeeRecord: clone, normalizeSharedAssignmentRecord: clone,
+    normalizeAtlasSharedData: clone, normalizeSharedEmployeeRecord: clone, normalizeSharedAssignmentRecord: clone, normalizeOpsGlobalData: clone,
     inferSharedBonusRoleType: () => 'manager', validateAtlasSharedData: () => [],
     syncAllCommunityStaffingFromPeopleRoster: () => {}, scheduleAtlasSharedRender: () => {},
     saveAtlasCentralAppState: function () {},
     atlasScopedLocalKey: key => key, localStorage: {getItem: () => null, removeItem: () => {}},
     markAtlasPersistenceError: error => state.errors.push(error),
     alert: message => {throw new Error(message);}, serializeJacsTeamBonus: clone,
-    queueAtlasStateWrite: task => (state.queue = state.queue.then(task)),
+    queueAtlasStateWrite: task => (state.queue = state.queue.then(task).catch(error => {state.errors.push(error); return null;})),
     applyOpsGlobalData: payload => {context.opsGlobalData = clone(payload); context.atlasSharedData = context.opsGlobalData.sharedData;},
     window: {ATLAS_CENTRAL: {
       getAccessContextKey: () => 'verified-access', getSession: () => ({user: {id: 'actor'}}),
@@ -97,7 +101,7 @@ function fixture(seed, {actualNormalization = false} = {}) {
   vm.runInContext([
     'atlasOpsGlobalChangedOnlyPeopleSyncTime', 'atlasStateSetValue', 'atlasStateGetValue',
     'writeOpsGlobalStorage', 'hydrateOpsGlobalStorage', 'persistOpsGlobalSnapshot', 'persistOpsGlobalData',
-    'loadAtlasCentralPeopleAssignments', 'queueAtlasCentralPeopleLoad'
+    'persistAtlasCentralPeopleRefresh', 'loadAtlasCentralPeopleAssignments', 'queueAtlasCentralPeopleLoad'
   ].map(extract).join('\n'), context);
   if (actualNormalization) vm.runInContext(['simpleHash', 'normalizeSharedDate', 'inferSharedBonusRoleType',
     'defaultAtlasSharedData', 'normalizeAtlasBonusBoolean', 'normalizeSharedEmployeeRecord', 'normalizeSharedAssignmentRecord',
@@ -138,6 +142,193 @@ async function refreshSettings(f) {
   assert.equal(normalized.records.get(OPS).value.sharedData.assignments.length, 1);
   assert.equal(normalized.records.get(OPS).value.sharedData.reportingAssignments.length, 1, 'Actual normalization retains reporting roles outside bonus assignments');
 
+  // Two independent tabs share browser storage, but retain separate hydrated
+  // globals and queues. A refresh must not write the older tab's whole snapshot.
+  for (const boundary of ['fetch pending', 'write about to begin', 'newer same-tab queue']) {
+    const editing = fixture(normalized.records, {actualNormalization: true});
+    editing.context.applyOpsGlobalData(clone(editing.records.get(OPS).value));
+    editing.records.get(RECEIPT).value.dirty = false;
+    const refreshing = fixture(editing.records, {actualNormalization: true, sharedRecords: true});
+    refreshing.context.applyOpsGlobalData(clone(refreshing.records.get(OPS).value));
+    refreshing.state.rows = clone(normalized.state.rows);
+    refreshing.state.rows[0].atlas_employees.full_name = 'New central People value';
+    refreshing.state.now = '2026-10-26T12:00:00.000Z';
+    const previousShared = clone(refreshing.context.atlasSharedData);
+    let finishFetch, finishOpen, staffing = 0, contacts = 0;
+    refreshing.context.syncAllCommunityStaffingFromPeopleRoster = () => {staffing++;};
+    refreshing.context.window.atlasSynchronizeLinkedContacts = () => {contacts++;};
+    refreshing.context.window.ATLAS_CENTRAL.fetchJson = () => new Promise(resolve => {finishFetch = resolve;});
+    if (boundary !== 'fetch pending') refreshing.context.openAtlasStateDb = () => new Promise(resolve => {finishOpen = resolve;});
+    const pending = refreshing.context.loadAtlasCentralPeopleAssignments({silent: true});
+    if (boundary !== 'fetch pending') {
+      finishFetch(clone(refreshing.state.rows));
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(typeof finishOpen, 'function', 'Refresh reaches the queued write before the later edit');
+    }
+    const editor = boundary === 'newer same-tab queue' ? refreshing : editing;
+    editor.context.reportHubType = 'user-edited-report';
+    const edit = editor.context.persistOpsGlobalData();
+    if (boundary !== 'newer same-tab queue') await edit.completion;
+    const acceptedEdit = boundary !== 'newer same-tab queue' ? clone(editing.records.get(OPS)) : null;
+    if (boundary === 'fetch pending') finishFetch(clone(refreshing.state.rows));
+    else {
+      refreshing.context.openAtlasStateDb = async () => true;
+      finishOpen(true);
+    }
+    assert.equal(await pending, null, `${boundary}: stale refresh is skipped`);
+    await edit.completion;
+    await refreshing.state.queue;
+    assert.equal(editing.records.get(OPS).value.reportHubType, 'user-edited-report');
+    if (acceptedEdit) assert.deepEqual(editing.records.get(OPS), acceptedEdit, `${boundary}: exact newer record is untouched`);
+    assert.equal(editing.records.get(RECEIPT).value.dirty, true, 'Pending edits remain pending');
+    assert.equal(staffing, 0, 'Rejected refresh cannot apply or persist staffing');
+    assert.equal(contacts, 0, 'Rejected refresh cannot trigger linked-contact writes');
+    assert.deepEqual(clone(refreshing.context.atlasSharedData), previousShared, 'Rejected result does not change the tab roster');
+    assert.equal(refreshing.state.errors.length + editing.state.errors.length, 0);
+
+    // A newly hydrated tab can safely accept genuine People data and metadata.
+    const current = fixture(editing.records, {actualNormalization: true});
+    current.context.applyOpsGlobalData(clone(current.records.get(OPS).value));
+    current.state.rows = clone(refreshing.state.rows);
+    current.state.now = '2026-10-26T12:02:00.000Z';
+    await refreshSettings(current);
+    assert.equal(current.records.get(OPS).value.reportHubType, 'user-edited-report');
+    assert.equal(current.records.get(OPS).value.sharedData.employees['employee-1'].name, 'New central People value');
+    assert.equal(current.records.get(OPS).value.sharedData.lastPeopleSyncAt, current.state.now);
+    assert.equal(current.records.get(RECEIPT).value.dirty, true);
+  }
+
+  for (const failure of ['commit', 'readback', 'competing readback']) {
+    const failed = fixture(normalized.records, {actualNormalization: true});
+    failed.context.applyOpsGlobalData(clone(failed.records.get(OPS).value));
+    failed.context.savedData = {'Synthetic Community': {staffing: 'original staffing'}};
+    failed.state.rows = clone(normalized.state.rows);
+    failed.state.rows[0].atlas_employees.full_name = 'Unverified incoming person';
+    const cacheBeforeFailure = clone(failed.context.opsGlobalStorageCache);
+    const recordsBeforeFailure = clone([...failed.records]);
+    const runtimeBeforeFailure = clone({shared: failed.context.atlasSharedData, globals: failed.context.opsGlobalData, staffing: failed.context.savedData, payload: failed.context.persistOpsGlobalData({prepareOnly: true})});
+    let failedContacts = 0, competingRecord;
+    failed.context.syncAllCommunityStaffingFromPeopleRoster = () => {failed.context.savedData['Synthetic Community'].staffing = 'changed by failed refresh';};
+    failed.context.window.atlasSynchronizeLinkedContacts = () => {failedContacts++;};
+    if (failure === 'commit') failed.state.failCommit = true;
+    else if (failure === 'readback') failed.state.failReadbackAfterWrite = true;
+    else failed.state.afterCommit = async () => {
+      const editor = fixture(failed.records, {actualNormalization: true, sharedRecords: true});
+      const competing = clone(editor.records.get(OPS).value);
+      competing.reportHubType = 'other-tab-won-before-readback';
+      await editor.context.writeOpsGlobalStorage(competing);
+      competingRecord = clone(editor.records.get(OPS));
+    };
+    assert.equal(await failed.context.loadAtlasCentralPeopleAssignments({silent: true}), null, failure);
+    if (failure === 'commit') assert.deepEqual(clone([...failed.records]), recordsBeforeFailure, 'Failed commit leaves stored records and receipt exact');
+    if (competingRecord) assert.deepEqual(failed.records.get(OPS), competingRecord, 'Readback competition preserves the other tab’s exact row');
+    assert.deepEqual(clone({shared: failed.context.atlasSharedData, globals: failed.context.opsGlobalData, staffing: failed.context.savedData, payload: failed.context.persistOpsGlobalData({prepareOnly: true})}), runtimeBeforeFailure, `${failure}: failed preparation cannot change any live People/staffing/global value`);
+    assert.deepEqual(failed.context.opsGlobalStorageCache, cacheBeforeFailure, 'An unverified snapshot cannot become this tab’s baseline');
+    assert.equal(failedContacts, 0);
+    assert.equal(failed.state.errors.length, 1, 'The real write/readback failure is reported');
+    if (!competingRecord) {
+      failed.context.reportHubType = 'later unrelated setting';
+      await failed.context.persistOpsGlobalData().completion;
+      assert.deepEqual(failed.records.get(OPS).value.sharedData, cacheBeforeFailure.sharedData, 'Later unrelated Save cannot publish the failed incoming roster');
+      assert.equal(failed.context.savedData['Synthetic Community'].staffing, 'original staffing');
+    }
+  }
+
+  for (const newer of ['direct setting', 'queued setting', 'session-only application']) {
+    const delayed = fixture(normalized.records, {actualNormalization: true});
+    delayed.context.applyOpsGlobalData(clone(delayed.records.get(OPS).value));
+    delayed.state.rows = clone(normalized.state.rows);
+    delayed.state.rows[0].atlas_employees.full_name = 'Verified incoming person';
+    const oldRoster = clone(delayed.context.atlasSharedData);
+    const originalRead = delayed.context.atlasStateGetValue;
+    let releaseReadback, held = false, queuedEdit;
+    delayed.context.atlasStateGetValue = async key => {
+      const value = await originalRead(key);
+      if (key === OPS && !held) {held = true; await new Promise(resolve => {releaseReadback = resolve;});}
+      return value;
+    };
+    const pending = delayed.context.loadAtlasCentralPeopleAssignments({silent: true});
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(typeof releaseReadback, 'function');
+    if (newer === 'session-only application') delayed.context.applicationResidentDataState.uploads.push({centralImportId: 'live-session-row'});
+    else {
+      delayed.context.reportHubType = 'newer same-tab value';
+      if (newer === 'queued setting') queuedEdit = delayed.context.persistOpsGlobalData();
+    }
+    releaseReadback();
+    const result = await pending;
+    if (newer === 'session-only application') {
+      assert(result);
+      assert.equal(delayed.context.atlasSharedData.employees['employee-1'].name, 'Verified incoming person');
+      assert.equal(delayed.context.applicationResidentDataState.uploads[0].centralImportId, 'live-session-row', 'Verified application preserves current session-only rows');
+    } else {
+      assert.equal(result, null, 'A newer live or queued setting blocks application of the older result');
+      assert.equal(delayed.context.reportHubType, 'newer same-tab value');
+      assert.deepEqual(clone(delayed.context.atlasSharedData), oldRoster);
+      if (queuedEdit) {await queuedEdit.completion; assert.equal(delayed.records.get(OPS).value.reportHubType, 'newer same-tab value');}
+    }
+  }
+
+  // Save can start after fetch completion while the queued write opens its DB.
+  const lateSave = fixture(normalized.records, {actualNormalization: true});
+  lateSave.context.applyOpsGlobalData(clone(lateSave.records.get(OPS).value));
+  lateSave.state.rows = clone(normalized.state.rows);
+  lateSave.state.now = '2026-10-26T12:05:00.000Z';
+  let openForSave;
+  lateSave.context.openAtlasStateDb = () => new Promise(resolve => {openForSave = resolve;});
+  const lateRefresh = lateSave.context.loadAtlasCentralPeopleAssignments({silent: true});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(typeof openForSave, 'function');
+  lateSave.context.saveAtlasCentralAppState.inFlight = new Promise(() => {});
+  const lateCapture = await capturePublicationCache(lateSave.withStore, [COMMUNITIES, OPS, HISTORY, RECEIPT], () => true);
+  const rawBeforeLateSave = clone(lateSave.records.get(OPS));
+  openForSave(true);
+  await lateRefresh;
+  assert.deepEqual(lateSave.records.get(OPS), rawBeforeLateSave, 'Clock guard runs at atomic preparation, after any queued wait');
+  assert(await acknowledgePublicationCache(lateSave.withStore, lateCapture, {
+    source: publication, binding: {fullProjection: true, scopeFingerprint: 'scope'},
+    projection: {contentHash: 'synthetic-projection-hash', importState: {batches: []}}
+  }, publication, () => true, JSON.stringify), 'The exact capture still acknowledges when Save starts during queued refresh');
+
+  // The real linked-contact helper must display current People details without
+  // automatically persisting a stale whole-community snapshot from another tab.
+  const communityEditor = fixture(normalized.records, {actualNormalization: true});
+  const oldCommunities = {'Synthetic Community': {communityAddress: 'older address', generalManagerName: 'Synthetic Person', generalManagerUserId: 'employee-1', generalManagerEmail: 'fixture@example.invalid'}};
+  communityEditor.records.set(COMMUNITIES, {key: COMMUNITIES, value: clone(oldCommunities)});
+  const contactRefresh = fixture(communityEditor.records, {actualNormalization: true, sharedRecords: true});
+  contactRefresh.state.now = '2026-10-26T12:10:00.000Z';
+  const contacts = contactRefresh.context;
+  contacts.applyOpsGlobalData(clone(contactRefresh.records.get(OPS).value));
+  let documentPushes = 0;
+  Object.assign(contacts, {
+    savedData: clone(oldCommunities), getProp: () => ({name: 'Synthetic Community'}),
+    buildSerializedSavedDataPayload: () => clone(contacts.savedData),
+    communityGeneralManagerName: '', communityGeneralManagerEmail: '', communityRegionalManagerName: '', communityRegionalManagerEmail: '',
+    communityRegionalGrouping: '', communityMarket: '', dashboardSharedSyncMeta: {},
+    getSharedEmployeeStableId: employee => 'people:' + employee.peopleEmployeeId,
+    atlasDashboardUserCanSeeCommunityName: () => true, setInterval: () => 0,
+    queueAtlasCentralDocumentPush: () => {documentPushes++;},
+    persistDashboardSharedSyncMeta: () => {}, removeLegacyCommunityStorageKeys: () => {}
+  });
+  contacts.window.AtlasPropertyIntelligence = {norm: value => String(value || '').toLowerCase()};
+  vm.runInContext(extract('persistSaved') + '\n' + fs.readFileSync('docs/portfolio-operations-dashboard/property-organization.js', 'utf8'), contacts);
+  await communityEditor.context.atlasStateSetValue(COMMUNITIES, {'Synthetic Community': {...oldCommunities['Synthetic Community'], communityAddress: 'newer saved address'}});
+  const storedCommunityEdit = clone(communityEditor.records.get(COMMUNITIES));
+  contactRefresh.state.rows[0].atlas_employees.full_name = 'Current central manager';
+  await refreshSettings(contactRefresh);
+  assert.deepEqual(communityEditor.records.get(COMMUNITIES), storedCommunityEdit, 'Background People contact display cannot overwrite another tab’s community edit');
+  assert.equal(contacts.savedData['Synthetic Community'].generalManagerName, 'Current central manager', 'Viewing tab still shows the current contact');
+  assert.equal(contactRefresh.state.puts.filter(key => key === COMMUNITIES).length, 0);
+  assert.equal(documentPushes, 0, 'Background contact refresh cannot schedule central publication');
+  // Existing explicit callers still persist by default; intentional saves use
+  // the current user workflow and are not a cross-tab merge mechanism.
+  contacts.savedData = clone(communityEditor.records.get(COMMUNITIES).value);
+  assert.equal(contacts.window.atlasSynchronizeLinkedContacts(), true);
+  await contactRefresh.state.queue;
+  assert.equal(communityEditor.records.get(COMMUNITIES).value['Synthetic Community'].communityAddress, 'newer saved address');
+  assert.equal(communityEditor.records.get(COMMUNITIES).value['Synthetic Community'].generalManagerName, 'Current central manager');
+  assert.equal(documentPushes, 1, 'Default explicit synchronization retains its existing publication path');
+
   // A fetch already underway before Save can finish after its exact raw capture.
   // Exercise the real completion/write/readback path against the strict real ack.
   for (const scenario of ['clock only', 'missing prior clock', 'actual People change', 'actual global change', 'reporting clock only', 'reporting role change']) {
@@ -146,6 +337,7 @@ async function refreshSettings(f) {
     if (actualNormalization) saving.state.rows = clone(normalized.state.rows);
     if (scenario === 'missing prior clock') delete saving.records.get(OPS).value.sharedData.lastPeopleSyncAt;
     saving.context.applyOpsGlobalData(clone(saving.records.get(OPS).value));
+    saving.context.opsGlobalStorageCache = clone(saving.records.get(OPS).value);
     saving.records.get(RECEIPT).value.dirty = true;
     saving.state.now = '2026-10-23T15:10:00.000Z';
     let finishFetch;
@@ -267,5 +459,5 @@ async function refreshSettings(f) {
   noReceipt.records.delete(RECEIPT);
   await noReceipt.context.writeOpsGlobalStorage(timestampOnly);
   assert.equal(noReceipt.records.has(RECEIPT), false, 'Refresh cannot invent a publication receipt');
-  console.log('PASS People sync publication status: pre-save People requests preserve exact capture during Save; real People/global changes refuse stale acknowledgement; clean Settings refresh and reload stay clean, with unknown pending history protected.');
+  console.log('PASS People refresh stages without live mutation, preserves failed-write state through later saves, rejects concurrent edits, retains session-only rows and exact Save capture, and updates contacts without automatic community persistence.');
 })().catch(error => {console.error(error); process.exitCode = 1;});

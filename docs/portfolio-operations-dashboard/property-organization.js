@@ -67,12 +67,12 @@
     if(name===getProp().name){if(prefix==='generalManager'){communityGeneralManagerName=e.name||'';communityGeneralManagerEmail=e.email||'';}else{communityRegionalManagerName=e.name||'';communityRegionalManagerEmail=e.email||'';}}
     return changed;
   }
-  window.atlasSynchronizeLinkedContacts=()=>{
+  window.atlasSynchronizeLinkedContacts=({persist=true}={})=>{
     const employees=roster();let changed=false;
     for(const [name,record] of Object.entries(savedData))for(const prefix of ['generalManager','regionalManager']){
       changed=refreshContact(name,record,prefix,linkedContact(name,record,prefix,employees))||changed;
     }
-    if(changed){persistSaved();queueAtlasCentralDocumentPush('linked_roster_contacts');}
+    if(changed&&persist){persistSaved();queueAtlasCentralDocumentPush('linked_roster_contacts');}
     return changed;
   };
   const area=()=>communityRegionalGrouping||communityMarket;

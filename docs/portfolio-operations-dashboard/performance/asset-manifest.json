@@ -1344,8 +1344,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "d4074a8f67fa9965",
-    "bytes": 3173242,
+    "sha256": "980e3c749abbebeb",
+    "bytes": 3175671,
     "references": [
       [
         "index.html",
@@ -1394,8 +1394,8 @@
     ]
   },
   "property-organization.js": {
-    "sha256": "2684c797e6823472",
-    "bytes": 29137,
+    "sha256": "ba937e1dd61b3b58",
+    "bytes": 29163,
     "references": [
       [
         "index.html",
@@ -2476,8 +2476,8 @@
     ]
   },
   "central-services.js": {
-    "sha256": "82e2b09ae3d1f81b",
-    "bytes": 785698,
+    "sha256": "7607f2eee09ad9c1",
+    "bytes": 787774,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2506,7 +2506,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "d32f66f45e1bd7bc",
+    "sha256": "5f88c4f461ce2c3a",
     "bytes": 3962,
     "references": [
       [

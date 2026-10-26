@@ -40,7 +40,9 @@ jobs:
       - name: Validate historical upload period selection
         run: node tools/import-period-selection.test.cjs
       - name: Validate multi-month renewal refresh
-        run: node tools/renewal-multiperiod.test.cjs
+        run: |
+          node tools/renewal-multiperiod.test.cjs
+          node --test tools/renewal-template-headers.test.cjs
       - name: Validate saved budget readback and observed portfolio history
         run: |
           node tools/occupancy-budget-readback.test.mjs

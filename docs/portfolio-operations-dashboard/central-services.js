@@ -1216,7 +1216,7 @@
     residentName: ["resident name", "resident", "name", "primary resident", "lease holder", "tenant name"],
     residentId: ["resident id", "residentid", "tenant id", "customer id"],
     leaseId: ["lease id", "leaseid", "lease number"],
-    unit: ["unit", "apartment", "apt", "apartment number", "unit number"],
+    unit: ["unit", "apartment", "apt", "apartment number", "unit number", "bldg-unit", "building unit"],
     unitType: ["unit type", "floor plan", "floorplan", "bed bath"],
     moveInDate: ["move-in date", "move in date", "move-in", "move in", "lease start", "lease start date"],
     expirationDate: ["expiration date", "lease expiration", "lease end", "lease end date", "expire date"],
@@ -1242,7 +1242,7 @@
     leaseExecutedDate: ["lease executed date", "executed date", "execution date"],
     completedBy: ["completed by", "closed by", "executed by"],
     completionDate: ["completion date", "completed date", "closed date"],
-    status: ["status", "renewal status", "decision", "response", "resident response"],
+    status: ["status", "renewal status", "renewal call status", "decision", "response", "resident response"],
     renewalSigned: ["renewal signed", "signed", "renewed"],
     transfer: ["transfer", "transfer renewal"],
     ntvReceived: ["ntv received", "ntv rcvd", "ntv rcv'd", "ntv rcv d", "notice to vacate", "ntv", "notice to vacate received"],
@@ -2524,6 +2524,7 @@
     if (!key) return "Not Started";
     if (RENEWAL_STATUS_OPTIONS.includes(raw)) return raw;
     if (LEGACY_RENEWAL_STATUS_ALIASES[key]) return LEGACY_RENEWAL_STATUS_ALIASES[key];
+    if (key === "not renewing") return "Declined / Non-Renewal";
     if (key.includes("signed") && (key.includes("executed") || key.includes("complete"))) return "Signed & Executed";
     if (key.includes("lease") && key.includes("sent")) return "Lease Sent";
     if (key.includes("verbal")) return "Verbal Acceptance";
@@ -8015,11 +8016,24 @@
     return rows;
   }
 
+  function renewalTemplateHasBlankNameHeader(row) {
+    // Recover only the missing first label in the established management template.
+    // Generic headerless tables and nonblank, unrecognized labels remain unmapped.
+    if (!Array.isArray(row) || cleanString(row[0])) return false;
+    const expected = {
+      1: "unit", 2: "unit type", 3: "expiration date",
+      4: "90 day notice", 5: "60 day notice", 6: "30 day notice",
+      7: "deposit held", 8: "current rate", 9: "recommended offer",
+      16: "renewal signed", 17: "transfer", 18: "ntv rcv d"
+    };
+    return Object.entries(expected).every(([index, label]) => normalizeKey(row[index]) === label);
+  }
+
   function findHeaderIndex(rows) {
     return rows.findIndex(row => {
       const keys = row.map(normalizeKey);
       const joined = keys.join(" ");
-      return /(resident|tenant|name)/.test(joined) && /(unit|apartment|apt)/.test(joined) && /(expiration|lease end|expire)/.test(joined);
+      return (/(resident|tenant|name)/.test(joined) && /(unit|apartment|apt)/.test(joined) && /(expiration|lease end|expire)/.test(joined)) || renewalTemplateHasBlankNameHeader(row);
     });
   }
 
@@ -8027,6 +8041,7 @@
     const headerIndex = findHeaderIndex(rows);
     if (headerIndex < 0) return [];
     const headers = rows[headerIndex].map(header => normalizeKey(header));
+    if (renewalTemplateHasBlankNameHeader(rows[headerIndex])) headers[0] = "resident name";
     return rows.slice(headerIndex + 1).map((row, index) => {
       const object = {sourceRow:headerIndex + index + 2};
       headers.forEach((header, idx) => {
@@ -8151,10 +8166,25 @@
     return "Not Started";
   }
 
+  function normalizeRenewalExpirationDate(value) {
+    if ((typeof value === "number" && !(Number.isFinite(value) && value > 20000 && value < 80000)) || /^0(?:\.0+)?$/.test(cleanString(value))) return "";
+    const raw = cleanString(value);
+    const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:$|[T\s])/);
+    const us = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    // Validate source calendar components before Date can roll an invalid day forward.
+    const parts = iso ? [iso[1], iso[2], iso[3]] : us ? [us[3], us[1], us[2]] : null;
+    const normalized = parts ? `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}` : normalizeDate(value);
+    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return "";
+    const [, year, month, day] = match.map(Number);
+    const calendar = new Date(Date.UTC(year, month - 1, day));
+    return calendar.getUTCFullYear() === year && calendar.getUTCMonth() === month - 1 && calendar.getUTCDate() === day ? normalized : "";
+  }
+
   function mapRenewalRecord(row, context, employees) {
     const residentName = cleanString(findAliasedValue(row, "residentName"));
     const unit = cleanString(findAliasedValue(row, "unit"));
-    const expirationDate = normalizeDate(findAliasedValue(row, "expirationDate"));
+    const expirationDate = normalizeRenewalExpirationDate(findAliasedValue(row, "expirationDate"));
     if (!residentName || !unit || !expirationDate || !realTrackerEntry(residentName) || renewalResidentNameLooksLikeSummary(residentName)) return null;
     const fallbackMonthIdx = Number.isFinite(Number(row.monthIdx ?? row.expirationMonthIdx ?? row.sourceMonthIdx))
       ? Number(row.monthIdx ?? row.expirationMonthIdx ?? row.sourceMonthIdx)
@@ -8233,6 +8263,7 @@
       sourceRow: row.sourceRow || null,
       sourceFileName,
       sourceSheetName,
+      sourceRenewalStatus: cleanString(findAliasedValue(row, "status")),
       importId,
       importBatchId: importId,
       importedAt,
@@ -8332,7 +8363,7 @@
     return Boolean(
       cleanString(row.residentName) &&
       cleanString(row.unit) &&
-      normalizeDate(row.expirationDate) &&
+      normalizeRenewalExpirationDate(row.expirationDate) &&
       (cleanString(row.id) || cleanString(row.periodKey) || cleanString(row.source).startsWith("renewal") || row.originalTargetRent !== undefined)
     );
   }
@@ -8359,7 +8390,7 @@
     const fallbackYear = Number.isFinite(Number(row.year ?? row.expirationYear ?? row.sourceYear))
       ? Number(row.year ?? row.expirationYear ?? row.sourceYear)
       : context.year;
-    const expirationDate = normalizeDate(row.expirationDate);
+    const expirationDate = normalizeRenewalExpirationDate(row.expirationDate);
     const expirationPeriod = periodFromDate(expirationDate, fallbackMonthIdx, fallbackYear);
     const importId = cleanString(row.importId || row.importBatchId || context.importId || context.importBatchId);
     const sourceFileName = cleanString(row.sourceFileName || context.fileName || context.sourceFileName);

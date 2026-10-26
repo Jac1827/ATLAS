@@ -548,7 +548,8 @@ const DASHBOARD_STORAGE_MIGRATION_KEYS = [
   OPS_PROPERTY_CATALOG_KEY,
   ATLAS_SHARED_PROPERTY_GRAPH_KEY,
   SIDE_NAV_STORAGE_KEY,
-  PERFORMANCE_PLATFORM_STORAGE_KEY
+  PERFORMANCE_PLATFORM_STORAGE_KEY,
+  "atlas_central_services_phase1_v2"
 ];
 const ATLAS_LEGACY_MIGRATION_STORAGE_KEYS = [
   ...DASHBOARD_STORAGE_MIGRATION_KEYS,
@@ -4362,6 +4363,7 @@ function atlasOpsGlobalChangedOnlyPeopleSyncTime(previous, next) {
 
 async function atlasStateSetValue(key, value, options = {}) {
   if ([ATLAS_STATE_COMMUNITY_KEY, OPS_GLOBAL_STORAGE_KEY].includes(String(key))) {
+    const renewalPendingAtStart = atlasRenewalRepairPending(), renewalGeneration = atlasRenewalRepairGeneration();
     const contactWriteAtStart = window.AtlasPeopleContactWrite, contactGeneration = Number(window.AtlasPeopleContactGeneration || 0);
     const importGuard = String(key) === ATLAS_STATE_COMMUNITY_KEY ? (options.importGuard || window.AtlasImportCommunityGuard) : null;
     const importGeneration = Number(window.AtlasImportCommunityGeneration || 0), importToken = importGuard?.capture();
@@ -4370,8 +4372,9 @@ async function atlasStateSetValue(key, value, options = {}) {
     try {
       await withAtlasStateStore("readwrite", store => {
         const request = store.get(String(key));
-        request.onsuccess = () => {
+        const applyWrite = () => {
           try {
+            if (String(key) === ATLAS_STATE_COMMUNITY_KEY && (renewalPendingAtStart || atlasRenewalRepairPending() || renewalGeneration !== atlasRenewalRepairGeneration())) throw new Error("Renewal history recovery is pending. Resume it from ATLAS Settings before saving.");
             if (String(key) === ATLAS_STATE_COMMUNITY_KEY && window.AtlasImportCommunityRecovery) throw new Error(window.AtlasImportCommunityRecovery);
             if (String(key) === ATLAS_STATE_COMMUNITY_KEY && importGeneration !== Number(window.AtlasImportCommunityGeneration || 0)) throw new Error("Import approval changed while this write was waiting. Reload before saving.");
             importGuard?.assertStored(request.result?.value ?? null, importToken);
@@ -4395,6 +4398,14 @@ async function atlasStateSetValue(key, value, options = {}) {
             const source = store.get("atlas_workspace_source_v2");
             source.onsuccess = () => {if(source.result?.value) store.put({...source.result,value:{...source.result.value,dirty:true}});};
           } catch (error) { writeError = error; store.transaction.abort(); }
+        };
+        request.onsuccess = () => {
+          if (String(key) !== ATLAS_STATE_COMMUNITY_KEY) {applyWrite();return;}
+          const repair = store.get(ATLAS_RENEWAL_REPAIR_KEY);
+          repair.onsuccess = () => {
+            if (repair.result?.value?.status === "pending") {writeError=new Error("A retained renewal history repair is pending. Resume it before saving.");store.transaction.abort();return;}
+            applyWrite();
+          };
         };
         return request;
       });
@@ -9116,6 +9127,7 @@ async function awaitAtlasPersistenceResults(saves) {
 }
 
 function persistSaved() {
+  if(atlasRenewalRepairPending())return {ok:false,pending:false,completion:Promise.resolve(false),message:"Renewal history recovery is pending. Resume it from ATLAS Settings before saving."};
   if(window.AtlasImportCommunityRecovery)return {ok:false,pending:false,completion:Promise.resolve(false),message:window.AtlasImportCommunityRecovery};
   if(window.AtlasPeopleContactWrite)return {ok:false,pending:false,completion:Promise.resolve(false),message:"People contacts are being verified. Wait before saving again."};
   if(window.AtlasPeopleContactRecovery)return {ok:false,pending:false,completion:Promise.resolve(false),message:window.AtlasPeopleContactRecovery};
@@ -14408,6 +14420,7 @@ function carryForwardMonthlyData(fromMonth) {
 }
 
 function saveCommunityData(silent = false) {
+  if(atlasRenewalRepairPending()){alert("Renewal history recovery is pending. Resume it from ATLAS Settings before saving.");return false;}
   if(window.AtlasImportCommunityGuard||window.AtlasImportCommunityRecovery){alert(window.AtlasImportCommunityRecovery||"Wait for import approval to finish before saving.");return false;}
   if(window.AtlasReplayWriteFence){alert("Saving is paused during source replay or checkpoint recovery. Reload if recovery is pending.");return false;}
   if (activeTab === 1 && !isCommunitySettingsAdmin()) return false;
@@ -16896,6 +16909,7 @@ async function collectAtlasCentralMigrationSnapshot() {
     ],
     storageEntries,
     indexedDb: indexedDbPayload,
+    renewalHistoryRepair: await atlasStateGetValue(ATLAS_RENEWAL_REPAIR_KEY),
     sharedData,
     currentWorkspaceDraft: {
       community: getProp().name,
@@ -19519,6 +19533,7 @@ async function buildAtlasCentralAppStatePayload() {
 }
 
 async function saveAtlasCentralAppState({ silent = false, source = "manual_central_save" } = {}) {
+  if(atlasRenewalRepairPending()){const message="Renewal history recovery is pending. Resume it from ATLAS Settings before Central Save.";setAtlasCentralRuntimeMessage("",message);if(!silent)alert(message);return false;}
   if(window.AtlasImportCommunityGuard||window.AtlasImportCommunityRecovery){const message=window.AtlasImportCommunityRecovery||"Wait for import approval to finish before Central Save.";setAtlasCentralRuntimeMessage("",message);if(!silent)alert(message);return false;}
   if(window.AtlasPeopleContactWrite){const message="People contacts are being verified. Wait before Central Save.";setAtlasCentralRuntimeMessage("",message);if(!silent)alert(message);return false;}
   if(window.AtlasPeopleContactRecovery){setAtlasCentralRuntimeMessage("",window.AtlasPeopleContactRecovery);if(!silent)alert(window.AtlasPeopleContactRecovery);return false;}
@@ -19531,16 +19546,18 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
   let knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
   const saveContext = captureAtlasSaveContext();
   const actor = atlasWorkspaceActorKey(), database = ATLAS_STATE_DB_NAME;
+  const renewalGeneration = atlasRenewalRepairGeneration();
   const replayGeneration = Number(window.AtlasReplayGeneration || 0);
   const importGeneration = Number(window.AtlasImportCommunityGeneration || 0);
   const current = () => saveContext() && actor === atlasWorkspaceActorKey() && database === ATLAS_STATE_DB_NAME
     && !window.AtlasImportCommunityGuard && !window.AtlasImportCommunityRecovery && importGeneration === Number(window.AtlasImportCommunityGeneration || 0)
-    && !window.AtlasReplayWriteFence && !window.AtlasPeopleContactRecovery && replayGeneration === Number(window.AtlasReplayGeneration || 0);
+    && !atlasRenewalRepairPending() && renewalGeneration === atlasRenewalRepairGeneration() && !window.AtlasReplayWriteFence && !window.AtlasPeopleContactRecovery && replayGeneration === Number(window.AtlasReplayGeneration || 0);
   const pendingKey = "atlas_workspace_projection_pending_v1";
   let committedParent = null;
   let publicationCacheCapture = null;
   let publicationBaseline = null;
   try {
+    if((await atlasStateGetValue(ATLAS_RENEWAL_REPAIR_KEY))?.status === "pending")throw new Error("Resume the retained renewal history repair before Central Save.");
     const access = atlasCentralCanUseDatabase();
     if (!access.ok) throw new Error(access.message);
     if (!atlasCentralAutosaveGateSatisfied()) {
@@ -25910,7 +25927,9 @@ function syncRenewalSheetRowsToCentralServices(targetRecord, context = {}, sheet
   }, {
     importHistory: true,
     render: false,
-    setUi: false
+    setUi: false,
+    existingRenewalRows: Object.values(targetRecord.renewalDetailRowsByPeriod || {}).flatMap(rows => Array.isArray(rows) ? rows : [])
+      .concat((targetRecord.renewalDetailRowsByMonth || []).flatMap(rows => Array.isArray(rows) ? rows : []))
   });
   const detailRows = Array.isArray(result?.renewalRows) ? result.renewalRows : [];
   if (detailRows.length) {
@@ -34943,6 +34962,150 @@ function updateCommunitySharedField(field, value) {
   } else if (field === "regionalManagerEmail") {
     communityRegionalManagerEmail = atlasNormalizeSharedEmail(value);
   }
+}
+
+
+const ATLAS_RENEWAL_REPAIR_KEY = "atlas_renewal_history_repair_v1";
+const ATLAS_RENEWAL_REPAIR_MARKER = "atlas_renewal_history_repair_pending_v1";
+const ATLAS_RENEWAL_CS_KEY = "atlas_central_services_phase1_v2";
+function atlasRenewalRepairGeneration() {return localStorage.getItem("atlas_renewal_history_repair_generation_v1") || "";}
+function atlasRenewalRepairPending() {
+  return Boolean(window.AtlasRenewalRepairWrite || window.AtlasRenewalRepairRecovery || localStorage.getItem(ATLAS_RENEWAL_REPAIR_MARKER));
+}
+async function atlasRenewalRepairDigest(value) {
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))].map(byte => byte.toString(16).padStart(2,"0")).join("");
+}
+function atlasRenewalRepairCheck(context) {
+  if (!context.current() || !atlasWorkspaceAccess.validated || !getAtlasCentralStatus().signedIn || !isCommunitySettingsAdmin()) throw new Error("Access changed. Reopen the renewal history review.");
+  if (saveAtlasCentralAppState.inFlight || window.AtlasImportCommunityGuard || window.AtlasImportCommunityRecovery || window.AtlasReplayWriteFence || window.AtlasPeopleContactWrite || window.AtlasPeopleContactRecovery) throw new Error("Finish the active save, import or recovery before repairing renewal history.");
+}
+async function persistReviewedRenewalHistory(review, api) {
+  const context = captureAtlasAuxiliaryContext(); atlasRenewalRepairCheck(context);
+  if (atlasRenewalRepairPending()) throw new Error("Resume the pending renewal history repair first.");
+  const baseline = buildSerializedSavedDataPayload(), raw = localStorage.getItem(ATLAS_RENEWAL_CS_KEY);
+  const prepared = api.applyReviewedRenewalWorkflowRepair(review, {communityData:baseline, centralServicesRaw:raw});
+  const journal = {schema:1,status:"pending",id:crypto.randomUUID(),actor:atlasWorkspaceActorKey(),database:ATLAS_STATE_DB_NAME,
+    source:review.source,counts:prepared.counts,createdAt:new Date().toISOString(),baseline,prepared:prepared.communityData,
+    centralBaseline:raw,centralPrepared:prepared.centralServicesRaw};
+  journal.sha256 = await atlasRenewalRepairDigest(JSON.stringify(journal)); atlasRenewalRepairCheck(context);
+  const marker = JSON.stringify({id:journal.id,database:journal.database,actor:journal.actor});
+  localStorage.setItem("atlas_renewal_history_repair_generation_v1",journal.id);
+  window.AtlasRenewalRepairWrite = journal.id;
+  let journalSaved = false;
+  try {
+    await atlasStateWritePromise;
+    atlasRenewalRepairCheck(context);
+    if (JSON.stringify(buildSerializedSavedDataPayload()) !== JSON.stringify(baseline)) throw new Error("Workspace edits changed. Review the current renewal history again.");
+    localStorage.setItem(ATLAS_RENEWAL_REPAIR_MARKER, marker);
+    let failure;
+    try { await withAtlasStateStore("readwrite", store => {
+      const request = store.get(ATLAS_RENEWAL_REPAIR_KEY);
+      request.onsuccess = () => {
+        try {
+          atlasRenewalRepairCheck(context);
+          if (request.result?.value?.status === "pending") throw new Error("Another renewal history repair is pending.");
+          const current = store.get(ATLAS_STATE_COMMUNITY_KEY);
+          current.onsuccess = () => {
+            try {
+              atlasRenewalRepairCheck(context);
+              if (JSON.stringify(current.result?.value) !== JSON.stringify(baseline) || localStorage.getItem(ATLAS_RENEWAL_CS_KEY) !== raw) throw new Error("Stored workspace data changed. Reload and review renewal history again.");
+              store.put({key:ATLAS_RENEWAL_REPAIR_KEY,value:journal,updatedAt:new Date().toISOString()});
+            } catch(error) {failure=error;store.transaction.abort();}
+          };
+        } catch(error) {failure=error;store.transaction.abort();}
+      };
+      return request;
+    }); } catch(error) {throw failure || error;}
+    journalSaved = true;
+    return await finishAtlasRenewalHistoryRepair(journal, context);
+  } catch(error) {
+    if (journalSaved) window.AtlasRenewalRepairRecovery = true;
+    else {
+      const retained=await atlasStateGetValue(ATLAS_RENEWAL_REPAIR_KEY);
+      if(retained?.status === "pending") {
+        localStorage.setItem(ATLAS_RENEWAL_REPAIR_MARKER,JSON.stringify({id:retained.id,database:retained.database,actor:retained.actor}));
+        window.AtlasRenewalRepairRecovery=true;
+      } else if(localStorage.getItem(ATLAS_RENEWAL_REPAIR_MARKER)===marker)localStorage.removeItem(ATLAS_RENEWAL_REPAIR_MARKER);
+    }
+    throw error;
+  } finally {if(window.AtlasRenewalRepairWrite===journal.id)delete window.AtlasRenewalRepairWrite;}
+}
+async function finishAtlasRenewalHistoryRepair(journal, context) {
+  atlasRenewalRepairCheck(context);
+  if (journal?.schema!==1 || journal.status!=="pending" || journal.actor!==atlasWorkspaceActorKey() || journal.database!==ATLAS_STATE_DB_NAME) throw new Error("The pending renewal repair belongs to another workspace or account.");
+  const {sha256,...content}=journal;
+  if (await atlasRenewalRepairDigest(JSON.stringify(content))!==sha256) throw new Error("The retained renewal repair changed. Keep the recovery snapshot for review.");
+  atlasRenewalRepairCheck(context);
+  const before = JSON.stringify(journal.baseline), after = JSON.stringify(journal.prepared), identity=JSON.stringify(journal);
+  const runtimeBaseline=JSON.stringify(buildSerializedSavedDataPayload()),draftBaseline=JSON.stringify(getCurrentCommunityRecord()),viewCurrent=captureAtlasSaveContext();
+  const checkRuntime=()=>{if(!viewCurrent()||JSON.stringify(buildSerializedSavedDataPayload())!==runtimeBaseline||JSON.stringify(getCurrentCommunityRecord())!==draftBaseline)throw new Error("Workspace edits changed during renewal recovery. Save a recovery snapshot and reload before resuming.");};
+  const allowedCentral = () => [journal.centralBaseline,journal.centralPrepared].includes(localStorage.getItem(ATLAS_RENEWAL_CS_KEY));
+  const check = () => {atlasRenewalRepairCheck(context);checkRuntime();if(!allowedCentral())throw new Error("Central Services has newer changes. Renewal recovery stopped without replacing them.");};
+  const native = await atlasStateGetValue(ATLAS_STATE_COMMUNITY_KEY); check();
+  if (![before,after].includes(JSON.stringify(native)) || JSON.stringify(buildSerializedSavedDataPayload())!==JSON.stringify(native)) throw new Error("The workspace has newer changes. Reload its saved data before resuming renewal recovery.");
+  let failure;
+  try { await withAtlasStateStore("readwrite", store => {
+    const request=store.get(ATLAS_RENEWAL_REPAIR_KEY);
+    request.onsuccess=()=>{
+      try {
+        check(); if(JSON.stringify(request.result?.value)!==identity)throw new Error("The retained renewal repair changed.");
+        const current=store.get(ATLAS_STATE_COMMUNITY_KEY);
+        current.onsuccess=()=>{
+          try {
+            check();if(![before,after].includes(JSON.stringify(current.result?.value)))throw new Error("Newer community changes were saved. Renewal recovery stopped.");
+            store.put({key:ATLAS_STATE_COMMUNITY_KEY,value:journal.prepared,updatedAt:new Date().toISOString()});
+            const source=store.get("atlas_workspace_source_v2");source.onsuccess=()=>{if(source.result?.value)store.put({...source.result,value:{...source.result.value,dirty:true}});};
+          } catch(error){failure=error;store.transaction.abort();}
+        };
+      } catch(error){failure=error;store.transaction.abort();}
+    };
+    return request;
+  }); } catch(error){throw failure||error;}
+  check();
+  if(localStorage.getItem(ATLAS_RENEWAL_CS_KEY)!==journal.centralPrepared)localStorage.setItem(ATLAS_RENEWAL_CS_KEY,journal.centralPrepared);
+  if(localStorage.getItem(ATLAS_RENEWAL_CS_KEY)!==journal.centralPrepared)throw new Error("Central Services history could not be verified. Resume the retained repair.");
+  const receipt={schema:1,status:"complete",id:journal.id,actor:journal.actor,database:journal.database,source:journal.source,counts:journal.counts,
+    completedAt:new Date().toISOString(),communityHash:await atlasRenewalRepairDigest(after),centralServicesHash:await atlasRenewalRepairDigest(journal.centralPrepared)};
+  failure=null;
+  try { await withAtlasStateStore("readwrite",store=>{
+    const request=store.get(ATLAS_RENEWAL_REPAIR_KEY);
+    request.onsuccess=()=>{
+      try {
+        check();if(JSON.stringify(request.result?.value)!==identity)throw new Error("The retained renewal repair changed.");
+        const current=store.get(ATLAS_STATE_COMMUNITY_KEY);
+        current.onsuccess=()=>{
+          try {
+            check();if(JSON.stringify(current.result?.value)!==after||localStorage.getItem(ATLAS_RENEWAL_CS_KEY)!==journal.centralPrepared)throw new Error("Renewal history readback changed. Keep the recovery open.");
+            store.put({key:ATLAS_RENEWAL_REPAIR_KEY,value:receipt,updatedAt:receipt.completedAt});
+          } catch(error){failure=error;store.transaction.abort();}
+        };
+      } catch(error){failure=error;store.transaction.abort();}
+    };return request;
+  }); } catch(error){throw failure||error;}
+  atlasRenewalRepairCheck(context);checkRuntime();
+  savedData=journal.prepared;
+  loadPropertyData(getProp().name);
+  localStorage.removeItem(ATLAS_RENEWAL_REPAIR_MARKER);delete window.AtlasRenewalRepairRecovery;
+  return receipt;
+}
+async function resumeAtlasRenewalHistoryRepair() {
+  const context=captureAtlasAuxiliaryContext();atlasRenewalRepairCheck(context);
+  if(window.AtlasRenewalRepairWrite)throw new Error("A renewal history repair is already running.");
+  const journal=await atlasStateGetValue(ATLAS_RENEWAL_REPAIR_KEY);atlasRenewalRepairCheck(context);
+  if(!journal)throw new Error("No retained renewal repair was found. Keep the saved snapshots for review.");
+  if(journal.actor!==atlasWorkspaceActorKey()||journal.database!==ATLAS_STATE_DB_NAME)throw new Error("The retained repair belongs to another workspace.");
+  if(journal.status==="complete") {
+    const runtimeBaseline=JSON.stringify(buildSerializedSavedDataPayload()),draftBaseline=JSON.stringify(getCurrentCommunityRecord()),viewCurrent=captureAtlasSaveContext();
+    const native=await atlasStateGetValue(ATLAS_STATE_COMMUNITY_KEY),raw=localStorage.getItem(ATLAS_RENEWAL_CS_KEY);
+    if(await atlasRenewalRepairDigest(JSON.stringify(native))!==journal.communityHash||await atlasRenewalRepairDigest(raw||"")!==journal.centralServicesHash)throw new Error("Data changed after the recorded repair. Keep the recovery evidence for review.");
+    atlasRenewalRepairCheck(context);
+    if(!viewCurrent()||JSON.stringify(buildSerializedSavedDataPayload())!==runtimeBaseline||JSON.stringify(getCurrentCommunityRecord())!==draftBaseline||runtimeBaseline!==JSON.stringify(native))throw new Error("Current workspace edits differ from the verified repair. Preserve them before reloading.");
+    savedData=native;loadPropertyData(getProp().name);localStorage.removeItem(ATLAS_RENEWAL_REPAIR_MARKER);delete window.AtlasRenewalRepairRecovery;return journal;
+  }
+  window.AtlasRenewalRepairWrite=journal.id;
+  try {return await finishAtlasRenewalHistoryRepair(journal,context);}
+  catch(error){window.AtlasRenewalRepairRecovery=true;throw error;}
+  finally{if(window.AtlasRenewalRepairWrite===journal.id)delete window.AtlasRenewalRepairWrite;}
 }
 
 async function persistReviewedPeopleContacts(rows) {

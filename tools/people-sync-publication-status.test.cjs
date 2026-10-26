@@ -53,7 +53,7 @@ function fixture(seed, {actualNormalization = false, sharedRecords = false} = {}
   }
   const context = {
     Date: Clock, Blob, Response, DecompressionStream, DOMException,
-    ATLAS_STATE_COMMUNITY_KEY: COMMUNITIES, OPS_GLOBAL_STORAGE_KEY: OPS, ATLAS_STATE_DB_NAME: 'verified-workspace',
+    ATLAS_RENEWAL_REPAIR_KEY:"renewal-repair",atlasRenewalRepairPending:()=>false,atlasRenewalRepairGeneration:()=>"",ATLAS_STATE_COMMUNITY_KEY: COMMUNITIES, OPS_GLOBAL_STORAGE_KEY: OPS, ATLAS_STATE_DB_NAME: 'verified-workspace',
     withAtlasStateStore: withStore, openAtlasStateDb: async () => true,
     atlasWorkspaceAccess: {validated: true, epoch: 1, controller: new AbortController()},
     atlasCentralPeopleLoadPromise: null, opsGlobalStorageCache: clone(records.get(OPS)?.value ?? null),

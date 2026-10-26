@@ -122,7 +122,7 @@ try{
   const page=await browser.newPage();await page.goto('http://127.0.0.1:'+server.address().port+'/?'+surface);
   const evidence=await page.evaluate(async()=>{
    const g=globalThis;let alerts=0,posts=0,gets=0,built=0,release;
-   Object.assign(g,{alert:()=>alerts++,setAtlasCentralRuntimeMessage:()=>{},dashboardSharedSyncMeta:{},persistDashboardSharedSyncMeta:()=>{},DASHBOARD_SHARED_SYNC_ENDPOINT:'/synthetic',DASHBOARD_SHARED_SYNC_SCOPE:'synthetic',getDashboardSharedSyncWriteAccess:()=>({ok:true,writeToken:'synthetic-local-test'}),mergeDashboardStorageBundles:(_a,b)=>b,fetch:async(_url,options)=>{if(options.method==='POST'){posts++;return {ok:true,json:async()=>({ok:true,record:{updatedAt:'synthetic'}})};}gets++;return {ok:false};}});
+   Object.assign(g,{atlasRenewalRepairPending:()=>false,atlasRenewalRepairGeneration:()=>"",alert:()=>alerts++,setAtlasCentralRuntimeMessage:()=>{},dashboardSharedSyncMeta:{},persistDashboardSharedSyncMeta:()=>{},DASHBOARD_SHARED_SYNC_ENDPOINT:'/synthetic',DASHBOARD_SHARED_SYNC_SCOPE:'synthetic',getDashboardSharedSyncWriteAccess:()=>({ok:true,writeToken:'synthetic-local-test'}),mergeDashboardStorageBundles:(_a,b)=>b,fetch:async(_url,options)=>{if(options.method==='POST'){posts++;return {ok:true,json:async()=>({ok:true,record:{updatedAt:'synthetic'}})};}gets++;return {ok:false};}});
    const originalBuild=g.buildDashboardStorageBundle,originalArchive=g.buildAtlasCentralAppStatePayload;
    g.AtlasReplayWriteFence={assert(){throw Error('Recovery must reload before saving');}};
    const top=g.saveCommunityData(),budget=g.saveBudgetCurve(),central=await g.saveAtlasCentralAppState({silent:true}),cloud=await g.pushDashboardSharedState({silent:true});

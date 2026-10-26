@@ -39,7 +39,7 @@ const packet=(amount=80,date='2026-09-16')=>({period:'2026-09',actuals:[{glCode:
  const payload={locked:true,property:{name:'A'},year:2026,coverage:[8],scenario:{id:'s',name:'Approved'},budgetByPeriod:{'2026-09':[{gl:'4000',budget:100}]},actualsByPeriod:{'2026-09':[{gl:'4000',actual:0}]},effectiveDate:'2026-09-17'};
  const result=parent.publishBudgetToAtlas(payload);assert.equal(result.ok,false);assert.equal(result.published,false);assert.equal(result.status,'blocked');assert.equal(result.receiptId,null);assert.deepEqual(JSON.parse(JSON.stringify(parent.savedData)),{A:{}});
  // Core Data Import commits community values and full durable lineage in one transaction.
- const main=readDashboardSource(dir+'index.html'),core={window:{},Date,Map,Set,Promise,console,ATLAS_STATE_DB_NAME:'financial-test',ATLAS_STATE_STORE_NAME:'records',ATLAS_STATE_COMMUNITY_KEY:'community_data',DATA_IMPORT_2_STATE_KEY:'imports',atlasStateWritePromise:Promise.resolve(),atlasPersistenceMeta:{},dashboardSharedSyncMeta:{}};
+ const main=readDashboardSource(dir+'index.html'),core={atlasRenewalRepairPending:()=>false,window:{},Date,Map,Set,Promise,console,ATLAS_STATE_DB_NAME:'financial-test',ATLAS_STATE_STORE_NAME:'records',ATLAS_STATE_COMMUNITY_KEY:'community_data',DATA_IMPORT_2_STATE_KEY:'imports',atlasStateWritePromise:Promise.resolve(),atlasPersistenceMeta:{},dashboardSharedSyncMeta:{}};
  vm.createContext(core);
  for(const name of ['withAtlasStateStore','queueAtlasStateWrite','persistDataImportPublication','persistSaved']){
   const source=main.match(new RegExp('^(?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'))[0];

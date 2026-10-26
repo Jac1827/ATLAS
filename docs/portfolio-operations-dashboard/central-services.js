@@ -1483,6 +1483,12 @@
   }
 
   function storageSet(key, value) {
+    // A deliberate repair fence must also stop callers that otherwise ignore a
+    // failed save and continue applying their uncommitted rows to the dashboard.
+    if (key === STORAGE_KEY && (typeof atlasRenewalRepairPending === "function"
+      ? atlasRenewalRepairPending() : window.AtlasRenewalRepairWrite || window.AtlasRenewalRepairRecovery)) {
+      throw new Error("Renewal history repair must finish or recover before changing Central Services.");
+    }
     try {
       localStorage.setItem(key, key === STORAGE_KEY ? compactCentralServicesStorage(value) : value);
       return true;
@@ -9372,6 +9378,32 @@
     state.renewals = [...byId.values()];
   }
 
+  function retainDashboardRenewalWorkflow(state, incomingRows, existingRows) {
+    // The Central Services cache can contain only the selected month. Before
+    // importing another cohort, retain its saved workflow rather than treating
+    // an absent cache row as a new agreement. Existing Central Services rows
+    // keep their workflow values; only missing activity evidence is added.
+    const incoming = new Map(incomingRows.map(row => [row.id, row]));
+    const retained = new Map(state.renewals.map(row => [row.id, row]));
+    asArray(existingRows).forEach(row => {
+      const next = incoming.get(row?.id);
+      if (!next || cleanString(row.propertyName) !== cleanString(next.propertyName)
+        || cleanString(row.periodKey) !== cleanString(next.periodKey)
+        || cleanString(row.expirationDate) !== cleanString(next.expirationDate)) return;
+      const existing = retained.get(row.id);
+      if (!existing) {
+        retained.set(row.id, JSON.parse(JSON.stringify(row)));
+        return;
+      }
+      const missing = asArray(row.activity).filter(item => item && !asArray(existing.activity).some(candidate => cleanString(candidate?.at) === cleanString(item.at) && cleanString(candidate?.label) === cleanString(item.label)));
+      // The existing upsert keeps the latest fifty entries. Put older recovered
+      // evidence first so it cannot displace newer Central Services activity.
+      const activity = [...missing, ...asArray(existing.activity)];
+      retained.set(row.id, { ...existing, activity });
+    });
+    state.renewals = [...retained.values()];
+  }
+
   function getCommunityEmail(propertyName) {
     const record = getCommunityRecord(propertyName);
     return cleanString(record.communityEmail || record.propertyEmail || record.email || record.leasingEmail || record.managerEmail).toLowerCase();
@@ -9882,6 +9914,7 @@
     };
     const rows = prepareRenewalRowsForImport(rawRows, importContext, getCentralServicesEmployees());
     if (!rows.length) return { importId, rowsImported: 0, ntvCount: 0, moveOutCasesCreated: 0, potentialUpdatesQueued: 0, renewalRows: [] };
+    retainDashboardRenewalWorkflow(state, rows, options.existingRenewalRows);
     const periodContexts = collectRenewalPeriodContexts(rows, { propertyName, monthIdx, year, periodKey });
     const periodKeys = periodContexts.map(period => period.periodKey);
     const periodLabels = formatImportPeriodLabels(periodContexts);
@@ -11233,7 +11266,8 @@
     const beforeReviewCount = asArray(state.potentialMoveOutUpdates).length;
     const result = importRenewalRowsToCentralServices(state, sheetRows, context, {
       importHistory: options.importHistory !== false,
-      audit: options.audit
+      audit: options.audit,
+      existingRenewalRows: options.existingRenewalRows
     });
     const shouldSetUi = options.setUi === true;
     if (shouldSetUi && context.propertyName) {

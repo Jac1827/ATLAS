@@ -1,0 +1,71 @@
+{
+  "kind": "Separate post-measurement same-origin parity; no control timings used",
+  "sourceSha256": "091e53efcaed38cee85687aa9bc102d96e909b69cc3b6a248b82de48fb6e8cdc",
+  "checks": {
+    "homeHistoryHash": {
+      "equal": true,
+      "baseline": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b",
+      "candidate": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b"
+    },
+    "homeValue": {
+      "equal": true,
+      "displayedOperatingValueOmitted": true
+    },
+    "monthlyNormalizationMatchesBaseline": {
+      "equal": true,
+      "baseline": true,
+      "candidate": true
+    },
+    "communityProgressHash": {
+      "equal": true,
+      "baseline": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697",
+      "candidate": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697"
+    },
+    "communityDocumentHash": {
+      "equal": true,
+      "baseline": "aba6504aece60144a604258d616a17cbe21328950b3b20bce21fff720de422d9",
+      "candidate": "aba6504aece60144a604258d616a17cbe21328950b3b20bce21fff720de422d9"
+    },
+    "operatingDataHash": {
+      "equal": true,
+      "baseline": "b06a6b293fdd1ca2d3a8199959d46ffd12ae87ecae854805e51903ef4a218e76",
+      "candidate": "b06a6b293fdd1ca2d3a8199959d46ffd12ae87ecae854805e51903ef4a218e76"
+    },
+    "reportAggregateHash": {
+      "equal": true,
+      "baseline": "61f534f50d09084366556e8db0676b59c1df155217cdddd2847c4e3ff50f8433",
+      "candidate": "61f534f50d09084366556e8db0676b59c1df155217cdddd2847c4e3ff50f8433"
+    },
+    "exportRowsHash": {
+      "equal": true,
+      "baseline": "8beb6579ca5e0bf51e82070c00c83f4bc227b4aa267e8a152ab49ef9a753b6c7",
+      "candidate": "8beb6579ca5e0bf51e82070c00c83f4bc227b4aa267e8a152ab49ef9a753b6c7"
+    },
+    "reportDetailCount": {
+      "equal": true,
+      "baseline": 14,
+      "candidate": 14
+    },
+    "exportRowCount": {
+      "equal": true,
+      "baseline": 40,
+      "candidate": 40
+    },
+    "period": {
+      "equal": true,
+      "baseline": {
+        "year": 2026,
+        "month": 8
+      },
+      "candidate": {
+        "year": 2026,
+        "month": 8
+      }
+    }
+  },
+  "errors": [
+    [],
+    []
+  ],
+  "displayedOperatingValuesOmitted": true
+}

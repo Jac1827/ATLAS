@@ -55826,18 +55826,14 @@ function runAtlasStartupStep(label, step) {
 }
 
 async function measureAtlasStartupStage(label, step) {
-  const start = `atlas:${label}:start`;
-  const end = `atlas:${label}:end`;
+  // Concurrent auth epochs must not clear or reuse each other's timing markers.
+  const start = performance.now();
   const finishDiagnostic = window.AtlasPerformance?.start(label);
-  performance.mark(start);
   try {
     return await step();
   } finally {
-    performance.mark(end);
-    performance.measure(`atlas:${label}`, start, end);
+    performance.measure(`atlas:${label}`, { start, end: performance.now() });
     finishDiagnostic?.();
-    performance.clearMarks(start);
-    performance.clearMarks(end);
     // Retain at most the latest measurement of each startup stage.
     const measures = performance.getEntriesByName(`atlas:${label}`);
     if (measures.length > 1) {
@@ -56080,6 +56076,7 @@ async function initializeAtlasDashboard() {
     const central = window.ATLAS_CENTRAL;
     if (getAtlasCentralStatus().clientUnavailable) throw new Error(getAtlasCentralStatus().message);
     if (central?.refreshSession) await measureAtlasStartupStage("session",()=>central.refreshSession());
+    if (epoch !== atlasWorkspaceAccess.epoch) return;
     if (getAtlasCentralStatus().configured) {
       if (!central?.getSession()?.user) {finishAtlasStartupLoadingState(); renderTab(); return;}
       const profile = await measureAtlasStartupStage("authorization",()=>central.fetchProfile({claim:false,signal:atlasWorkspaceAccess.controller.signal}));
@@ -56156,7 +56153,9 @@ window.addEventListener("atlas-central-auth-change", () => {
   clearAtlasSharedApplications();
   document.querySelectorAll(".tab-panel").forEach(panel=>{panel.replaceChildren();delete panel.dataset.atlasStableMountMounted;});
   window.AtlasMounts?.reconcile?.();
-  if (atlasDashboardInitializationComplete) initializeAtlasDashboard();
+  // A refresh can invalidate the first startup before it reaches the ready state.
+  // Resume for the new identity/access context; the old epoch must stay concealed.
+  initializeAtlasDashboard();
 });
 
 let atlasAccessVerificationPromise = null;

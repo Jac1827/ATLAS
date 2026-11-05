@@ -95,3 +95,11 @@ export function governedApi(central) {
     saveScenario: options => rf.saveScenario(central, options)
   };
 }
+
+/* A community not in ATLAS yet (VP only). */
+export async function createCommunity(central, {name, units, propertyType, market, development = false}) {
+  const id = await central.fetchJson('/rpc/atlas_budget_builder_create_community', {method: 'POST', body: JSON.stringify({p_name: name, p_units: units, p_property_type: propertyType, p_market: market, p_development: development})});
+  const v = Array.isArray(id) ? id[0] : id;
+  if (!UUID.test(String(v || ''))) throw Error('The community could not be created.');
+  return String(v);
+}

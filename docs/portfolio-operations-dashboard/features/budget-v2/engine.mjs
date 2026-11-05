@@ -374,7 +374,7 @@ export function bahMemo(model, c = buildContext(model)) {
 /* Lines needing a written note: variance vs T12 above both $1,000 and 10%. */
 export function noteFlags(result, notes = {}, {dollars = 1000, pct = 10} = {}) {
   return Object.values(result.rows).filter(r => {
-    if (r.type === 'str') return false;
+    if (r.type === 'str' || !r.line.t12) return false;  // nothing to compare without a T12
     const t12 = r.t12, d = r.annual - t12;
     const p = t12 ? Math.abs(d / t12) * 100 : (Math.abs(d) > 0 ? Infinity : 0);
     const note = notes[r.line.gl] ?? r.line.note;

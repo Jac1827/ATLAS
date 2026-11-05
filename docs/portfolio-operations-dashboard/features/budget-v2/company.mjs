@@ -8,7 +8,7 @@
  * Sign convention: income positive, expenses positive, allocations negative.
  * No company data lives in this file.
  */
-import {positionMonthly, num} from './engine.mjs?v=d1645594fb2c6c47';
+import {positionMonthly, num} from './engine.mjs?v=cc80fc96bf9f688a';
 
 const zeros = () => Array(12).fill(0);
 const sum = a => a.reduce((t, v) => t + (Number(v) || 0), 0);

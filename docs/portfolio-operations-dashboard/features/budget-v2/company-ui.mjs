@@ -1,9 +1,9 @@
 /* RISE company budget — user interface inside Budget Builder v2.
  * The VP builds it, a designated executive approves and locks it, and each month's
  * Entrata Budget vs Actual is tracked with variance comments. */
-import * as C from './company.mjs?v=b811f5c56820c220';
-import * as CS from './company-store.mjs?v=8ca3f5f755ee2b7b';
-import {positionMonthly} from './engine.mjs?v=d1645594fb2c6c47';
+import * as C from './company.mjs?v=befe71a581a8fba5';
+import * as CS from './company-store.mjs?v=2fc1d3ef17636c3a';
+import {positionMonthly} from './engine.mjs?v=cc80fc96bf9f688a';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const TABS = [['setup', 'Setup & sources'], ['fees', 'Fee income'], ['payroll', 'Payroll'], ['lines', 'Expenses & other income'], ['summary', 'Summary & approval'], ['tracking', 'Monthly tracking']];

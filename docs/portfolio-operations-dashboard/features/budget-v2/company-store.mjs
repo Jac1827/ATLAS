@@ -1,5 +1,5 @@
 /* RISE company budget — persistence through ATLAS Central (Supabase RPCs). */
-import {calculate} from './engine.mjs?v=d1645594fb2c6c47';
+import {calculate} from './engine.mjs?v=cc80fc96bf9f688a';
 
 export const uuid = () => crypto.randomUUID();
 const rpc = async (central, name, args) => { const d = await central.fetchJson('/rpc/' + name, {method: 'POST', body: JSON.stringify(args)}); return Array.isArray(d) ? d[0] : d; };

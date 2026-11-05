@@ -22,6 +22,10 @@
       [
         "features/snapshot-pdf.mjs",
         "../vendor/pdf-lib-1.17.1.mjs"
+      ],
+      [
+        "features/budget-v2/ui.mjs",
+        "../../vendor/pdf-lib-1.17.1.mjs"
       ]
     ]
   },
@@ -226,6 +230,10 @@
       [
         "features/reforecast-engine.mjs",
         "./planning-governance.mjs"
+      ],
+      [
+        "features/budget-v2/ui.mjs",
+        "../planning-governance.mjs"
       ]
     ]
   },
@@ -416,6 +424,10 @@
       [
         "features/financial-package-review.mjs",
         "./workbook-audit-store.mjs"
+      ],
+      [
+        "features/budget-v2/store.mjs",
+        "../workbook-audit-store.mjs"
       ]
     ]
   },
@@ -470,6 +482,10 @@
       [
         "features/reforecast-recovery.mjs",
         "./reforecast-store.mjs"
+      ],
+      [
+        "features/budget-v2/store.mjs",
+        "../reforecast-store.mjs"
       ]
     ]
   },
@@ -772,6 +788,10 @@
       [
         "performance/feature-loader.js",
         "assets/xlsx.full.min.js"
+      ],
+      [
+        "RISE-Budget-Builder-v2.html",
+        "./assets/xlsx.full.min.js"
       ],
       [
         "features/reforecast-intake.mjs",
@@ -1162,6 +1182,10 @@
         "vendor/jszip.min.js"
       ],
       [
+        "RISE-Budget-Builder-v2.html",
+        "./vendor/jszip.min.js"
+      ],
+      [
         "features/workspace-projection-worker.js",
         "../vendor/jszip.min.js"
       ],
@@ -1508,6 +1532,10 @@
       [
         "features/canonical-budget-report.mjs",
         "./reforecast-intake.mjs"
+      ],
+      [
+        "features/budget-v2/ui.mjs",
+        "../reforecast-intake.mjs"
       ]
     ]
   },
@@ -2291,93 +2319,29 @@
       ]
     ]
   },
-  "features/str-ltr-comparison-engine.mjs": {
-    "sha256": "3baf0a71a5afe8b7",
-    "bytes": 57718,
+  "features/budget-v2/ui.mjs": {
+    "sha256": "222c26b79051a70f",
+    "bytes": 60323,
     "references": [
       [
-        "features/str-ltr-comparison-ui.mjs",
-        "./str-ltr-comparison-engine.mjs"
+        "RISE-Budget-Builder-v2.html",
+        "./features/budget-v2/ui.mjs"
       ]
     ]
   },
-  "vendor/pptxgen-4.0.1.js": {
-    "sha256": "4fb9eac5cfefb213",
-    "bytes": 460889,
-    "references": [
-      [
-        "performance/feature-loader.js",
-        "vendor/pptxgen-4.0.1.js"
-      ],
-      [
-        "features/str-ltr-comparison-export.mjs",
-        "../vendor/pptxgen-4.0.1.js"
-      ]
-    ]
-  },
-  "features/str-ltr-comparison-export.mjs": {
-    "sha256": "4a5dc9d2a6b7a4bd",
-    "bytes": 39607,
-    "references": [
-      [
-        "features/str-ltr-comparison-ui.mjs",
-        "./str-ltr-comparison-export.mjs"
-      ]
-    ]
-  },
-  "features/str-ltr-comparison-recovery.mjs": {
-    "sha256": "ed0ac34406c4b063",
-    "bytes": 5969,
-    "references": [
-      [
-        "features/str-ltr-comparison-ui.mjs",
-        "./str-ltr-comparison-recovery.mjs"
-      ]
-    ]
-  },
-  "features/str-ltr-comparison-store.mjs": {
-    "sha256": "6d7a7ebe75531bd8",
-    "bytes": 34575,
-    "references": [
-      [
-        "features/str-ltr-comparison-ui.mjs",
-        "./str-ltr-comparison-store.mjs"
-      ]
-    ]
-  },
-  "features/str-ltr-comparison.css": {
-    "sha256": "5a9eb28a2b47baca",
-    "bytes": 5302,
-    "references": [
-      [
-        "features/str-ltr-comparison-ui.mjs",
-        "./str-ltr-comparison.css"
-      ]
-    ]
-  },
-  "features/str-ltr-comparison-ui.mjs": {
-    "sha256": "a9afbb4b1bce8d41",
-    "bytes": 49718,
-    "references": [
-      [
-        "RISE-Budget-Builder.html",
-        "./features/str-ltr-comparison-ui.mjs"
-      ]
-    ]
-  },
-  "RISE-Budget-Builder.html": {
-    "sha256": "be3248f8a36f6d81",
-    "bytes": 1907616,
+  "RISE-Budget-Builder-v2.html": {
+    "sha256": "2f0ac84e624bce17",
+    "bytes": 8673,
     "references": [
       [
         "atlas-mounts.js",
-        "RISE-Budget-Builder.html"
+        "RISE-Budget-Builder-v2.html"
       ]
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "5d1281a3c050b914",
-    "bytes": 26893,
+    "sha256": "3a8470f5ca4dd9d8",
+    "bytes": 26921,
     "references": [
       [
         "index.html",
@@ -2402,6 +2366,20 @@
       [
         "financial-accountability.html",
         "./features/legacy-finance-gate.js"
+      ]
+    ]
+  },
+  "vendor/pptxgen-4.0.1.js": {
+    "sha256": "4fb9eac5cfefb213",
+    "bytes": 460889,
+    "references": [
+      [
+        "performance/feature-loader.js",
+        "vendor/pptxgen-4.0.1.js"
+      ],
+      [
+        "features/str-ltr-comparison-export.mjs",
+        "../vendor/pptxgen-4.0.1.js"
       ]
     ]
   },
@@ -2546,6 +2524,66 @@
       [
         "workspace-activation.html",
         "./performance/feature-loader.js"
+      ]
+    ]
+  },
+  "features/str-ltr-comparison-engine.mjs": {
+    "sha256": "3baf0a71a5afe8b7",
+    "bytes": 57718,
+    "references": [
+      [
+        "features/str-ltr-comparison-ui.mjs",
+        "./str-ltr-comparison-engine.mjs"
+      ]
+    ]
+  },
+  "features/str-ltr-comparison-store.mjs": {
+    "sha256": "6d7a7ebe75531bd8",
+    "bytes": 34575,
+    "references": [
+      [
+        "features/str-ltr-comparison-ui.mjs",
+        "./str-ltr-comparison-store.mjs"
+      ]
+    ]
+  },
+  "features/str-ltr-comparison-recovery.mjs": {
+    "sha256": "ed0ac34406c4b063",
+    "bytes": 5969,
+    "references": [
+      [
+        "features/str-ltr-comparison-ui.mjs",
+        "./str-ltr-comparison-recovery.mjs"
+      ]
+    ]
+  },
+  "features/str-ltr-comparison-export.mjs": {
+    "sha256": "4a5dc9d2a6b7a4bd",
+    "bytes": 39607,
+    "references": [
+      [
+        "features/str-ltr-comparison-ui.mjs",
+        "./str-ltr-comparison-export.mjs"
+      ]
+    ]
+  },
+  "features/str-ltr-comparison.css": {
+    "sha256": "5a9eb28a2b47baca",
+    "bytes": 5302,
+    "references": [
+      [
+        "features/str-ltr-comparison-ui.mjs",
+        "./str-ltr-comparison.css"
+      ]
+    ]
+  },
+  "features/str-ltr-comparison-ui.mjs": {
+    "sha256": "a9afbb4b1bce8d41",
+    "bytes": 49718,
+    "references": [
+      [
+        "RISE-Budget-Builder.html",
+        "./features/str-ltr-comparison-ui.mjs"
       ]
     ]
   }

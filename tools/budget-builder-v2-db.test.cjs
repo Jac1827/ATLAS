@@ -22,7 +22,7 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  await db.query("update atlas_communities set first_expected_financial_period='2026-01' where community_id=$1",[B]);
  await db.exec("insert into auth.users values('00000000-0000-0000-0000-000000000006')");
  await db.query("insert into atlas_user_profiles values('00000000-0000-0000-0000-000000000006','regional','active',$1,'{}','{}')",[[B]]);
- await db.exec(migration('20261104200000_budget_builder_v2.sql'));
+ await db.exec(migration('20261105123257_budget_builder_v2.sql'));
 
  // A small synthetic property: two income GLs, three expense GLs, one reserve and one capex line.
  const periods=E.fiscalPeriods(2027,1);

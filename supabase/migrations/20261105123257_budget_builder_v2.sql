@@ -7,7 +7,6 @@
 -- and is accepted only when that publication exists, belongs to the same community,
 -- was published by the approving VP and names this draft. Every existing consumer
 -- keeps reading atlas_reforecast_publications.
-begin;
 
 create table public.atlas_budget_builder_drafts (
  draft_id uuid primary key,
@@ -258,4 +257,3 @@ end;$$;
 revoke all on function public.atlas_finish_budget_investor_delivery(uuid,text,text) from public,anon,authenticated;
 do $$begin if exists(select 1 from pg_roles where rolname='service_role') then execute 'grant execute on function public.atlas_finish_budget_investor_delivery(uuid,text,text) to service_role';end if;end;$$;
 
-commit;

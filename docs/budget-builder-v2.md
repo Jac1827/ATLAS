@@ -19,7 +19,7 @@ The ATLAS Budget tab now opens **Budget Builder v2** (`portfolio-operations-dash
 
 ## Deployment
 
-1. Apply `supabase/migrations/20261104200000_budget_builder_v2.sql` after the existing chain. It adds four tables (drafts, events, learning observations, investor deliveries), RLS read policies via `reforecast_access`, and the RPCs `atlas_budget_builder_save`, `atlas_budget_builder_transition`, `atlas_budget_learning_record`, `atlas_budget_benchmarks`, `atlas_claim_budget_investor_delivery` and the service-only `atlas_finish_budget_investor_delivery`. No existing table or function is changed.
+1. Applied to production on 5 November 2026 as version `20261105123257` (`supabase/migrations/20261105123257_budget_builder_v2.sql`, the exact body that ran). It adds four tables (drafts, events, learning observations, investor deliveries), RLS read policies via `reforecast_access`, and the RPCs `atlas_budget_builder_save`, `atlas_budget_builder_transition`, `atlas_budget_learning_record`, `atlas_budget_benchmarks`, `atlas_claim_budget_investor_delivery` and the service-only `atlas_finish_budget_investor_delivery`. No existing table or function is changed.
 2. Deploy the Worker (`src/worker.mjs` registers the investor email route; it uses the existing `EMAIL` binding and `ATLAS_DLR_FROM_EMAIL`).
 3. Publish the site. `atlas-mounts.js` points the Budget tab at v2.
 

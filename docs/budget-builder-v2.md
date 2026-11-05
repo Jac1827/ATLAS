@@ -19,6 +19,21 @@ The ATLAS Budget tab now opens **Budget Builder v2** (`portfolio-operations-dash
 | VP edits | The VP can edit a locked budget in place with a logged reason; it is flagged "Revised" and the investor package is blocked until the VP re-approves, which republishes it as a revised budget against the approved original. |
 | Investor package | Cover page, summary, expense categories, assumptions and selected notes. Download as PDF, or email (VP) through `/api/atlas/budget-investor/email`; the Worker renders the PDF from the VP-locked summary and records the delivery. |
 
+## RISE company budget
+
+**RISE company budget** in the Budget Builder header (VP and the designated executive approver only) builds and tracks the RISE Residential, LLC budget.
+
+| Area | Behavior |
+|---|---|
+| Sources | Entrata "Income Statement - Budget vs Actual" for RISE Residential, LLC (any months). The latest report gives each line's prior annual budget and year-to-date run rate; every report is also saved as that month's actuals and comments. |
+| Fee income | One line per property (41xx). Linked lines follow the property's management fee (GL 6320) from its approved budget, else its latest Budget Builder draft (months outside the property's fiscal year use its average). Share %, monthly minimum, flat amounts, monthly schedules (lease-up fees, new projects) and start/end months for new and ending management. |
+| Payroll | Positions roll up to 6100; taxes and benefits are a % of salaries; bonuses are a % of salaries paid in chosen months. |
+| Other lines | Annual amount with growth, monthly schedule, % of salaries, or overhead allocation (88xx: a % of its section, posted as a credit). |
+| Approval | VP draft → executive review → approved and locked. The approver is designated by email, must be a different person from whoever prepared or last revised the budget, and can return it with a reason. VP edits after approval need a reason and are re-approved. Reforecasts lock months that have actuals. |
+| Monthly tracking | Upload the month's Budget vs Actual: month, year to date, annual budget and forecast (YTD actual + rest of year's budget) by GL against the approved ATLAS budget (or Entrata's budget for a year without one). Entrata comments are kept; lines over ±10% and $1,000 (month or YTD) need a comment before the month is marked reviewed. Lines where Entrata's budget differs from ATLAS are flagged. Download the month as a workbook. |
+
+Migration: `supabase/migrations/20261106120000_rise_company_budget.sql` (three tables, RLS limited to the VP and designated approvers, RPCs `atlas_company_budget_save`, `_transition`, `_month_save`, `_set_approver`, `_my_role`). Tests: `node tools/company-budget.test.mjs`, `node tools/company-budget-db.test.cjs`.
+
 ## Deployment
 
 1. Apply `supabase/migrations/20261104200000_budget_builder_v2.sql` after the existing chain. It adds four tables (drafts, events, learning observations, investor deliveries), RLS read policies via `reforecast_access`, and the RPCs `atlas_budget_builder_save`, `atlas_budget_builder_transition`, `atlas_budget_learning_record`, `atlas_budget_benchmarks`, `atlas_claim_budget_investor_delivery` and the service-only `atlas_finish_budget_investor_delivery`. No existing table or function is changed.

@@ -5,6 +5,7 @@ import * as Lr from './learning.mjs?v=d08ad58ef1e64b02';
 import * as H from './handoff.mjs?v=b1ee93066f254fda';
 import * as S from './store.mjs?v=90893632a1921e6a';
 import * as SU from './str-ui.mjs?v=6bae4cda970dcaba';
+import * as CU from './company-ui.mjs?v=7d363dc3def85761';
 import {investorSummary, investorHtml, investorPdf, money as moneyFmt} from './investor-package.mjs?v=6fab0b0adb2b9ed3';
 import {parseReforecastWorkbook} from '../reforecast-intake.mjs?v=74bbd52d93a197cc';
 import {planningMappingDispositions} from '../planning-governance.mjs?v=a4de8d3f5a50966c';
@@ -62,6 +63,7 @@ async function boot() {
   s.cid = s.communities[0]?.id || '';
   try { s.benchmarks = await S.benchmarks(s.central) || {}; } catch { s.benchmarks = {}; }
   try { const d = await S.decisions(s.central, s.communities.map(c => c.id)); s.decisions = (d || []).map(r => ({gl: r.gl_code, model: r.basis?.model, final: r.value})); } catch { s.decisions = []; }
+  s.coRole = await CU.role(s.central).catch(() => null);
   await loadDrafts();
   render();
   window.addEventListener('message', e => {
@@ -259,6 +261,7 @@ async function downloadPdf(summary) {
 
 /* ---------------- rendering ---------------- */
 function render() {
+  if (CU.isActive()) { CU.render(); return; }
   renderContext();
   if (!s.draft) { $app.innerHTML = renderStart(); return; }
   const st = draftStatus();
@@ -275,7 +278,7 @@ function renderContext() {
   const st = s.draft ? STATUS[draftStatus()] : null;
   $ctx.innerHTML = `<label class="f" style="flex-direction:row;align-items:center;gap:8px">Community<select class="sel" data-ctx="community">${opts}</select></label>
   <label class="f" style="flex-direction:row;align-items:center;gap:8px">Budget<select class="sel" data-ctx="draft"><option value="">${s.drafts.length ? 'Choose…' : 'No budgets yet'}</option>${drafts}</select></label>
-  <button class="btn ghost" data-act="new">+ New</button><a class="btn ghost" href="${classicUrl('?atlasView=actuals')}" title="Actuals & close, reforecasts, STR, reports and exports">Close & reports</a>${st ? `<span class="pill ${st[1]}">${st[0]}${s.vpEditing ? ' · VP editing' : ''}</span>` : ''}`;
+  <button class="btn ghost" data-act="new">+ New</button>${s.coRole ? '<button class="btn ghost" data-act="company" title="RISE Residential, LLC company budget and monthly tracking">RISE company budget</button>' : ''}<a class="btn ghost" href="${classicUrl('?atlasView=actuals')}" title="Actuals & close, reforecasts, STR, reports and exports">Close & reports</a>${st ? `<span class="pill ${st[1]}">${st[0]}${s.vpEditing ? ' · VP editing' : ''}</span>` : ''}`;
 }
 function renderStart() {
   return `<div class="card"><p class="h2">Start a budget or reforecast</p><p class="muted">Choose the year, plan type and asset class, then upload the sources the model should learn from.</p>
@@ -460,6 +463,8 @@ function investorTab() {
 
 /* ---------------- events ---------------- */
 document.addEventListener('click', async e => {
+  if (CU.isActive()) return;
+  if (e.target.closest('[data-act="company"]')) { if (s.dirty && !confirm('Leave this property budget with unsaved changes?')) return; await CU.open({central: s.central, $app, $ctx, status, esc, money, communities: s.communities, back: () => render()}); return; }
   const t = e.target.closest('[data-tab],[data-act],[data-open],[data-asset],[data-sec],[data-gl-toggle],[data-usemodel],[data-reset],[data-step],[data-flow],[data-posdel],[data-posok],[data-docapply],[data-docdel],[data-bahdel],[data-strview],[data-strfpdel],[data-strchdel],[data-strreset],[data-strtoggle]');
   if (!t) return;
   const d = t.dataset;
@@ -527,6 +532,7 @@ document.addEventListener('click', async e => {
 });
 
 document.addEventListener('change', async e => {
+  if (CU.isActive()) return;
   const t = e.target, d = t.dataset;
   if (d.ctx === 'community') { s.cid = t.value; s.draft = null; s.model = null; await loadDrafts(); render(); return; }
   if (d.ctx === 'draft') { if (t.value) await openDraft(t.value).catch(err => status(err.message, true)); return; }

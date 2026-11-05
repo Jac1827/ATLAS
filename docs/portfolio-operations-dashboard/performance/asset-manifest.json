@@ -2342,6 +2342,14 @@
         "./engine.mjs"
       ],
       [
+        "features/budget-v2/company.mjs",
+        "./engine.mjs"
+      ],
+      [
+        "features/budget-v2/company-ui.mjs",
+        "./engine.mjs"
+      ],
+      [
         "features/budget-v2/ui.mjs",
         "./engine.mjs"
       ],
@@ -2352,6 +2360,40 @@
       [
         "features/budget-v2/learning.mjs",
         "./engine.mjs"
+      ],
+      [
+        "features/budget-v2/company-store.mjs",
+        "./engine.mjs"
+      ]
+    ]
+  },
+  "features/budget-v2/company-store.mjs": {
+    "sha256": "8ca3f5f755ee2b7b",
+    "bytes": 4654,
+    "references": [
+      [
+        "features/budget-v2/company-ui.mjs",
+        "./company-store.mjs"
+      ]
+    ]
+  },
+  "features/budget-v2/company.mjs": {
+    "sha256": "b811f5c56820c220",
+    "bytes": 23109,
+    "references": [
+      [
+        "features/budget-v2/company-ui.mjs",
+        "./company.mjs"
+      ]
+    ]
+  },
+  "features/budget-v2/company-ui.mjs": {
+    "sha256": "7d363dc3def85761",
+    "bytes": 48580,
+    "references": [
+      [
+        "features/budget-v2/ui.mjs",
+        "./company-ui.mjs"
       ]
     ]
   },
@@ -2420,8 +2462,8 @@
     ]
   },
   "features/budget-v2/ui.mjs": {
-    "sha256": "6abe0ceb3aa9fd9a",
-    "bytes": 62390,
+    "sha256": "f6857b3c934aec76",
+    "bytes": 63034,
     "references": [
       [
         "RISE-Budget-Builder-v2.html",
@@ -2430,7 +2472,7 @@
     ]
   },
   "RISE-Budget-Builder-v2.html": {
-    "sha256": "6730b3df209bb22b",
+    "sha256": "f91cdaa45d5c22d0",
     "bytes": 8673,
     "references": [
       [
@@ -2440,7 +2482,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "7a22d6b2414bec1f",
+    "sha256": "0a79c7d63499de8f",
     "bytes": 26921,
     "references": [
       [

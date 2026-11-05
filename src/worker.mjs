@@ -4,6 +4,7 @@ import {handleMoveOutState} from './moveout-state.mjs';
 import {handleMoveOutIntegration} from './moveout-integrations.mjs';
 import {handleResidentCommunications, createCommunicationService} from './resident-communications.mjs';
 import {handleCommunityPlanEmail} from './community-plan-email.mjs';
+import {handleBudgetInvestorEmail} from './budget-investor-email.mjs';
 export { EvictionCaseState } from './eviction-store.mjs';
 export { PropertySpecialsState } from './property-specials-store.mjs';
 import '../docs/portfolio-operations-dashboard/investor-packet-core.js';
@@ -2255,6 +2256,12 @@ export default {
       if (request.method === "OPTIONS") return noContent();
       if (request.method !== "POST") return apiResponse({ok:false,error:"Method Not Allowed"},{status:405});
       return handleCommunityPlanEmail(request,env,{requireAtlasAccessUser,apiResponse,supabaseRequest,callAtlasRpcAsUser});
+    }
+
+    if (url.pathname === "/api/atlas/budget-investor/email") {
+      if (request.method === "OPTIONS") return noContent();
+      if (request.method !== "POST") return apiResponse({ok:false,error:"Method Not Allowed"},{status:405});
+      return handleBudgetInvestorEmail(request,env,{requireAtlasAccessUser,apiResponse,supabaseRequest,callAtlasRpcAsUser});
     }
 
     if (url.pathname === "/api/atlas/reports/delivery") {

@@ -1,8 +1,8 @@
 /* Budget Builder v2 — persistence through ATLAS Central (Supabase).
  * Drafts, workflow transitions, learning observations and investor deliveries use
  * the Budget Builder RPCs; financial publication reuses the governed reforecast store. */
-import * as rf from '../reforecast-store.mjs';
-import {persistWorkbookAudit} from '../workbook-audit-store.mjs';
+import * as rf from '../reforecast-store.mjs?v=b59fd4df88ff8fe3';
+import {persistWorkbookAudit} from '../workbook-audit-store.mjs?v=da818ddb04840b36';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const uuid = () => crypto.randomUUID();

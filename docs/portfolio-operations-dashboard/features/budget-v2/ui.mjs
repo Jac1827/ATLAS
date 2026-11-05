@@ -5,8 +5,8 @@ import * as Lr from './learning.mjs';
 import * as H from './handoff.mjs';
 import * as S from './store.mjs';
 import {investorSummary, investorHtml, investorPdf, money as moneyFmt} from './investor-package.mjs';
-import {parseReforecastWorkbook} from '../reforecast-intake.mjs';
-import {planningMappingDispositions} from '../planning-governance.mjs';
+import {parseReforecastWorkbook} from '../reforecast-intake.mjs?v=74bbd52d93a197cc';
+import {planningMappingDispositions} from '../planning-governance.mjs?v=a4de8d3f5a50966c';
 
 const $app = document.getElementById('bb-app'), $ctx = document.getElementById('bb-context'), $status = document.getElementById('bb-status');
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

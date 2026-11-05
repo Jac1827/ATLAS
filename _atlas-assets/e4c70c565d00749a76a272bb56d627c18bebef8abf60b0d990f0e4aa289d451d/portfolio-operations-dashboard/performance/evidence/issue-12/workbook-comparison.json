@@ -1,0 +1,246 @@
+{
+  "kind": "generated-local-worker-benchmark",
+  "fixtureBytes": 4822131,
+  "observations": [
+    {
+      "build": "4263a58",
+      "device": "desktop",
+      "runs": [
+        {
+          "run": 1,
+          "previewMs": 172.0999999642372,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 2,
+          "previewMs": 157.89999997615814,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 3,
+          "previewMs": 149.39999997615814,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 4,
+          "previewMs": 149.69999998807907,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 5,
+          "previewMs": 146.10000002384186,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        }
+      ],
+      "cancelMs": 0.5,
+      "longTasks": [],
+      "previewParity": true
+    },
+    {
+      "build": "4263a58",
+      "device": "mobile-emulation",
+      "runs": [
+        {
+          "run": 1,
+          "previewMs": 159.9000000357628,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 2,
+          "previewMs": 159.5999999642372,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 3,
+          "previewMs": 160.30000001192093,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 4,
+          "previewMs": 166.89999997615814,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 5,
+          "previewMs": 162.9000000357628,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        }
+      ],
+      "cancelMs": 0.09999996423721313,
+      "longTasks": [],
+      "previewParity": true
+    },
+    {
+      "build": "3d80173",
+      "device": "desktop",
+      "runs": [
+        {
+          "run": 1,
+          "previewMs": 150.69999998807907,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 2,
+          "previewMs": 145.69999998807907,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 3,
+          "previewMs": 144.69999998807907,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 4,
+          "previewMs": 156.5999999642372,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 5,
+          "previewMs": 152,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        }
+      ],
+      "cancelMs": 0.09999996423721313,
+      "longTasks": [],
+      "previewParity": true
+    },
+    {
+      "build": "3d80173",
+      "device": "mobile-emulation",
+      "runs": [
+        {
+          "run": 1,
+          "previewMs": 155.69999998807907,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 2,
+          "previewMs": 150.4000000357628,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 3,
+          "previewMs": 155.5999999642372,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 4,
+          "previewMs": 170.29999995231628,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 5,
+          "previewMs": 171.29999995231628,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        }
+      ],
+      "cancelMs": 0.09999996423721313,
+      "longTasks": [],
+      "previewParity": true
+    },
+    {
+      "build": "candidate",
+      "device": "desktop",
+      "runs": [
+        {
+          "run": 1,
+          "previewMs": 169.69999998807907,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 2,
+          "previewMs": 146.60000002384186,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 3,
+          "previewMs": 145.30000001192093,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 4,
+          "previewMs": 147.19999998807907,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 5,
+          "previewMs": 142.60000002384186,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        }
+      ],
+      "cancelMs": 0.10000002384185791,
+      "longTasks": [],
+      "previewParity": true
+    },
+    {
+      "build": "candidate",
+      "device": "mobile-emulation",
+      "runs": [
+        {
+          "run": 1,
+          "previewMs": 315.30000001192093,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 2,
+          "previewMs": 266.19999998807907,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 3,
+          "previewMs": 253.20000004768372,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 4,
+          "previewMs": 257.19999998807907,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        },
+        {
+          "run": 5,
+          "previewMs": 244.80000001192093,
+          "heapBefore": 10000000,
+          "heapAfterCleanup": 10000000
+        }
+      ],
+      "cancelMs": 0,
+      "longTasks": [],
+      "previewParity": true
+    }
+  ],
+  "limitations": [
+    "No authenticated state; does not replace production acceptance",
+    "CDN copy served with identical pinned bytes for historical replay",
+    "Heap is main-page only; worker memory is excluded",
+    "CPU slowdown emulates the main target; hardware is desktop"
+  ]
+}

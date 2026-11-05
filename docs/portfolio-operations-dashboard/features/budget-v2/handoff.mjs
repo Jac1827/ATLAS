@@ -10,7 +10,7 @@
  *
  * All I/O is injected (`api`) so the identical sequence runs in the browser and in
  * the PGlite database test. */
-import {publicationRows, INCOME_SECTIONS, BELOW_NOI_SECTIONS} from './engine.mjs';
+import {publicationRows, INCOME_SECTIONS, BELOW_NOI_SECTIONS} from './engine.mjs?v=d1645594fb2c6c47';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const periodLabel = p => `${MON[Number(p.slice(5)) - 1]} ${p.slice(0, 4)}`;
@@ -48,7 +48,7 @@ export function mergeRegistry(current, result, effectiveFrom) {
   return {payload: {...(current || {}), accounts, driverMappings: current?.driverMappings || {}, reason: added ? `Budget Builder added ${added} GL account(s)` : current?.reason || 'Budget Builder accounts', effectiveDate: `${effectiveFrom}-01`}, added};
 }
 
-export function importMapping({evidence, registryVersionId, registryAccounts, communityId, actorId, periods, calendar, reviewedAt, dispositions}) {
+export function importMapping({evidence, registryVersionId, registryAccounts, communityId, actorId, periods, calendar, reviewedAt, dispositions, originalGls = null}) {
   const selected = evidence.lines.filter(l => l.amount !== null && periods.includes(l.period));
   const codes = new Set(selected.map(l => String(l.accountCode)));
   const mapping = {confirmed: true, version: registryVersionId, propertyAssignment: {communityId, confirmed: true, sourceEntities: [], actorId, reason: 'Budget Builder community'},
@@ -59,6 +59,10 @@ export function importMapping({evidence, registryVersionId, registryAccounts, co
     inputReviews: selected.map(l => ({cellId: l.id, confirmed: true, ownerId: actorId, effectivePeriod: l.period, before: l.amount, after: l.amount, reason: 'Budget Builder approved value', reviewedAt, integrityFingerprint: evidence.integrity?.fingerprint})),
     integrityReviews: []};
   if (dispositions) Object.assign(mapping, dispositions(evidence, mapping));
+  // A revision may carry GLs the approved original never had (an added GL or an STR
+  // programme). Those are reviewed as prospective: no original-budget row.
+  if (originalGls) mapping.accountMappings = mapping.accountMappings.map(a => (originalGls.has(String(a.accountCode)) ? a
+    : {...a, baselineDisposition: {kind: 'no_original_budget_row', confirmed: true, reviewedBy: actorId, reviewedAt, reason: 'Added in Budget Builder after the original budget was approved'}}));
   mapping.currencyMapping = {sourceCurrency: 'Local', reportingCurrency: 'USD', method: 'identity', confirmed: true, reviewedBy: actorId, reviewedAt, reason: 'Budget Builder values are USD'};
   return mapping;
 }
@@ -72,7 +76,7 @@ export function scenarioPayload({name, model, recordType, periods, calendar, reg
 
 /* Run the governed lifecycle. Returns {scenarioId, revision, publication}. Each step is
  * idempotent through its request ID so a retry after a dropped response is safe. */
-export async function governedPublish({api, XLSX, parseWorkbook, dispositions, uuid, result, communityId, draftId, actorId, periods, calendar, name, model, baselineVersionIds = [], reviewedAt = new Date().toISOString(), onStep = () => {}}) {
+export async function governedPublish({api, XLSX, parseWorkbook, dispositions, uuid, result, communityId, draftId, actorId, periods, calendar, name, model, baselineVersionIds = [], originalGls = null, reviewedAt = new Date().toISOString(), onStep = () => {}}) {
   onStep('Rendering the approved GL × month workbook');
   const bytes = workbookBytes(XLSX, result, periods);
   const fileName = `Budget Builder ${name}.xlsx`.replace(/[^\w .-]/g, '');
@@ -85,7 +89,7 @@ export async function governedPublish({api, XLSX, parseWorkbook, dispositions, u
   const head = await api.readRegistry({communityId});
   const merged = mergeRegistry(head?.payload, result, periods[0]);
   const registry = merged.added || !head ? await api.saveRegistry({communityId, expectedVersionId: head?.version_id || null, requestId: uuid(), payload: merged.payload}) : head;
-  const mapping = importMapping({evidence, registryVersionId: registry.version_id, registryAccounts: registry.payload?.accounts || merged.payload.accounts, communityId, actorId, periods, calendar, reviewedAt, dispositions});
+  const mapping = importMapping({evidence, registryVersionId: registry.version_id, registryAccounts: registry.payload?.accounts || merged.payload.accounts, communityId, actorId, periods, calendar, reviewedAt, dispositions, originalGls: baselineVersionIds.length && originalGls ? new Set([...originalGls].map(String)) : null});
   const recordType = baselineVersionIds.length ? 'revised_budget' : 'initial_budget';
   const payload = scenarioPayload({name, model, recordType, periods, calendar: mapping.calendar, registryVersionId: registry.version_id, baselineVersionIds, actorId, draftId});
   onStep('Creating the governed budget scenario');

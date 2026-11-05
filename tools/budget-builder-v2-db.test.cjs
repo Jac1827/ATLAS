@@ -7,7 +7,7 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  const feature=f=>import(path.join(root,'docs/portfolio-operations-dashboard/features',f));
  const {parseReforecastWorkbook}=await feature('reforecast-intake.mjs');
  const {planningMappingDispositions}=await feature('planning-governance.mjs');
- const E=await feature('budget-v2/engine.mjs'),H=await feature('budget-v2/handoff.mjs');
+ const E=await feature('budget-v2/engine.mjs'),H=await feature('budget-v2/handoff.mjs'),S=await feature('budget-v2/str.mjs');
  const XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
  const {db,B,signIn}=await fixture();
  const GM=4,VP=5,RM=6;
@@ -94,13 +94,18 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  // The VP edit is republished as a revised budget against the approved original, then re-approved.
  await signIn(VP);
  await assert.rejects(()=>move(7,'vp_approve',null,{publicationId:published.publication.publication_id,summary}),/Republish the edited budget/);
- const revisedModel={...model,overrides:{'6537':9000}},revised=E.calculate(revisedModel);
+ // The revision also adds a short-term rental programme on two units of one floor plan.
+ const str={...S.newStrProgram(),curve:'flat',drivers:{adr:150,occupancy:0.6,alos:3,ltElectricPerOccUnitMo:30},floorPlans:[{...S.newFloorPlan({type:'B1',units:4,marketRent:1100}),strUnits:2,startMonth:2,rampMonths:2}]};
+ const revisedModel={...model,overrides:{'6537':9000},str},revised=E.calculate(revisedModel);
+ assert(revised.rows['6840'].annual>0&&revised.rows['1504'].annual>0&&revised.rows['5220'].strAnnual<0,'the programme posts STR income, fees, capital and conversion loss');
  const baselineVersionIds=(await db.query('select version_id from atlas_approved_budget_versions where community_id=$1 and calendar_year=2027',[B])).rows.map(r=>r.version_id);
  const republished=await H.governedPublish({api,XLSX,parseWorkbook:parseReforecastWorkbook,dispositions:planningMappingDispositions,uuid:randomUUID,result:revised,communityId:B,draftId,actorId:'00000000-0000-0000-0000-000000000005',
-  periods,calendar:{basis:'calendar',startMonth:1},name:'Synthetic FY2027 (VP revision)',model:'conventional',baselineVersionIds});
+  periods,calendar:{basis:'calendar',startMonth:1},name:'Synthetic FY2027 (VP revision)',model:'conventional',baselineVersionIds,originalGls:original.rows.map(r=>r.glCode)});
  assert.equal(republished.recordType,'revised_budget');
  assert.equal((await call('atlas_reforecast_effective_baseline',[[B],periods]))[0].publicationId,republished.publication.publication_id,'the VP revision is the effective baseline');
  assert.equal(republished.publication.snapshot.lines.filter(l=>l.accountCode==='6537').reduce((t,l)=>t+Number(l.forecast),0),9000,'published revision carries the VP edit');
+ const pubTotal=gl=>Math.round(republished.publication.snapshot.lines.filter(l=>l.accountCode===gl).reduce((t,l)=>t+Number(l.forecast),0)*100)/100;
+ for(const gl of ['5144','5932','5220','6840','6830','6463','1504'])assert.equal(pubTotal(gl),revised.rows[gl].annual,`published ${gl} includes the STR programme exactly`);
  d=await move(7,'vp_approve',null,{publicationId:republished.publication.publication_id,summary});assert.equal(d.revised_after_approval,false);assert.equal(d.publication_id,republished.publication.publication_id);
  await assert.rejects(()=>move(8,'vp_approve',null,{publicationId:republished.publication.publication_id,summary}),/Nothing changed/);
  await assert.rejects(()=>call('atlas_claim_budget_investor_delivery',[draftId,randomUUID(),['not-an-email']]),/valid recipient/);

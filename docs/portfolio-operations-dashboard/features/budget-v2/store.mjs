@@ -58,7 +58,7 @@ export async function decisions(central, communityIds) {
 }
 
 export async function approvedBaseline(central, communityId, year) {
-  return central.fetchJson(`/atlas_approved_budget_versions?community_id=eq.${communityId}&calendar_year=eq.${year}&select=version_id&limit=20`).catch(() => []);
+  return central.fetchJson(`/atlas_approved_budget_versions?community_id=eq.${communityId}&calendar_year=eq.${year}&select=version_id,payload&limit=20`).catch(() => []);
 }
 
 export async function sendInvestorPackage(central, {draftId, recipients, requestId = uuid()}) {

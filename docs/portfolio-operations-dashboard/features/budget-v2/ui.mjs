@@ -1,16 +1,17 @@
 /* Budget Builder v2 — user interface. Mounted in the ATLAS Budget tab (iframe). */
-import * as E from './engine.mjs';
-import * as I from './importers.mjs';
-import * as Lr from './learning.mjs';
-import * as H from './handoff.mjs';
-import * as S from './store.mjs';
-import {investorSummary, investorHtml, investorPdf, money as moneyFmt} from './investor-package.mjs';
+import * as E from './engine.mjs?v=d1645594fb2c6c47';
+import * as I from './importers.mjs?v=1e9da8467ffd2fe2';
+import * as Lr from './learning.mjs?v=d08ad58ef1e64b02';
+import * as H from './handoff.mjs?v=b1ee93066f254fda';
+import * as S from './store.mjs?v=90893632a1921e6a';
+import * as SU from './str-ui.mjs?v=6bae4cda970dcaba';
+import {investorSummary, investorHtml, investorPdf, money as moneyFmt} from './investor-package.mjs?v=6fab0b0adb2b9ed3';
 import {parseReforecastWorkbook} from '../reforecast-intake.mjs?v=74bbd52d93a197cc';
 import {planningMappingDispositions} from '../planning-governance.mjs?v=a4de8d3f5a50966c';
 
 const $app = document.getElementById('bb-app'), $ctx = document.getElementById('bb-context'), $status = document.getElementById('bb-status');
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const TABS = [['setup', 'Setup'], ['leasing', 'Leasing schedule'], ['income', 'Income'], ['expenses', 'Expenses'], ['payroll', 'Payroll'], ['drivers', 'Drivers & documents'], ['summary', 'Summary & approval'], ['investor', 'Investor package']];
+const TABS = [['setup', 'Setup'], ['leasing', 'Leasing schedule'], ['income', 'Income'], ['expenses', 'Expenses'], ['payroll', 'Payroll'], ['str', 'Short-term rental'], ['drivers', 'Drivers & documents'], ['summary', 'Summary & approval'], ['investor', 'Investor package']];
 const STATUS = {gm_draft: ['Draft · GM', ''], regional_review: ['In review · Regional', 'warn'], vp_review: ['Awaiting VP', 'warn'], approved_locked: ['Approved · Locked', 'lock'], sent_to_investors: ['Sent to investors', 'lock'], archived: ['Archived', '']};
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const money = n => moneyFmt(n);
@@ -45,6 +46,7 @@ function recalc() {
   s.checks = Lr.modelChecks(s.model, s.result);
 }
 function mark() { s.dirty = true; recalc(); render(); scheduleSave(); }
+const strCtx = () => ({s, dis, canEdit, mark, money, esc, MON, num, status, render});
 
 /* ---------------- boot ---------------- */
 /* Month-end close, reforecast review, STR and report tools remain in the classic
@@ -207,7 +209,7 @@ function summaryForInvestors() {
     `Average market rent ${money(r.context.rent)} (${num(a.rentGrowth) >= 0 ? '+' : ''}${num(a.rentGrowth)}% growth); average occupancy ${(r.kpis.avgOccupancy * 100).toFixed(1)}%.`,
     `${r.kpis.moveIns} move-ins and ${r.kpis.moveOuts} move-outs; concessions ${num(a.concessionPct).toFixed(2)}% and loss to lease ${num(a.ltlPct).toFixed(2)}% of GPR.`,
     `Utilities: electric +${num(a.electric).toFixed(1)}%, water +${num(a.water).toFixed(1)}%, sewer +${num(a.sewer).toFixed(1)}% (blended water/sewer +${r.context.WS.toFixed(1)}%).`,
-    `Management fee ${num(a.mgmtPct).toFixed(2)}% of total income; replacement reserves ${money(a.reservePerUnit)} per ${Lr.unitLabel(m)}.`];
+    `Management fee ${num(a.mgmtPct).toFixed(2)}% of total income; replacement reserves ${money(a.reservePerUnit)} per ${Lr.unitLabel(m)}.`, SU.investorLine(r, money)].filter(Boolean);
   return investorSummary({community: c?.name || m.property.name, units: m.property.units, unitLabel: Lr.unitLabel(m), fiscalYear: s.draft.fiscal_year,
     periodLabel: `${MON[num(p[0].slice(5)) - 1]} ${p[0].slice(0, 4)} – ${MON[num(p[11].slice(5)) - 1]} ${p[11].slice(0, 4)}`, assetClass: E.ASSET_CLASSES[m.property.assetClass]?.label, result: r, assumptions, notes,
     approvals: [...approvals(), {role: 'VP', name: s.me?.name || '', at: new Date().toISOString()}].filter((x, i, arr) => arr.findIndex(y => y.role === x.role) === i)});
@@ -233,11 +235,12 @@ async function vpApprove() {
   if (!confirm(`Approve and lock ${s.draft.name}? This publishes the budget to ATLAS (Financial Position, Bonus, Community Command and exports).${flags.length ? `\n\n${flags.length} line(s) still have no variance note.` : ''}`)) return;
   s.busy = true; render();
   try {
-    const baseline = s.draft.publication_id ? (await S.approvedBaseline(s.central, s.draft.community_id, Number(s.model.periods[0].slice(0, 4)))).map(r => r.version_id) : [];
+    const versions = s.draft.publication_id ? await S.approvedBaseline(s.central, s.draft.community_id, Number(s.model.periods[0].slice(0, 4))) : [];
+    const baseline = versions.map(r => r.version_id), originalGls = versions.flatMap(r => (r.payload?.rows || []).map(x => String(x.glCode)));
     const published = await H.governedPublish({api: S.governedApi(s.central), XLSX: window.XLSX, parseWorkbook: parseReforecastWorkbook, dispositions: planningMappingDispositions, uuid: S.uuid,
       result: s.result, communityId: s.draft.community_id, draftId: s.draft.draft_id, actorId: s.me.userId, periods: s.model.periods,
       calendar: {basis: s.model.startMonth === 1 ? 'calendar' : 'fiscal', startMonth: s.model.startMonth}, name: s.draft.name + (baseline.length ? ' (VP revision)' : ''),
-      model: E.ASSET_CLASSES[s.model.property.assetClass]?.model || 'conventional', baselineVersionIds: baseline, onStep: m => status(m + '…', false, 0)});
+      model: E.ASSET_CLASSES[s.model.property.assetClass]?.model || 'conventional', baselineVersionIds: baseline, originalGls, onStep: m => status(m + '…', false, 0)});
     s.draft = await S.transition(s.central, {draftId: s.draft.draft_id, expectedRevision: s.draft.revision, action: 'vp_approve', detail: {publicationId: published.publication.publication_id, scenarioId: published.scenarioId, summary: summaryForInvestors()}});
     const obs = Lr.observationsFromResult(s.result, {communityId: s.draft.community_id, sourceKind: 'approved_budget', periodFrom: s.model.periods[0], periodTo: s.model.periods[11], assetClass: s.model.property.assetClass});
     S.recordObservations(s.central, s.draft.community_id, obs.map(({community_id, ...o}) => o)).catch(() => {});
@@ -296,7 +299,7 @@ function kpis() {
 }
 function body() {
   if (s.tab === 'setup' || !s.model) return setupTab();
-  return {leasing: leasingTab, income: () => gridTab('income'), expenses: () => gridTab('expenses'), payroll: payrollTab, drivers: driversTab, summary: summaryTab, investor: investorTab}[s.tab]();
+  return {leasing: leasingTab, income: () => gridTab('income'), expenses: () => gridTab('expenses'), payroll: payrollTab, str: () => SU.strTab(strCtx()), drivers: driversTab, summary: summaryTab, investor: investorTab}[s.tab]();
 }
 
 function setupTab() {
@@ -323,7 +326,7 @@ function leasingTab() {
   const m = s.model, c = s.result.context, units = c.units, closed = num(m.closedMonths);
   let occ = num(m.schedule.beginOccupied);
   const goal = Math.round(units * num(m.schedule.targetOccPct || 95) / 100);
-  const rows = m.periods.map((p, i) => { const b = occ; occ = c.occ[i]; return {p, i, b, e: occ, pc: occ / units * 100, hit: occ >= goal}; });
+  const rows = m.periods.map((p, i) => { const b = occ; occ = c.occRaw[i]; return {p, i, b, e: occ, pc: occ / units * 100, hit: occ >= goal}; });
   const student = m.property.assetClass.startsWith('student');
   return `<div class="card"><div class="row" style="justify-content:space-between"><div><p class="h2">Leasing schedule</p><p class="muted" style="margin:0">Begins at <input class="inp xs" data-sched="begin" value="${num(m.schedule.beginOccupied)}" ${dis()}> occupied of ${units} ${Lr.unitLabel(m)}s. Changes re-run vacancy loss, fee income, turnover, utilities, leasing bonuses and the management fee.</p></div>
   <div class="row"><button class="btn ghost" data-act="learned" ${dis()}>Use learned seasonality</button><label class="f" style="flex-direction:row;align-items:center;gap:6px">Target <input class="inp xs" data-target value="${num(m.schedule.targetOccPct || 95)}" ${dis()}>%</label>
@@ -339,8 +342,9 @@ function leasingTab() {
   <td class="r"><button class="btn ghost tiny" data-step="mi:${r.i}:-1" ${ro ? 'disabled' : ''} aria-label="Fewer move-ins">−</button> <input class="inp xs" data-mm="mi:${r.i}" value="${m.schedule.moveIns[r.i]}" ${ro ? 'disabled' : ''}> <button class="btn ghost tiny" data-step="mi:${r.i}:1" ${ro ? 'disabled' : ''} aria-label="More move-ins">+</button></td>
   <td class="r"><button class="btn ghost tiny" data-step="mo:${r.i}:-1" ${ro ? 'disabled' : ''} aria-label="Fewer move-outs">−</button> <input class="inp xs" data-mm="mo:${r.i}" value="${m.schedule.moveOuts[r.i]}" ${ro ? 'disabled' : ''}> <button class="btn ghost tiny" data-step="mo:${r.i}:1" ${ro ? 'disabled' : ''} aria-label="More move-outs">+</button></td>
   <td class="r">${r.e}</td><td class="r"><b>${r.pc.toFixed(1)}%</b></td><td>${r.i < closed ? '<span class="chip fix">Actual (closed)</span>' : r.hit ? '<span class="chip ok">At target</span>' : '<span class="chip warn">Below target</span>'}</td></tr>`; }).join('')}
-  <tr class="tot"><td>Total</td><td></td><td class="r">${c.miTotal}</td><td class="r">${c.moTotal}</td><td class="r">${c.occ[11]}</td><td class="r">${(s.result.kpis.avgOccupancy * 100).toFixed(1)}% avg</td><td>Turnover ${(s.result.kpis.turnover * 100).toFixed(0)}%</td></tr></tbody></table></div>
-  ${m.schedule.source ? `<p class="muted">${esc(m.schedule.source)}</p>` : ''}`;
+  <tr class="tot"><td>Total</td><td></td><td class="r">${c.miTotal}</td><td class="r">${c.moTotal}</td><td class="r">${c.occRaw[11]}</td><td class="r">${(s.result.kpis.avgOccupancy * 100).toFixed(1)}% avg</td><td>Turnover ${(s.result.kpis.turnover * 100).toFixed(0)}%</td></tr></tbody></table></div>
+  ${m.schedule.source ? `<p class="muted">${esc(m.schedule.source)}</p>` : ''}
+  ${c.strUnits.some(Boolean) ? `<div class="banner info">Short-term rental: ${Math.min(...c.strUnits)}–${Math.max(...c.strUnits)} ${Lr.unitLabel(m)}s are in the STR programme. The occupancy rate above applies to the remaining long-term ${Lr.unitLabel(m)}s (${Math.min(...c.ltUnits)}–${Math.max(...c.ltUnits)}), so move-ins, move-outs, vacancy, resident fees and utilities scale to them.</div>` : ''}`;
 }
 
 function gridTab(which) {
@@ -356,17 +360,18 @@ function gridTab(which) {
     const v = r.t12 ? (r.annual - r.t12) / Math.abs(r.t12) * 100 : null;
     const flag = Math.abs(r.annual - r.t12) > 1000 && (v === null ? r.annual !== 0 : Math.abs(v) > 10) && !String(note).trim();
     const md = r.modelAnnual !== null && Math.abs(r.modelAnnual - r.annual) > 1000 && Math.abs(r.modelAnnual - r.annual) / Math.max(1, Math.abs(r.annual)) > 0.1;
-    const drv = r.type === 'linked' ? `Linked · ${E.DRIVER_LABELS[r.kind]}` : r.type === 'payroll' ? 'Payroll positions' : r.type === 'contract' ? 'Contract' : r.kind === 'capex' ? 'Project list' : 'Fixed';
+    const drv = r.type === 'str' ? 'STR programme' : r.type === 'linked' ? `Linked · ${E.DRIVER_LABELS[r.kind]}` : r.type === 'payroll' ? 'Payroll positions' : r.type === 'contract' ? 'Contract' : r.kind === 'capex' ? 'Project list' : 'Fixed';
+    const strChip = r.strMonthly && r.type !== 'str' && r.strAnnual ? `<span class="chip model" title="Short-term rental programme amount included in this line">incl. STR ${money(r.strAnnual)}</span>` : '';
     const anyLocked = r.locked.some(Boolean);
     return `<tr><td class="gl">${esc(gl)}</td><td><b>${esc(r.line.name)}</b><br><button class="linkbtn" data-gl-toggle="${esc(gl)}">${open ? 'Hide' : 'Months'}${r.line.items?.length ? ` · ${r.line.items.length} line item${r.line.items.length > 1 ? 's' : ''}` : ''}</button></td>
     <td class="r">${money(r.t12)}</td><td class="r">${r.proposalAnnual === null ? '—' : money(r.proposalAnnual)}</td>
     <td class="r"><span class="${md ? 'neg' : ''}">${r.modelAnnual === null ? '—' : money(r.modelAnnual)}</span>${md && canEdit() && r.type !== 'payroll' ? `<br><button class="linkbtn" data-usemodel="${esc(gl)}">Use model</button>` : ''}</td>
-    <td class="r"><input class="inp num" aria-label="Budget ${esc(gl)}" data-ov="${esc(gl)}" value="${Math.round(r.annual)}" ${dis() || (r.type === 'payroll' || anyLocked ? 'disabled' : '')}>${r.overridden && canEdit() ? `<br><button class="linkbtn" data-reset="${esc(gl)}">Reset to driver</button>` : ''}</td>
+    <td class="r"><input class="inp num" aria-label="Budget ${esc(gl)}" data-ov="${esc(gl)}" value="${Math.round(r.annual)}" ${dis() || (r.type === 'payroll' || r.type === 'str' || anyLocked ? 'disabled' : '')}>${r.overridden && canEdit() ? `<br><button class="linkbtn" data-reset="${esc(gl)}">Reset to driver</button>` : ''}</td>
     <td class="r">${v === null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%'}</td>
-    <td><span class="chip ${r.type === 'linked' ? 'link' : 'fix'}">${esc(drv)}</span>${flag ? '<span class="chip warn">Note needed</span>' : ''}</td>
+    <td><span class="chip ${r.type === 'linked' ? 'link' : r.type === 'str' ? 'model' : 'fix'}">${esc(drv)}</span>${strChip}${flag ? '<span class="chip warn">Note needed</span>' : ''}</td>
     <td><input class="inp note" aria-label="Note ${esc(gl)}" data-note="${esc(gl)}" value="${esc(note)}" placeholder="Note for reviewers / investors" ${s.draft && canEdit() ? '' : 'disabled'}></td>
     <td style="text-align:center"><input type="checkbox" class="chk" aria-label="Show note to investors ${esc(gl)}" data-inv="${esc(gl)}" ${m.investorNotes?.[gl] ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}></td></tr>
-    ${open ? `<tr class="item"><td></td><td colspan="8"><div class="monthly">${m.periods.map((p, i) => `<label>${MON[num(p.slice(5)) - 1]} ${p.slice(2, 4)}${r.locked[i] ? ' (actual)' : ''}<input class="inp num" style="width:100%" data-mon="${esc(gl)}:${i}" value="${Math.round(r.monthly[i])}" ${dis() || (r.type === 'payroll' || r.locked[i] ? 'disabled' : '')}></label>`).join('')}</div>
+    ${open ? `<tr class="item"><td></td><td colspan="8"><div class="monthly">${m.periods.map((p, i) => `<label>${MON[num(p.slice(5)) - 1]} ${p.slice(2, 4)}${r.locked[i] ? ' (actual)' : ''}<input class="inp num" style="width:100%" data-mon="${esc(gl)}:${i}" value="${Math.round(r.monthly[i])}" ${dis() || (r.type === 'payroll' || r.type === 'str' || r.locked[i] ? 'disabled' : '')}></label>`).join('')}</div>
     ${r.model ? `<div class="muted">Model by month: ${r.model.map(x => money(x)).join(' · ')}</div>` : ''}
     ${(r.line.items || []).map(it => `<div class="muted">↳ ${esc(it.description)} — ${money(it.amount)}${it.comment ? ' · ' + esc(it.comment) : ''}</div>`).join('')}</td></tr>` : ''}`;
   };
@@ -440,6 +445,7 @@ function summaryTab() {
   return `<div class="card"><p class="h2">Approval</p><div class="step">${steps.map((x, i) => `<div class="st ${i < idx ? 'done' : i === idx ? 'cur' : ''}"><b>${x[1]}</b>${x[2]}</div>`).join('')}</div>
   <div class="row">${actions.join('')}${s.vpEditing ? `<label class="f" style="flex:1 1 280px">Reason for VP edit (logged)<input class="inp" data-vpreason value="${esc(s.vpReason)}" placeholder="e.g., Insurance renewal quote received"></label><button class="btn" data-act="save">Save VP edit</button>` : ''}</div>
   <div style="margin-top:14px"><p class="h3">Activity</p>${s.events.slice(0, 30).map(e => `<div class="log"><b>${esc(e.action.replaceAll('_', ' '))}</b> · ${esc(e.actor_role)} · ${new Date(e.created_at).toLocaleString()}${e.reason ? ' — ' + esc(e.reason) : ''}</div>`).join('') || '<p class="muted">No activity yet.</p>'}</div></div>
+  ${s.result.str ? `<div class="banner info">${s.result.str.posted ? `Includes the short-term rental programme: STR operating NOI ${money(s.result.str.annual.noi)}; net effect on property NOI ${money(s.result.str.impact.totals.noi)} (without STR: ${money(s.result.str.without.noi)}).` : `The STR programme is shown separately and is not in this budget (STR operating NOI ${money(s.result.str.annual.noi)}).`} <button class="linkbtn" data-tab="str">Open views</button></div>` : ''}
   <div class="scroll"><table><thead><tr><th>Summary</th><th class="r">T12 actual</th><th class="r">Proposal</th><th class="r">Model</th><th class="r">Budget</th><th class="r">vs T12</th><th class="r">Per ${Lr.unitLabel(s.model)}</th><th class="r">Portfolio median</th></tr></thead><tbody>
   ${group('Total income', t('income'), 'sub')}${s.result.groups.map(g => group(g.name, g, '', s.benchmarks?.[g.name])).join('')}${group('Operating expenses', t('opex'), 'sub')}${group('Net operating income', t('noi'), 'tot')}${group('Replacement reserves', t('reserves'))}${group('Capital expenditures', t('capex'))}${group('Cash flow after reserves & capex', t('cashFlow'), 'tot')}</tbody></table></div>`;
 }
@@ -454,7 +460,7 @@ function investorTab() {
 
 /* ---------------- events ---------------- */
 document.addEventListener('click', async e => {
-  const t = e.target.closest('[data-tab],[data-act],[data-open],[data-asset],[data-sec],[data-gl-toggle],[data-usemodel],[data-reset],[data-step],[data-flow],[data-posdel],[data-posok],[data-docapply],[data-docdel],[data-bahdel]');
+  const t = e.target.closest('[data-tab],[data-act],[data-open],[data-asset],[data-sec],[data-gl-toggle],[data-usemodel],[data-reset],[data-step],[data-flow],[data-posdel],[data-posok],[data-docapply],[data-docdel],[data-bahdel],[data-strview],[data-strfpdel],[data-strchdel],[data-strreset],[data-strtoggle]');
   if (!t) return;
   const d = t.dataset;
   if (d.tab) { s.tab = d.tab; render(); return; }
@@ -469,6 +475,7 @@ document.addEventListener('click', async e => {
   if (d.posdel) { s.model.positions.splice(num(d.posdel), 1); mark(); return; }
   if (d.posok) { s.model.positions[num(d.posok)].confirmed = true; mark(); return; }
   if (d.bahdel) { s.model.bah.splice(num(d.bahdel), 1); mark(); return; }
+  if (SU.strClick(t, strCtx())) return;
   if (d.docdel) { s.documents.splice(num(d.docdel), 1); s.dirty = true; render(); return; }
   if (d.docapply) {
     const doc = s.documents[num(d.docapply)], gl = String(doc.gl || doc.terms?.gl?.value || ''), amt = num(doc.amount ?? doc.terms?.monthlyAmount);
@@ -529,10 +536,12 @@ document.addEventListener('change', async e => {
   if (t.matches('[data-recipients]')) { s.recipients = t.value; return; }
   if (t.matches('[data-vpreason]')) { s.vpReason = t.value; return; }
   if (!s.model) return;
+  if (await SU.strChange(t, strCtx())) return;
   const m = s.model;
   if (d.a) { m.assumptions[d.a] = num(t.value); mark(); return; }
-  if (d.ov) { m.overrides[d.ov] = num(t.value); mark(); return; }
-  if (d.mon) { const [gl, i] = d.mon.split(':'); const r = s.result.rows[gl]; const arr = Array.isArray(m.overrides[gl]) ? m.overrides[gl].slice() : r.monthly.slice(); arr[num(i)] = num(t.value); m.overrides[gl] = arr; mark(); return; }
+  // On a line that includes STR, the typed amount is the total; the override is its conventional part.
+  if (d.ov) { m.overrides[d.ov] = num(t.value) - (s.result.rows[d.ov]?.strAnnual || 0); mark(); return; }
+  if (d.mon) { const [gl, i] = d.mon.split(':'); const r = s.result.rows[gl]; const arr = Array.isArray(m.overrides[gl]) ? m.overrides[gl].slice() : (r.convMonthly || r.monthly).slice(); arr[num(i)] = num(t.value) - (r.strMonthly?.[num(i)] || 0); m.overrides[gl] = arr; mark(); return; }
   if (d.note !== undefined && d.note !== '') { m.notes[d.note] = t.value; s.dirty = true; recalc(); render(); scheduleSave(); return; }
   if (d.inv) { m.investorNotes ||= {}; m.investorNotes[d.inv] = t.checked; s.dirty = true; scheduleSave(); return; }
   if (d.mm) { const [k, i] = d.mm.split(':'); (k === 'mi' ? m.schedule.moveIns : m.schedule.moveOuts)[num(i)] = Math.max(0, num(t.value)); mark(); return; }

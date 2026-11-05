@@ -2,8 +2,8 @@
  * Learns from uploaded evidence (T12s, box scores, trending occupancy, Conservice,
  * prior budgets, contracts) and from reviewer decisions. Everything it suggests
  * carries its source and a confidence, and is only a suggestion until a person accepts it. */
-import {sectionForGl, freezeBase, num, ASSET_CLASSES, SUMMARY_GROUPS, INCOME_SECTIONS} from './engine.mjs';
-import {t12Basis, conserviceRates} from './importers.mjs';
+import {sectionForGl, freezeBase, num, ASSET_CLASSES, SUMMARY_GROUPS, INCOME_SECTIONS} from './engine.mjs?v=d1645594fb2c6c47';
+import {t12Basis, conserviceRates} from './importers.mjs?v=1e9da8467ffd2fe2';
 
 const median = a => { const s = a.filter(Number.isFinite).sort((x, y) => x - y); if (!s.length) return null; const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
@@ -81,6 +81,7 @@ export function buildModel({property, fiscalYear, startMonth = 1, periods, propo
   const schedule = season ? {beginOccupied: begin, ...suggestSchedule({periods, beginOccupied: begin, units, season, targetOccPct: 95})} : {beginOccupied: begin, moveIns: Array(12).fill(0), moveOuts: Array(12).fill(0)};
   const model = {version: 1, property: {...property, units}, fiscalYear, startMonth, periods, start: start || (proposal ? 'proposal' : 'model'), lines, schedule, assumptions,
     positions: seedPositions(lines, {fromProposal: !!proposal}), basis, overrides: {}, notes: {}, investorNotes: {}, closedMonths: 0, actuals: null,
+    floorPlans: (box?.floorPlans || []).map(f => ({type: f.type, units: f.units, marketRent: f.marketRent})),
     sources: {proposal: proposal ? {entity: proposal.entity, lines: proposal.lines.length} : null, t12: t12 ? {periods: t12.periods, annualizedFromMonths: annualize === 1 ? null : t12Months} : null, box: box ? {asOf: box.asOf} : null,
       trending: trending ? {months: trending.months.length} : null, conservice: rates}, learned: {}};
   model.base = freezeBase(model);
@@ -130,13 +131,14 @@ export function modelChecks(model, result) {
     out.push({id: 'ws-sum', gl: '6463', severity: 'warn', message: `Water and sewer increases appear added together. Applied to their share of the bill they blend to about ${(num(a.sewer) * num(a.sewerShare) / 100 + num(a.water) * (1 - num(a.sewerShare) / 100)).toFixed(1)}%.`});
   const info = [];
   for (const r of Object.values(result.rows)) {
-    const t12 = r.t12, f = r.annual;
+    const t12 = r.t12, f = r.annual - (r.strAnnual || 0);
     if (['6330', '6332', '6335', '6510', '6511', '6512'].includes(String(r.line.gl)) && t12 > 20000 && f === 0)
       out.push({id: 'pos-' + r.line.gl, gl: r.line.gl, severity: 'warn', message: `${r.line.name}: T12 ${Math.round(t12).toLocaleString()} but no budget — confirm the position is eliminated.`});
     if (r.modelAnnual !== null && Math.abs(f - r.modelAnnual) > Math.max(5000, Math.abs(r.modelAnnual) * 0.15) && Math.abs(f - t12) > 5000)
       info.push({size: Math.abs(f - r.modelAnnual), id: 'model-' + r.line.gl, gl: r.line.gl, severity: 'info', message: `${r.line.name}: budget differs from the model by ${Math.round(Math.abs(f - r.modelAnnual)).toLocaleString()} and from T12 by ${Math.round(Math.abs(f - t12)).toLocaleString()}.`});
   }
   if (model.sources?.t12?.annualizedFromMonths) out.unshift({id: 't12-partial', gl: null, severity: 'warn', message: `The T12 upload covers ${model.sources.t12.annualizedFromMonths} month(s); T12 amounts are annualized. Upload a full 12-month T12 for accurate run-rates.`});
+  for (const c of result.str?.checks || []) out.push({id: 'str-' + out.length, gl: null, severity: c.severity, message: 'STR programme: ' + c.message});
   return out.concat(info.sort((a, b) => b.size - a.size).slice(0, 12).map(({size, ...x}) => x));
 }
 

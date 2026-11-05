@@ -14,7 +14,16 @@ export function investorSummary({community, units, unitLabel, fiscalYear, period
   return {schema: 'atlas.budget-investor-summary.v1', community, units, unitLabel, fiscalYear, periodLabel, assetClass, address,
     rows: [row('Total income', 'income'), row('Operating expenses', 'opex'), row('Net operating income', 'noi', 'sub'), row('Replacement reserves', 'reserves'), row('Capital expenditures', 'capex'), row('Cash flow after reserves & capex', 'cashFlow', 'tot')],
     groups: result.groups.map(g => ({name: g.name, t12: g.t12, final: g.final, perUnit: g.perUnit})),
+    str: result.str ? strSummary(result.str) : null,
     memo: result.memo, assumptions, notes, approvals, generatedAt: new Date().toISOString()};
+}
+
+/* Short-term rental programme on its own, and its effect on the property. */
+export function strSummary(X) {
+  const A = X.annual, v = (name, final, cls = '') => ({name, t12: null, final, perUnit: null, cls});
+  const rows = [v('STR revenue, net of discounts and refunds', A.revenue + A.deductions), v('STR operating expenses', A.expense), v('STR operating NOI', A.noi, 'sub'), v('Furnishing capital', A.capital)];
+  if (X.posted) rows.push(v('Property NOI without STR', X.without.noi), v('Programme effect on property NOI', X.impact.totals.noi), v('Property NOI including STR', X.without.noi + X.impact.totals.noi, 'tot'));
+  return {posted: !!X.posted, avgUnits: A.avgUnits, peakUnits: A.peakUnits, adr: A.adr, occ: A.occ, rows};
 }
 
 export function investorHtml(s) {
@@ -24,6 +33,7 @@ export function investorHtml(s) {
 <div style="border-bottom:4px solid #013e51;padding-bottom:10px"><div style="font-size:22px;font-weight:800;color:#013e51">${esc(s.community)}</div><div style="color:#6ba2b8;font-weight:700">FY${esc(s.fiscalYear)} Operating Budget · ${esc(s.periodLabel)}</div></div>
 <p style="color:#4f6169">${esc(s.units)} ${esc(s.unitLabel)}s · Approved by RISE Residential (${(s.approvals || []).map(a => esc(a.role)).join(' → ')}). The full package is attached as a PDF.</p>
 <table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr style="background:#013e51;color:#fff"><th style="padding:6px 10px;text-align:left">Line</th><th style="padding:6px 10px;text-align:right">T12 actual</th><th style="padding:6px 10px;text-align:right">FY${esc(s.fiscalYear)} budget</th><th style="padding:6px 10px;text-align:right">Change</th><th style="padding:6px 10px;text-align:right">Per ${esc(s.unitLabel)}</th></tr></thead><tbody>${rows}</tbody></table>
+${s.str ? `<h3 style="color:#013e51;font-size:15px">Short-term rental programme</h3><p style="color:#4f6169">${s.str.avgUnits.toFixed(1)} units on average · ADR ${money(s.str.adr)} · ${(s.str.occ * 100).toFixed(1)}% occupancy${s.str.posted ? '' : ' · shown separately, not included in the budget above'}</p><table style="border-collapse:collapse;width:100%;font-size:13px">${s.str.rows.map(r => `<tr style="${r.cls ? 'font-weight:700;background:#e3eef2' : ''}"><td style="padding:6px 10px">${esc(r.name)}</td><td style="padding:6px 10px;text-align:right">${money(r.final)}</td></tr>`).join('')}</table>` : ''}
 ${s.memo ? `<p style="color:#4f6169">${esc(s.memo.label)}: ${money(s.memo.annual)}</p>` : ''}
 ${notes ? `<h3 style="color:#013e51;font-size:15px">Regional commentary</h3><ul>${notes}</ul>` : ''}
 <p style="color:#4f6169;font-size:12px">RISE Residential, LLC · ${esc(s.address)}</p></div>`;
@@ -74,6 +84,11 @@ export async function investorPdf(s, {PDFLib, logoPng}) {
   s.rows.forEach(r => line(r, !!r.cls)); y -= 10;
   header('Operating expenses by category');
   s.groups.forEach(g => line(g, false)); y -= 10;
+  if (s.str) {
+    newPageIfNeeded(40 + s.str.rows.length * 17); header('Short-term rental programme');
+    page.drawText(ascii(`${s.str.avgUnits.toFixed(1)} units on average - ADR ${money(s.str.adr)} - ${(s.str.occ * 100).toFixed(1)}% occupancy${s.str.posted ? '' : ' - shown separately, not included in the budget'}`), {x: 48, y, size: 10, font, color: C(MUTED)}); y -= 18;
+    s.str.rows.forEach(r => line(r, !!r.cls)); y -= 10;
+  }
   if (s.memo) { page.drawText(ascii(`${s.memo.label}: ${money(s.memo.annual)}`), {x: 48, y, size: 10, font, color: C(MUTED)}); y -= 20; }
   newPageIfNeeded(80); header('Key assumptions');
   for (const a of s.assumptions || []) for (const l of wrap(ascii(a), font, 10, 500)) { newPageIfNeeded(14); page.drawText(l, {x: 56, y, size: 10, font, color: C(INK)}); y -= 14; }

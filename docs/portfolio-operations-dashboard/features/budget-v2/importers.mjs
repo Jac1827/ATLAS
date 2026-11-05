@@ -2,7 +2,7 @@
  * Each parser takes plain row arrays (SheetJS sheet_to_json {header:1}) or extracted text,
  * so they run identically in the browser, a worker and Node tests. They never guess
  * silently: every result carries `warnings` describing what could not be read. */
-import {sectionForGl, num} from './engine.mjs';
+import {sectionForGl, num} from './engine.mjs?v=d1645594fb2c6c47';
 
 const clean = v => String(v ?? '').replace(/\s+/g, ' ').trim();
 const isNum = v => typeof v === 'number' ? Number.isFinite(v) : /^\(?-?\$?[\d,]+(\.\d+)?\)?$/.test(clean(v));

@@ -33,7 +33,7 @@ The ATLAS Budget tab now opens **Budget Builder v2** (`portfolio-operations-dash
 | Approval | VP draft → executive review → approved and locked. The approver is designated by email, must be a different person from whoever prepared or last revised the budget, and can return it with a reason. VP edits after approval need a reason and are re-approved. Reforecasts lock months that have actuals. |
 | Monthly tracking | Upload the month's Budget vs Actual: month, year to date, annual budget and forecast (YTD actual + rest of year's budget) by GL against the approved ATLAS budget (or Entrata's budget for a year without one). Entrata comments are kept; lines over ±10% and $1,000 (month or YTD) need a comment before the month is marked reviewed. Lines where Entrata's budget differs from ATLAS are flagged. Download the month as a workbook. |
 
-Migrations: `supabase/migrations/20261106130000_budget_builder_new_community.sql` (VP-only `atlas_budget_builder_create_community`) and `supabase/migrations/20261106120000_rise_company_budget.sql` (three tables, RLS limited to the VP and designated approvers, RPCs `atlas_company_budget_save`, `_transition`, `_month_save`, `_set_approver`, `_my_role`). Tests: `node tools/company-budget.test.mjs`, `node tools/company-budget-db.test.cjs`.
+Migrations: `supabase/migrations/20261106182901_budget_builder_new_community.sql` (VP-only `atlas_budget_builder_create_community`) and `supabase/migrations/20261106182859_rise_company_budget.sql` (three tables, RLS limited to the VP and designated approvers, RPCs `atlas_company_budget_save`, `_transition`, `_month_save`, `_set_approver`, `_my_role`). Tests: `node tools/company-budget.test.mjs`, `node tools/company-budget-db.test.cjs`.
 
 ## Deployment
 

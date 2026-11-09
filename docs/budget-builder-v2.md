@@ -56,7 +56,7 @@ Migrations: `supabase/migrations/20261106182901_budget_builder_new_community.sql
 - Company month review validates month/YTD evidence and variance comments in the database. Linked property fees merge only covered fiscal months.
 - Military scratch budgets contain expenses; BAH stays a memo.
 
-Apply both repair migrations before publishing the matching client and Worker: `budget_builder_atomic_publication_delivery` and `company_budget_review_evidence`. The publication migration refuses ambiguous legacy associations or duplicate unresolved delivery claims instead of guessing a repair. The production preflight found zero builder drafts, events, investor deliveries, company budgets and company months.
+Production repair migrations: `20261109205516_budget_builder_atomic_publication_delivery.sql`, `20261109205520_company_budget_review_evidence.sql`, and supporting indexes in `20261109205602_budget_builder_publication_lookup_indexes.sql`. Apply them before publishing the matching client and Worker. The publication migration refuses ambiguous legacy associations or duplicate unresolved delivery claims instead of guessing a repair. The production preflight found zero builder drafts, events, investor deliveries, company budgets and company months.
 
 Focused regressions include `budget-builder-v2-workflow-browser.test.mjs`, `budget-builder-v2-evidence.test.mjs`, `budget-builder-v2-db.test.cjs`, company budget tests, military scratch publication, and investor email retry tests.
 

@@ -87,6 +87,24 @@ const learnedModel = L.buildModel({property: model.property, fiscalYear: 2027, s
 assert(learnedModel.lines.some(line => line.gl === '6522'), 'zero-total rows containing unavailable evidence cannot disappear');
 const partialReport = {...t12, periods: t12.periods.slice(-2)};
 assert.equal(I.buildClosedActuals({lines: model.lines, periods, t12: partialReport, approvedComplete: true}).actuals['6537'][0], null, 'partial reports do not prove omitted-GL zero');
+const laterOnlyReport = {...t12, periods: ['2026-09']};
+const gapEvidence = I.buildClosedActuals({lines: model.lines, periods, t12: laterOnlyReport, approvedComplete: true});
+assert.equal(gapEvidence.closedMonths, 2, 'a later reported actual closes preceding fiscal periods too');
+assert.deepEqual(gapEvidence.actuals['5120'].slice(0, 3), [null, 100, null], 'an unreported earlier month stays unavailable even if a stale byPeriod cell exists');
+assert(gapEvidence.actualEvidence.unavailable.some(item => item.gl === '5120' && item.period === '2026-08' && item.reason === 'missing_period'));
+const gapResult = E.calculate({...model, ...gapEvidence, closedMonths: 0});
+assert.deepEqual(gapResult.rows['5120'].monthly.slice(0, 3), [null, 100, 100], 'latest source closure cannot silently retain the earlier proposal');
+assert.deepEqual(gapResult.rows['5120'].locked.slice(0, 3), [true, true, false]);
+assert.equal(gapResult.totals.annual.income, null);
+assert.throws(() => E.publicationRows(gapResult), /actual evidence is unavailable/);
+assert.equal(E.calculate({...model, ...gapEvidence, actuals: {...gapEvidence.actuals, '5120': [0, 100, ...Array(10).fill(null)]}}).rows['5120'].monthly[0], null, 'a saved zero without its declared source period cannot restore evidence');
+const shiftedSourcePeriods = E.fiscalPeriods(2027, 9);
+const shiftedReport = I.parseT12Sheet([['Trailing 12 Month - Income Statement'], ['Test'], ['Account', 'Account Name', ...shiftedSourcePeriods.map(label), 'Total'], ['5120', 'Rent', ...Array(12).fill(100), 1200]]);
+assert(I.canApproveT12Completeness(shiftedReport));
+const shiftedEvidence = I.buildClosedActuals({lines: model.lines, periods, t12: shiftedReport, approvedComplete: true});
+assert.equal(shiftedEvidence.actualEvidence.approvedComplete, true);
+assert.equal(shiftedEvidence.closedMonths, 12);
+assert.deepEqual(shiftedEvidence.actuals['6537'].slice(0, 2), [null, 0], 'reviewed no-activity zero applies only to periods actually present in the complete source');
 const duplicateReport = {...t12, lines: [...t12.lines, t12.lines[0]]};
 assert.equal(I.buildClosedActuals({lines: model.lines, periods, t12: duplicateReport, approvedComplete: true}).actuals['5120'][0], null, 'duplicate GL actuals are ambiguous');
 

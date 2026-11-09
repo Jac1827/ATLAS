@@ -2,7 +2,7 @@
  * Each parser takes plain row arrays (SheetJS sheet_to_json {header:1}) or extracted text,
  * so they run identically in the browser, a worker and Node tests. They never guess
  * silently: every result carries `warnings` describing what could not be read. */
-import {sectionForGl, num, fiscalPeriods} from './engine.mjs?v=bd1244e3577931f1';
+import {sectionForGl, num, fiscalPeriods} from './engine.mjs?v=0d68529412480755';
 
 const clean = v => String(v ?? '').replace(/\s+/g, ' ').trim();
 const isNum = v => typeof v === 'number' ? Number.isFinite(v) : /^\(?-?\$?[\d,]+(\.\d+)?\)?$/.test(clean(v));
@@ -94,7 +94,7 @@ export function canApproveT12Completeness(t12) {
 export function buildClosedActuals({lines = [], periods = [], t12, approvedComplete = false} = {}) {
   const availablePeriods = new Set(t12?.periods || []);
   let closedMonths = 0;
-  while (closedMonths < periods.length && availablePeriods.has(periods[closedMonths])) closedMonths++;
+  periods.forEach((period, month) => { if (availablePeriods.has(period)) closedMonths = month + 1; });
   const completeSource = canApproveT12Completeness(t12);
   const approved = approvedComplete === true && completeSource;
   const byGl = new Map(), duplicateGls = new Set();
@@ -108,6 +108,10 @@ export function buildClosedActuals({lines = [], periods = [], t12, approvedCompl
     const source = byGl.get(gl);
     return [gl, periods.map((period, m) => {
       if (m >= closedMonths) return null;
+      if (!availablePeriods.has(period)) {
+        unavailable.push({gl, period, reason: 'missing_period'});
+        return null;
+      }
       const value = source?.byPeriod?.[period];
       if (!duplicateGls.has(gl) && Number.isFinite(value)) return value;
       if (!source && approved) return 0;

@@ -1,12 +1,12 @@
 /* Budget Builder v2 — user interface. Mounted in the ATLAS Budget tab (iframe). */
-import * as E from './engine.mjs?v=bd1244e3577931f1';
-import * as I from './importers.mjs?v=1e65bd0a30f98dcb';
-import * as Lr from './learning.mjs?v=8234a0a4b9c8edcf';
-import * as H from './handoff.mjs?v=236ffc139c5ba601';
+import * as E from './engine.mjs?v=0d68529412480755';
+import * as I from './importers.mjs?v=0beddea59a92ebb1';
+import * as Lr from './learning.mjs?v=a78b1755d23a3181';
+import * as H from './handoff.mjs?v=4c18ede9556f1c95';
 import * as S from './store.mjs?v=ad27b1994762448b';
 import * as SU from './str-ui.mjs?v=6bae4cda970dcaba';
-import * as CU from './company-ui.mjs?v=7cf4353f5b4befa0';
-import * as SC from './scratch.mjs?v=c0484ff9155bf719';
+import * as CU from './company-ui.mjs?v=0ae9972f3dfc4764';
+import * as SC from './scratch.mjs?v=7fc382dca312789e';
 import {investorSummary, investorHtml, investorPdf, money as moneyFmt} from './investor-package.mjs?v=6fab0b0adb2b9ed3';
 import {parseReforecastWorkbook} from '../reforecast-intake.mjs?v=74bbd52d93a197cc';
 import {planningMappingDispositions} from '../planning-governance.mjs?v=a4de8d3f5a50966c';

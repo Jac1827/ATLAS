@@ -23,7 +23,7 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  await db.exec("insert into auth.users values('00000000-0000-0000-0000-000000000006')");
  await db.query("insert into atlas_user_profiles values('00000000-0000-0000-0000-000000000006','regional','active',$1,'{}','{}')",[[B]]);
  await db.exec(migration('20261105123257_budget_builder_v2.sql'));
- await db.exec(migration('20261109204913_budget_builder_atomic_publication_delivery.sql'));
+ await db.exec(migration('20261109205516_budget_builder_atomic_publication_delivery.sql'));
 
  // A small synthetic property: two income GLs, three expense GLs, one reserve and one capex line.
  const periods=E.fiscalPeriods(2027,1);
@@ -157,7 +157,7 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
 
  // Reconciliation accepts valid history and refuses missing or ambiguous links.
  await db.exec('reset role');
- const publicationMigration=migration('20261109204913_budget_builder_atomic_publication_delivery.sql');
+ const publicationMigration=migration('20261109205516_budget_builder_atomic_publication_delivery.sql');
  const reconciliation=publicationMigration.slice(publicationMigration.indexOf('do $$begin'),publicationMigration.indexOf('insert into public.atlas_budget_builder_publication_attempts'));
  await db.exec(reconciliation);
  await db.exec('begin');

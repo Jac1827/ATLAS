@@ -114,6 +114,8 @@ const evidenceDifference = (a, b) => Number.isFinite(a) && Number.isFinite(b) ? 
 const evidenceRatio = (a, b) => Number.isFinite(a) && b ? a / b : null;
 
 function closedActual(model, gl, month) {
+  const sourcePeriods = model.actualEvidence?.periods || (model.actuals ? model.sources?.t12?.periods : null);
+  if (Array.isArray(sourcePeriods) && !sourcePeriods.includes(model.periods?.[month])) return null;
   const values = model.actuals?.[gl];
   if (Number.isFinite(values?.[month])) return values[month];
   // Accounts added after import (for example STR postings) use the same reviewed
@@ -130,7 +132,7 @@ export function effectiveClosedMonths(model) {
   const evidencePeriods = model.actualEvidence?.periods || (model.actuals ? model.sources?.t12?.periods : []);
   const available = new Set(evidencePeriods || []);
   let sourceClosed = 0;
-  while (sourceClosed < 12 && available.has(model.periods?.[sourceClosed])) sourceClosed++;
+  for (let month = 0; month < 12; month++) if (available.has(model.periods?.[month])) sourceClosed = month + 1;
   return Math.max(sourceClosed, Math.max(0, Math.min(12, Math.floor(num(model.closedMonths)))));
 }
 

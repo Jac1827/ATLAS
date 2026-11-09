@@ -14,7 +14,7 @@ const root=path.join(__dirname,'..');
  await db.exec("update auth.users set email='vp@example.com' where id='00000000-0000-0000-0000-000000000005';update auth.users set email='admin@example.com' where id='00000000-0000-0000-0000-000000000001'");
  await db.exec("insert into atlas_user_profiles values('00000000-0000-0000-0000-000000000006','executive','active','{}','{}','{}'),('00000000-0000-0000-0000-000000000007','vp','active','{}','{}','{}')");
  await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20261106182859_rise_company_budget.sql'),'utf8'));
- await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20261109205119_company_budget_review_evidence.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20261109205520_company_budget_review_evidence.sql'),'utf8'));
  const VP=5,CEO=6,VP2=7,CM=4,ADMIN=1;
  const call=async(name,args)=>(await db.query(`select to_jsonb(public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')})) result`,args)).rows[0].result;
  const id=randomUUID(),payload={model:{kind:'company',fiscalYear:2027,lines:[]}},meta={fiscalYear:2027,planType:'budget',name:'RISE Residential FY2027 Budget'};

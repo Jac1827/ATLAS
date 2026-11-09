@@ -17,16 +17,16 @@ jobs:
   recover:
     if: github.repository == 'Jac1827/ATLAS' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     environment:
       name: github-pages
       url: https://jac1827.github.io/ATLAS/
     steps:
-      - name: Verify tested artifact provenance and retry Pages only
+      - name: Verify the tested source artifact
+        id: verify_source
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
-            const {createHash} = require('node:crypto');
             const expected = Object.freeze({
               repositoryId: 1279553811,
               sourceRunId: 42699803966,
@@ -45,10 +45,8 @@ jobs:
               pagesUrl: 'https://jac1827.github.io/ATLAS/'
             });
             const repo = {owner: 'Jac1827', repo: 'ATLAS'};
-            const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
             const reject = message => { const e = new Error(message); e.safeRecoveryMessage = true; throw e; };
             const requireGuard = (ok, message) => { if (!ok) reject(message); };
-            let phase = 'provenance verification', pending = null;
             try {
               requireGuard(context.eventName === 'workflow_dispatch' && context.ref === 'refs/heads/main' &&
                 context.repo.owner === repo.owner && context.repo.repo === repo.repo,
@@ -105,80 +103,103 @@ jobs:
               const upload = step('Upload the same artifact to GitHub Pages');
               requireGuard(Date.parse(artifact.created_at) >= Date.parse(upload.started_at) &&
                 Date.parse(artifact.created_at) <= Date.parse(upload.completed_at), 'Artifact was not created by the verified upload step.');
-              core.info(`Verified original artifact ${expected.artifactId} from tested commit ${expected.sourceSha}. No rebuild or upload.`);
-              phase = 'Pages deployment creation';
-              const idToken = await core.getIDToken();
-              core.setSecret(idToken);
-              // Do not log this payload: it contains the short-lived OIDC token.
-              // Submit once. An uncertain creation response must be investigated, not blindly retried.
-              const {data: deployment} = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
-                ...repo, artifact_id: expected.artifactId, environment: 'github-pages',
-                pages_build_version: expected.sourceSha, oidc_token: idToken
-              });
-              const deploymentId = String(deployment.id || expected.sourceSha);
-              requireGuard(/^[a-zA-Z0-9_-]{1,128}$/.test(deploymentId), 'Unexpected Pages deployment identifier.');
-              pending = deploymentId;
-              core.setOutput('deployment_id', deploymentId);
-              core.info(`Created Pages recovery deployment ${deploymentId}.`);
-              phase = 'Pages status polling';
-              const deadline = Date.now() + 600000;
-              const terminal = new Set(['deployment_failed', 'deployment_perms_error', 'deployment_content_failed',
-                'deployment_cancelled', 'deployment_lost']);
-              let errors = 0, previousStatus = null, succeeded = false;
-              while (Date.now() < deadline) {
-                await wait(Math.min(10000, Math.max(1, deadline - Date.now())));
-                let status;
-                try {
-                  const {data} = await github.request('GET /repos/{owner}/{repo}/pages/deployments/{deployment_id}', {
-                    ...repo, deployment_id: deploymentId
-                  });
-                  status = data.status; errors = 0;
-                } catch (error) {
-                  errors++;
-                  core.warning(`Pages status request failed (${Number(error.status) || 'network'}); attempt ${errors}/10.`);
-                  if (errors >= 10) reject('Pages status could not be verified after ten consecutive errors.');
-                  continue;
-                }
-                if (status !== previousStatus) { core.info(`Pages status: ${String(status)}`); previousStatus = status; }
-                if (status === 'succeed') { pending = null; succeeded = true; break; }
-                if (terminal.has(status)) { pending = null; reject(`Pages reported terminal status: ${status}`); }
-              }
-              requireGuard(succeeded, 'Pages recovery exceeded the supported ten-minute deployment window.');
-              phase = 'live Pages verification';
-              let verified = false;
-              for (let attempt = 0; attempt < 6; attempt++) {
-                try {
-                  const response = await fetch(`${expected.pagesUrl}atlas-asset-manifest.json?recovery=${context.runId}&attempt=${attempt}`, {
-                    headers: {'cache-control': 'no-cache'}, signal: AbortSignal.timeout(15000)
-                  });
-                  if (response.ok) {
-                    const bytes = Buffer.from(await response.arrayBuffer());
-                    if (createHash('sha256').update(bytes).digest('hex') === expected.manifestSha256) {
-                      const manifest = JSON.parse(bytes.toString('utf8'));
-                      verified = manifest.releaseId === expected.releaseId && manifest.retainedReleaseIds?.length === expected.retainedReleases;
-                      if (verified) break;
-                    }
-                  }
-                } catch {
-                  core.warning(`Live manifest verification request ${attempt + 1}/6 failed; retrying.`);
-                }
-                await wait(10000);
-              }
-              requireGuard(verified, 'Pages reported success but the exact tested live manifest was not verified.');
-              core.info(`Verified live release ${expected.releaseId} with all ${expected.retainedReleases} retained releases.`);
-              core.setOutput('page_url', expected.pagesUrl);
+              core.info(`Verified original artifact ${expected.artifactId} from tested commit ${expected.sourceSha}. No application rebuild.`);
+              for (const [name, value] of Object.entries({
+                artifact_id: expected.artifactId,
+                artifact_bytes: expected.artifactBytes,
+                archive_sha: expected.artifactDigest.replace('sha256:', ''),
+                manifest_sha: expected.manifestSha256,
+                release_id: expected.releaseId,
+                retained_releases: expected.retainedReleases
+              })) core.setOutput(name, String(value));
             } catch (error) {
               core.setFailed(error.safeRecoveryMessage ? error.message :
-                `Recovery failed during ${phase} (HTTP ${Number(error.status) || 'network/runtime'}). No request credentials were logged.`);
-            } finally {
-              if (pending) {
-                try {
-                  await github.request('POST /repos/{owner}/{repo}/pages/deployments/{deployment_id}/cancel', {
-                    ...repo, deployment_id: pending
-                  });
-                  core.info(`Cancelled pending recovery deployment ${pending}.`);
-                } catch (error) {
-                  core.warning(`Could not confirm cancellation (${Number(error.status) || 'network'}); inspect the deployment before retrying.`);
-                }
-              }
+                `Source verification failed (HTTP ${Number(error.status) || 'network/runtime'}).`);
             }
+
+      - name: Download and verify the exact original Pages archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.verify_source.outputs.artifact_id }}
+          ARTIFACT_BYTES: ${{ steps.verify_source.outputs.artifact_bytes }}
+          ARCHIVE_SHA: ${{ steps.verify_source.outputs.archive_sha }}
+        run: |
+          curl --fail --silent --show-error --location --retry 3 \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/Jac1827/ATLAS/actions/artifacts/$ARTIFACT_ID/zip" \
+            --output original-pages.zip
+          python3 - <<'PYCODE'
+          import hashlib, os, pathlib, shutil, stat, zipfile
+          def sha256_file(path):
+              digest = hashlib.sha256()
+              with path.open('rb') as source:
+                  for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                      digest.update(chunk)
+              return digest.hexdigest()
+          archive = pathlib.Path('original-pages.zip')
+          if archive.stat().st_size != int(os.environ['ARTIFACT_BYTES']):
+              raise SystemExit('Downloaded artifact size differs from the verified original.')
+          digest = sha256_file(archive)
+          if digest != os.environ['ARCHIVE_SHA']:
+              raise SystemExit('Downloaded artifact digest differs from the verified original.')
+          target = pathlib.Path('pages-artifact/artifact.tar')
+          target.parent.mkdir()
+          with zipfile.ZipFile(archive) as package:
+              entries = package.infolist()
+              if len(entries) != 1 or entries[0].filename != 'artifact.tar' or entries[0].is_dir():
+                  raise SystemExit('Expected exactly the original artifact.tar entry.')
+              entry = entries[0]
+              if entry.flag_bits & 1 or stat.S_IFMT(entry.external_attr >> 16) not in (0, stat.S_IFREG):
+                  raise SystemExit('Expected one unencrypted regular tar file.')
+              with package.open(entries[0]) as source, target.open('wb') as destination:
+                  shutil.copyfileobj(source, destination)
+          tar_digest = sha256_file(target)
+          print(f'Original ZIP bytes and digest verified; unchanged tar SHA256: {tar_digest}')
+          PYCODE
+
+      - name: Attach the unchanged Pages tar to this recovery run
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-pages
+          path: pages-artifact/artifact.tar
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 1
+
+      - name: Publish through the standard Pages action with this recovery commit
+        id: pages
+        uses: actions/deploy-pages@v4
+
+      - name: Verify the exact live release and retained history
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          MANIFEST_SHA: ${{ steps.verify_source.outputs.manifest_sha }}
+          RELEASE_ID: ${{ steps.verify_source.outputs.release_id }}
+          RETAINED_RELEASES: ${{ steps.verify_source.outputs.retained_releases }}
+        with:
+          script: |
+            const {createHash} = require('node:crypto');
+            const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+            let verified = false;
+            for (let attempt = 0; attempt < 6; attempt++) {
+              try {
+                const response = await fetch(`https://jac1827.github.io/ATLAS/atlas-asset-manifest.json?recovery=${context.runId}&attempt=${attempt}`, {
+                  headers: {'cache-control': 'no-cache'}, signal: AbortSignal.timeout(15000)
+                });
+                if (response.ok) {
+                  const bytes = Buffer.from(await response.arrayBuffer());
+                  if (createHash('sha256').update(bytes).digest('hex') === process.env.MANIFEST_SHA) {
+                    const manifest = JSON.parse(bytes.toString('utf8'));
+                    verified = manifest.releaseId === process.env.RELEASE_ID &&
+                      manifest.retainedReleaseIds?.length === Number(process.env.RETAINED_RELEASES);
+                    if (verified) break;
+                  }
+                }
+              } catch {
+                core.warning(`Live manifest request ${attempt + 1}/6 failed; retrying.`);
+              }
+              await wait(10000);
+            }
+            if (!verified) core.setFailed('Pages reported success but the exact tested live manifest was not verified.');
+            else core.info(`Verified live release ${process.env.RELEASE_ID} with all ${process.env.RETAINED_RELEASES} retained releases.`);

@@ -52,13 +52,13 @@ Migrations: `supabase/migrations/20261106182901_budget_builder_new_community.sql
 - Failed saves stop submission and approval; a saved draft retains its original model calibration on reload.
 - Each saved draft revision has a durable publication attempt. Canonical activation, draft linkage, the approval event and the draft lock commit together. Retrying a dropped response resumes the same attempt.
 - Claimed or unknown investor deliveries block further sends for that publication. Completed recipient deliveries are not sent twice; the claimed locked summary is immutable.
-- Import Sheet selects the community calendar’s exact twelve periods across calendar years. Missing evidence remains unavailable in property and company tracking, forecasts, summaries and exports.
+- Import Sheet selects the community calendar’s exact twelve periods across calendar years. VP revisions load the approved original across every covered calendar year. Missing evidence remains unavailable in property and company tracking, forecasts, summaries and exports.
 - Company month review validates month/YTD evidence and variance comments in the database. Linked property fees merge only covered fiscal months.
 - Military scratch budgets contain expenses; BAH stays a memo.
 
 Production repair migrations: `20261109205516_budget_builder_atomic_publication_delivery.sql`, `20261109205520_company_budget_review_evidence.sql`, and supporting indexes in `20261109205602_budget_builder_publication_lookup_indexes.sql`. Apply them before publishing the matching client and Worker. The publication migration refuses ambiguous legacy associations or duplicate unresolved delivery claims instead of guessing a repair. The production preflight found zero builder drafts, events, investor deliveries, company budgets and company months.
 
-Focused regressions include `budget-builder-v2-workflow-browser.test.mjs`, `budget-builder-v2-evidence.test.mjs`, `budget-builder-v2-db.test.cjs`, company budget tests, military scratch publication, and investor email retry tests.
+Focused regressions include `budget-builder-v2-workflow-browser.test.mjs`, `budget-builder-v2-evidence.test.mjs`, `budget-builder-v2-baseline.test.mjs`, `budget-builder-v2-db.test.cjs`, company budget tests, military scratch publication, and investor email retry tests.
 
 ## Production acceptance still required
 

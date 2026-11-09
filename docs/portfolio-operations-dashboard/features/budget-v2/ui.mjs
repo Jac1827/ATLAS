@@ -3,7 +3,7 @@ import * as E from './engine.mjs?v=0d68529412480755';
 import * as I from './importers.mjs?v=0beddea59a92ebb1';
 import * as Lr from './learning.mjs?v=a78b1755d23a3181';
 import * as H from './handoff.mjs?v=4c18ede9556f1c95';
-import * as S from './store.mjs?v=ad27b1994762448b';
+import * as S from './store.mjs?v=6041624b88fae692';
 import * as SU from './str-ui.mjs?v=6bae4cda970dcaba';
 import * as CU from './company-ui.mjs?v=0ae9972f3dfc4764';
 import * as SC from './scratch.mjs?v=7fc382dca312789e';
@@ -263,7 +263,7 @@ async function vpApprove() {
   if (!confirm(`Approve and lock ${s.draft.name}? This publishes the budget to ATLAS (Financial Position, Bonus, Community Command and exports).${flags.length ? `\n\n${flags.length} line(s) still have no variance note.` : ''}`)) return;
   s.busy = true; render();
   try {
-    const versions = s.draft.publication_id ? await S.approvedBaseline(s.central, s.draft.community_id, Number(s.model.periods[0].slice(0, 4))) : [];
+    const versions = s.draft.publication_id ? await S.approvedBaseline(s.central, s.draft.community_id, s.model.periods) : [];
     const baseline = versions.map(r => r.version_id), originalGls = versions.flatMap(r => (r.payload?.rows || []).map(x => String(x.glCode)));
     const published = await H.governedPublish({api: S.governedApi(s.central), XLSX: window.XLSX, parseWorkbook: parseReforecastWorkbook, dispositions: planningMappingDispositions, uuid: S.uuid,
       result: s.result, communityId: s.draft.community_id, draftId: s.draft.draft_id, expectedRevision: s.draft.revision, summary: summaryForInvestors(), actorId: s.me.userId, periods: s.model.periods,

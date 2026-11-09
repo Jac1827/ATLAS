@@ -7,7 +7,7 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  const feature=f=>import(path.join(root,'docs/portfolio-operations-dashboard/features',f));
  const {parseReforecastWorkbook}=await feature('reforecast-intake.mjs');
  const {planningMappingDispositions}=await feature('planning-governance.mjs');
- const E=await feature('budget-v2/engine.mjs'),H=await feature('budget-v2/handoff.mjs'),S=await feature('budget-v2/str.mjs');
+ const E=await feature('budget-v2/engine.mjs'),H=await feature('budget-v2/handoff.mjs'),S=await feature('budget-v2/str.mjs'),Store=await feature('budget-v2/store.mjs');
  const XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
  const {db,B,signIn}=await fixture();
  const GM=4,VP=5,RM=6;
@@ -150,6 +150,40 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  assert.equal((await db.query('select count(*)::int n from atlas_budget_investor_deliveries where draft_id=$1',[draftId])).rows[0].n,2,'new request IDs never create another unresolved delivery');
 
 
+ // August–July initial publication creates two canonical calendar-year segments.
+ // The actual store lookup must retain both for a later VP revision.
+ await db.exec('reset role');
+ await db.exec("create or replace function atlas_private.budget_calendar(cid uuid) returns jsonb language sql as $$select '{\"verified\":true,\"basis\":\"fiscal\",\"startMonth\":8}'::jsonb$$");
+ await signIn(VP);
+ const fiscalDraftId=randomUUID(),fiscalPeriods=E.fiscalPeriods(2029,8),fiscalModel={...revisedModel,periods:fiscalPeriods,startMonth:8},fiscalResult=E.calculate(fiscalModel);
+ const fiscalMeta={...meta,fiscalYear:2029,name:'Synthetic August–July FY2029'};
+ let fiscalDraft=await call('atlas_budget_builder_save',[fiscalDraftId,B,0,randomUUID(),fiscalMeta,{model:fiscalModel},null]);
+ fiscalDraft=await call('atlas_budget_builder_transition',[fiscalDraftId,fiscalDraft.revision,randomUUID(),'submit_to_regional',null,{}]);
+ fiscalDraft=await call('atlas_budget_builder_transition',[fiscalDraftId,fiscalDraft.revision,randomUUID(),'regional_approve',null,{}]);
+ const fiscalOptions={...publishOptions,draftId:fiscalDraftId,expectedRevision:fiscalDraft.revision,result:fiscalResult,periods:fiscalPeriods,calendar:{basis:'fiscal',startMonth:8},name:fiscalMeta.name,summary:{totals:fiscalResult.totals.annual,groups:fiscalResult.groups}};
+ const fiscalOriginal=await H.governedPublish(fiscalOptions);
+ const baselineReads=[];
+ const baselineCentral={fetchJson:async url=>{
+  const query=new URL(url,'https://atlas.example').searchParams;baselineReads.push(query);
+  assert.equal(query.get('community_id'),'eq.'+B);assert.equal(query.get('status'),'eq.locked');
+  const years=query.get('calendar_year').slice(4,-1).split(',').map(Number);
+  return (await db.query("select version_id,community_id,calendar_year,status,covered_months,payload from atlas_approved_budget_versions where community_id=$1 and calendar_year=any($2::int[]) and status='locked'",[B,years])).rows;
+ }};
+ const fiscalBaseline=await Store.approvedBaseline(baselineCentral,B,fiscalPeriods);
+ assert.equal(baselineReads[0].get('calendar_year'),'in.(2028,2029)');assert.equal(fiscalBaseline.length,2);
+ const retainedOriginal=JSON.stringify(fiscalBaseline);
+ for(const [i,period] of fiscalPeriods.entries())for(const gl of Object.keys(fiscalResult.rows)){
+  const segment=fiscalBaseline.find(row=>row.calendar_year===Number(period.slice(0,4)));
+  assert.equal(Number(segment.payload.rows.find(row=>row.glCode===gl).monthly[Number(period.slice(5))-1]),fiscalResult.rows[gl].monthly[i],`fiscal original retains ${gl}/${period}`);
+ }
+ const fiscalEditedModel={...fiscalModel,overrides:{'6537':9100}},fiscalEdited=E.calculate(fiscalEditedModel);
+ fiscalDraft=await call('atlas_budget_builder_save',[fiscalDraftId,B,fiscalOriginal.draft.revision,randomUUID(),fiscalMeta,{model:fiscalEditedModel},'Fiscal landscaping contract revision']);
+ const fiscalRevised=await H.governedPublish({...fiscalOptions,expectedRevision:fiscalDraft.revision,result:fiscalEdited,baselineVersionIds:fiscalBaseline.map(row=>row.version_id),originalGls:fiscalBaseline.flatMap(row=>row.payload.rows.map(line=>line.glCode)),summary:{totals:fiscalEdited.totals.annual,groups:fiscalEdited.groups}});
+ assert.equal(fiscalRevised.recordType,'revised_budget');assert.equal(fiscalRevised.draft.publication_id,fiscalRevised.publication.publication_id);
+ assert.deepEqual(fiscalRevised.publication.periods,fiscalPeriods);
+ for(const [i,period] of fiscalPeriods.entries())for(const gl of Object.keys(fiscalEdited.rows))assert.equal(Number(fiscalRevised.publication.snapshot.lines.find(line=>line.period===period&&line.accountCode===gl).forecast),fiscalEdited.rows[gl].monthly[i],`fiscal revision publishes ${gl}/${period}`);
+ assert.equal(JSON.stringify(await Store.approvedBaseline(baselineCentral,B,fiscalPeriods)),retainedOriginal,'fiscal revision preserves both immutable original segments');
+
  // Learning observations and aggregate-only benchmarks.
  await signIn(GM);
  assert.equal(await call('atlas_budget_learning_record',[B,[{source_kind:'t12',metric:'per_unit',value:1500,basis:{group:'Payroll',assetClass:'conventional'},period_from:'2025-09',period_to:'2026-08'}]]),1);
@@ -176,5 +210,5 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  await db.exec("set role anon");await assert.rejects(()=>db.query('select * from atlas_budget_builder_drafts'),/permission denied/);
  await db.exec('reset role');await signIn(2);assert.equal((await db.query('select count(*)::int n from atlas_budget_builder_drafts')).rows[0].n,0,'Regional of another community sees no draft');
  await assert.rejects(()=>db.query("update atlas_budget_builder_events set reason='forged'"),/permission denied/);
- console.log('PASS Budget Builder v2: atomic canonical publication and association, rollback after publication, concurrent/reloaded/dropped-response retry, migration reconciliation guards, investor claimed/unknown/sent suppression across request IDs and recipient changes, workflow and authorization');
+ console.log('PASS Budget Builder v2: atomic canonical publication and association, rollback after publication, concurrent/reloaded/dropped-response retry, migration reconciliation guards, investor claimed/unknown/sent suppression across request IDs and recipient changes, twelve-period fiscal initial/revised publication, workflow and authorization');
 })().catch(error=>{console.error(error);process.exit(1);});

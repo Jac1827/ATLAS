@@ -57,8 +57,21 @@ export async function decisions(central, communityIds) {
   return central.fetchJson(`/atlas_budget_learning_observations?source_kind=eq.decision&community_id=in.(${communityIds.join(',')})&select=gl_code,value,basis&order=created_at.desc&limit=2000`);
 }
 
-export async function approvedBaseline(central, communityId, year) {
-  return central.fetchJson(`/atlas_approved_budget_versions?community_id=eq.${communityId}&calendar_year=eq.${year}&select=version_id,payload&limit=20`).catch(() => []);
+/* Fiscal budgets can span two canonical calendar-year segments. Select only
+ * versions covering the requested periods and require exactly one per period;
+ * an unavailable read must never turn a revision into an initial budget. */
+export async function approvedBaseline(central, communityId, periods) {
+  if (!UUID.test(communityId) || !Array.isArray(periods) || !periods.length || periods.length > 24 || new Set(periods).size !== periods.length || periods.some(p => !/^20\d{2}-(0[1-9]|1[0-2])$/.test(p))) throw Error('Choose the saved budget community and fiscal periods.');
+  const years = [...new Set(periods.map(p => Number(p.slice(0, 4))))].sort((a, b) => a - b);
+  const rows = await central.fetchJson(`/atlas_approved_budget_versions?community_id=eq.${communityId}&calendar_year=in.(${years.join(',')})&status=eq.locked&select=version_id,community_id,calendar_year,status,covered_months,payload&limit=200`);
+  if (!Array.isArray(rows) || rows.length >= 200 || rows.some(r => !UUID.test(r.version_id) || r.community_id !== communityId || r.status !== 'locked' || !years.includes(r.calendar_year) || !Array.isArray(r.covered_months) || r.covered_months.some(m => !Number.isInteger(m) || m < 0 || m > 11))) throw Error('Approved original budget coverage could not be verified.');
+  const selected = new Map();
+  for (const period of periods) {
+    const matches = rows.filter(r => r.calendar_year === Number(period.slice(0, 4)) && r.covered_months.includes(Number(period.slice(5)) - 1));
+    if (matches.length !== 1) throw Error(`Approved original budget coverage is ${matches.length ? 'ambiguous' : 'missing'} for ${period}. Review the approved baseline before publishing.`);
+    selected.set(matches[0].version_id, matches[0]);
+  }
+  return [...selected.values()];
 }
 
 export async function sendInvestorPackage(central, {draftId, recipients, requestId = uuid()}) {

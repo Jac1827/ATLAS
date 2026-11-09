@@ -14,6 +14,7 @@ const root=path.join(__dirname,'..');
  await db.exec("update auth.users set email='vp@example.com' where id='00000000-0000-0000-0000-000000000005';update auth.users set email='admin@example.com' where id='00000000-0000-0000-0000-000000000001'");
  await db.exec("insert into atlas_user_profiles values('00000000-0000-0000-0000-000000000006','executive','active','{}','{}','{}'),('00000000-0000-0000-0000-000000000007','vp','active','{}','{}','{}')");
  await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20261106182859_rise_company_budget.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20261109205119_company_budget_review_evidence.sql'),'utf8'));
  const VP=5,CEO=6,VP2=7,CM=4,ADMIN=1;
  const call=async(name,args)=>(await db.query(`select to_jsonb(public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')})) result`,args)).rows[0].result;
  const id=randomUUID(),payload={model:{kind:'company',fiscalYear:2027,lines:[]}},meta={fiscalYear:2027,planType:'budget',name:'RISE Residential FY2027 Budget'};
@@ -71,13 +72,47 @@ const root=path.join(__dirname,'..');
 
  // Monthly actuals: saved, re-saved with comments, reviewed; only the VP writes.
  await signIn(VP);
- const month={fiscalYear:2026,actuals:{'6237':4000},entrataBudget:{'6237':2000},comments:{'6237':'Annual invoice'}};
+ const month={fiscalYear:2026,period:'2026-08',ytdFrom:'2026-01',ytdTo:'2026-08',monthsYtd:8,actuals:{'6237':4000},entrataBudget:{'6237':2000},ytdActual:{'6237':18000},ytdBudget:{'6237':16000},comments:{'6237':'Annual invoice'}};
  let m=await call('atlas_company_budget_month_save',['2026-08',0,randomUUID(),'save',month,{file:'aug.xlsx'},null]);assert.equal(m.status,'uploaded');assert.equal(m.fiscal_year,2026);
  m=await call('atlas_company_budget_month_save',['2026-08',1,randomUUID(),'review',month,{},'Month reviewed']);assert.equal(m.status,'reviewed');assert.equal(m.source.file,'aug.xlsx','source kept when not replaced');
  await assert.rejects(()=>call('atlas_company_budget_month_save',['2026-08',1,randomUUID(),'save',month,{},null]),/changed in another session/);
  await assert.rejects(()=>call('atlas_company_budget_month_save',['2026-08',2,randomUUID(),'save',{fiscalYear:2026},{},null]),/actuals are required/);
  await signIn(CEO);await assert.rejects(()=>call('atlas_company_budget_month_save',['2026-09',0,randomUUID(),'save',month,{},null]),/Only the VP/);
  assert.equal((await db.query('select count(*)::int n from atlas_company_budget_months')).rows[0].n,1,'the approver reads tracking');
+
+ // Review is enforced transactionally, including direct RPC callers without the UI.
+ await signIn(VP);
+ const report=(period,a,b,ya=a,yb=b,comments={})=>({period,actuals:{'6237':a},entrataBudget:{'6237':b},ytdActual:{'6237':ya},ytdBudget:{'6237':yb},ytdFrom:period.slice(0,4)+'-01',ytdTo:period,monthsYtd:Number(period.slice(5)),comments});
+ const review=(period,payload,revision=0)=>call('atlas_company_budget_month_save',[period,revision,randomUUID(),'review',payload,{},'Reviewed']);
+ await assert.rejects(()=>review('2029-01',report('2029-01',4000,2000)),/variance comment/);
+ assert.equal((await db.query("select count(*)::int n from atlas_company_budget_months where period='2029-01'")).rows[0].n,0,'failed review creates no month');
+ const uploaded=await call('atlas_company_budget_month_save',['2029-01',0,randomUUID(),'save',report('2029-01',4000,2000),{},null]);
+ await assert.rejects(()=>review('2029-01',report('2029-01',4000,2000,4000,2000,{'6237':' \t\n'}),uploaded.revision),/variance comment/);
+ assert.equal((await db.query("select status,revision from atlas_company_budget_months where period='2029-01'")).rows[0].status,'uploaded');
+ assert.equal((await db.query("select count(*)::int n from atlas_company_budget_events where period='2029-01'")).rows[0].n,1,'rejected review leaves no ledger event');
+ const reviewed=await review('2029-01',report('2029-01',4000,2000,4000,2000,{'6237':'Annual invoice'}),uploaded.revision);assert.equal(reviewed.status,'reviewed');
+ await assert.rejects(()=>review('2029-02',report('2029-02',2000,2000)),/variance comment/,'YTD-only variance requires a comment using stored prior month actuals');
+ await assert.rejects(()=>review('2030-03',report('2030-03',2000,2000,10000,6000)),/variance comment/,'full report YTD fills missing uploads and enforces its variance');
+ await assert.rejects(()=>review('2030-03',{...report('2030-03',2000,2000,6000,6000),ytdFrom:'2030-02',monthsYtd:2}),/Complete month and year-to-date evidence/,'partial YTD is not a full fiscal YTD');
+ await assert.rejects(()=>review('2030-03',report('2030-03',null,2000,6000,6000)),/Complete month and year-to-date evidence/,'blank current actual is never zero');
+ await assert.rejects(()=>review('2030-03',{...report('2030-03',0,2000,6000,6000),actuals:{}}),/Complete month and year-to-date evidence/,'absent GL cannot bypass review');
+ assert.equal((await review('2031-01',report('2031-01',0,0))).status,'reviewed','explicit zeros are complete evidence');
+ assert.equal((await review('2032-01',report('2032-01',3000,2000))).status,'reviewed','dollar threshold is strictly greater than 1000');
+ assert.equal((await review('2033-01',report('2033-01',22000,20000))).status,'reviewed','percentage threshold is strictly greater than ten percent');
+ await assert.rejects(()=>review('2034-01',report('2034-01',2000,0)),/variance comment/,'a zero budget still needs a comment for material activity');
+ const nullSaved=await call('atlas_company_budget_month_save',['2035-01',0,randomUUID(),'save',report('2035-01',null,0,null,0),{},null]);
+ assert.equal(nullSaved.payload.actuals['6237'],null);assert.equal(nullSaved.payload.entrataBudget['6237'],0);
+ assert.equal((await db.query("select payload from atlas_company_budget_months where period='2035-01'")).rows[0].payload.actuals['6237'],null,'reload preserves null evidence');
+ await assert.rejects(()=>db.query("select atlas_private.company_budget_validate_month_review('2031-01','{}')"),/permission denied/,'private validation helpers are not executable by API roles');
+
+ // Approved company amounts take precedence over a contradictory uploaded Entrata budget.
+ await db.exec('reset role');
+ const approvedId=randomUUID(),approvedPeriods=Array.from({length:12},(_,i)=>`2036-${String(i+1).padStart(2,'0')}`);
+ await db.query("insert into atlas_company_budgets(budget_id,fiscal_year,plan_type,name,status,payload,locked_summary,approved_at,created_by,updated_by) values($1,2036,'budget','Approved fixture','approved_locked','{}',$2,now(),'00000000-0000-0000-0000-000000000005','00000000-0000-0000-0000-000000000005')",[approvedId,{periods:approvedPeriods,budgetByGl:{'6237':Array(12).fill(2000)}}]);
+ await signIn(VP);
+ await assert.rejects(()=>review('2036-01',report('2036-01',4000,4000)),/variance comment/,'server uses approved budget, not the client report baseline');
+ assert.equal((await review('2036-01',report('2036-01',4000,4000,4000,4000,{'6237':'Approved budget variance explained'}))).status,'reviewed');
+ await assert.rejects(()=>review('2036-02',report('2036-02',2000,2000,2000,2000)),/variance comment/,'approved YTD budget compared with the stored complete YTD actuals');
 
  // The ledger is complete and immutable.
  await db.exec('reset role');

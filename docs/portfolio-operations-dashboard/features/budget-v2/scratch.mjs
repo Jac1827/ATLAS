@@ -9,8 +9,8 @@
  * state), not RISE results. When portfolio benchmarks exist (medians across at least
  * three RISE communities) they replace the generic category totals.
  */
-import {buildContext, freezeBase, sectionForGl, num, SUMMARY_GROUPS} from './engine.mjs?v=cc80fc96bf9f688a';
-import {seedPositions} from './learning.mjs?v=98ea2a8288a01d98';
+import {buildContext, freezeBase, sectionForGl, num, SUMMARY_GROUPS} from './engine.mjs?v=bd1244e3577931f1';
+import {seedPositions} from './learning.mjs?v=8234a0a4b9c8edcf';
 
 const zeros = () => Array(12).fill(0);
 const sum = a => a.reduce((t, v) => t + (Number(v) || 0), 0);
@@ -150,15 +150,18 @@ export function suggestStart(input, {benchmarks = {}} = {}) {
   const add = (gl, name, monthly, why) => model.lines.push({gl, name, section: sectionForGl(gl, name), proposal: {total: r2(sum(monthly)), monthly: monthly.map(r2)}, items: [], note: '', suggestion: why});
   // Rent lines.
   const gpr = c.gprM;
+  if (assetClass !== 'military') {
   add('5120', 'Gross Potential Rent', zeros().map(() => gpr), `${units} ${p.label}s × ${rent ? '$' + rent.toLocaleString() : 'market rent (enter it)'} a month`);
   add('5125', 'Gain/Loss to Lease', zeros().map(() => -gpr * 0.015), '1.5% of GPR');
   add('5220', 'Rent Loss-Vacancy', zeros().map((_, m) => -c.vac[m] * c.rent), 'Vacant unit-months × rent from the leasing schedule');
   add('5250', 'Concessions', zeros().map(() => -gpr * num(model.assumptions.concessionPct) / 100), `${model.assumptions.concessionPct}% of GPR`);
   add('5255', 'Bad Debt Expense', zeros().map(() => -gpr * 0.0075), '0.75% of GPR');
+  }
   const qty = (q, m) => ({occ: c.occ[m], mi: c.mi[m], mo: c.mo[m], vac: c.vac[m]}[q]);
   const salaries = zeros(); model.positions.forEach(pos => { for (let m = 0; m < 12; m++) salaries[m] += pos.count * pos.salary / 12 * 1; });
   for (const L of LINES) {
     if (L.skip?.(assetClass)) continue;
+    if (assetClass === 'military' && ['Rental Income', 'Cost Of Leasing', 'Other Income'].includes(sectionForGl(L.gl, L.name))) continue;
     let monthly, why;
     if (L.q) { const rate = L.rate(p); if (!rate) continue; monthly = zeros().map((_, m) => qty(L.q, m) * rate); why = `$${r2(rate)} per ${{occ: 'occupied ' + p.label + '-month', mi: 'move-in', mo: 'move-out', vac: 'vacant ' + p.label + '-month'}[L.q]}`; }
     else if (L.pctSalaries) { monthly = salaries.map(v => v * L.pctSalaries / 100); why = `${L.pctSalaries}% of salaries`; }
@@ -169,7 +172,7 @@ export function suggestStart(input, {benchmarks = {}} = {}) {
   for (const pos of model.positions) if (!model.lines.some(l => l.gl === pos.gl)) add(pos.gl, pos.title, zeros().map(() => pos.count * pos.salary / 12), 'Suggested staffing');
   // Management fee on total income, reserves per unit.
   const incomeM = zeros(); model.lines.filter(l => ['Rental Income', 'Cost Of Leasing', 'Other Income'].includes(l.section)).forEach(l => l.proposal.monthly.forEach((v, m) => { incomeM[m] += v; }));
-  add('6320', 'Management Fees', incomeM.map(v => v * 0.03), '3% of total income');
+  if (assetClass !== 'military') add('6320', 'Management Fees', incomeM.map(v => v * 0.03), '3% of total income');
   const reserve = Math.round(250 * p.scale / 25) * 25; model.assumptions.reservePerUnit = reserve;
   add('1320', 'Replacement Reserve Fund', zeros().map(() => units * reserve / 12), `$${reserve} per ${p.label} a year`);
   // Portfolio benchmarks replace generic category totals (payroll and fees stay driven).
@@ -186,7 +189,8 @@ export function suggestStart(input, {benchmarks = {}} = {}) {
   if (used.length) notes.push(`RISE portfolio medians applied to: ${used.join(', ')}.`);
   else notes.push('Category amounts are generic planning assumptions until at least three RISE communities report benchmarks.');
   if (!f.known && input.address?.state) notes.push(`No cost adjustment on file for ${input.address.state}; Florida assumptions are used.`);
-  if (!rent) notes.push('Enter the average market rent on the Drivers tab — rent lines are zero until then.');
+  if (!rent && assetClass !== 'military') notes.push('Enter the average market rent on the Drivers tab — rent lines are zero until then.');
+  if (assetClass === 'military') { model.bah = []; notes.push('Expense-only budget. Add BAH by pay grade as a memo; it is excluded from publication and NOI.'); }
   model.positions = model.positions.filter(pp => pp.count > 0).concat(seedPositions([], {}).filter(s => !model.positions.some(pp => pp.gl === s.gl)).map(s => ({...s, count: 0})));
   model.base = freezeBase(model);
   model.scratch = {inputs: input, notes, generatedAt: new Date().toISOString()};

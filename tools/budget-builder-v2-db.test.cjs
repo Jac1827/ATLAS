@@ -23,6 +23,7 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  await db.exec("insert into auth.users values('00000000-0000-0000-0000-000000000006')");
  await db.query("insert into atlas_user_profiles values('00000000-0000-0000-0000-000000000006','regional','active',$1,'{}','{}')",[[B]]);
  await db.exec(migration('20261105123257_budget_builder_v2.sql'));
+ await db.exec(migration('20261109204913_budget_builder_atomic_publication_delivery.sql'));
 
  // A small synthetic property: two income GLs, three expense GLs, one reserve and one capex line.
  const periods=E.fiscalPeriods(2027,1);
@@ -65,6 +66,7 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  await signIn(VP);
  await assert.rejects(()=>move(5,'vp_approve',null,{publicationId:randomUUID(),summary:{}}),/governed publication/);
  const api={
+  preparePublication:({draftId,expectedRevision,summary})=>call('atlas_prepare_budget_builder_publication',[draftId,expectedRevision,summary]),
   uploadPayload:({evidence,audit,bytes,assignment})=>({...evidence,source:{...evidence.source,originalFile:{encoding:'base64',data:Buffer.from(bytes).toString('base64')}},integrity:{auditId:audit.audit_id,fingerprint:audit.fingerprint},propertyAssignment:assignment}),
   saveAudit:({communityId,sourceHash,integrity,requestId})=>call('atlas_save_workbook_audit',[communityId,sourceHash,integrity,requestId]),
   saveUpload:({communityId,requestId,payload})=>call('atlas_save_reforecast_upload',[communityId,requestId,payload]),
@@ -74,13 +76,31 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
   saveScenario:({communityId,scenarioId,expectedRevision,requestId,action,payload})=>call('atlas_save_reforecast_scenario',[communityId,scenarioId,expectedRevision,requestId,action,payload])
  };
  const steps=[];
- const published=await H.governedPublish({api,XLSX,parseWorkbook:parseReforecastWorkbook,dispositions:planningMappingDispositions,uuid:randomUUID,result,communityId:B,draftId,actorId:'00000000-0000-0000-0000-000000000005',
-  periods,calendar:{basis:'calendar',startMonth:1},name:'Synthetic FY2027',model:'conventional',onStep:s=>steps.push(s)});
+ const summary={totals:result.totals.annual,groups:result.groups};
+ const publishOptions={api,XLSX,parseWorkbook:parseReforecastWorkbook,dispositions:planningMappingDispositions,uuid:randomUUID,result,communityId:B,draftId,expectedRevision:5,summary,actorId:'00000000-0000-0000-0000-000000000005',
+  periods,calendar:{basis:'calendar',startMonth:1},name:'Synthetic FY2027',model:'conventional',onStep:s=>steps.push(s)};
+ // A failure after canonical insert must roll back the association and original.
+ await db.exec('reset role');
+ await db.exec("create function atlas_private.test_fail_builder_original() returns trigger language plpgsql as $$begin raise exception 'injected original failure';end;$$;create trigger test_fail_builder_original before insert on atlas_approved_budget_versions for each row execute function atlas_private.test_fail_builder_original()");
+ await signIn(VP);
+ await assert.rejects(()=>H.governedPublish(publishOptions),/injected original failure/);
+ assert.equal((await db.query('select count(*)::int n from atlas_reforecast_publications where community_id=$1',[B])).rows[0].n,0,'canonical publication rolled back');
+ assert.equal((await db.query('select publication_id from atlas_budget_builder_drafts where draft_id=$1',[draftId])).rows[0].publication_id,null,'builder association rolled back');
+ assert.equal((await db.query('select count(*)::int n from atlas_approved_budget_versions where community_id=$1 and calendar_year=2027',[B])).rows[0].n,0,'original budget rolled back');
+ await db.exec('reset role;drop trigger test_fail_builder_original on atlas_approved_budget_versions');await signIn(VP);
+ // Concurrent retries and a dropped commit response reuse one scenario/publication.
+ const droppedApi={...api,saveScenario:async options=>{const value=await api.saveScenario(options);if(options.action==='vp_approve')throw Error('dropped publication response');return value;}};
+ const [published,concurrent]=await Promise.all([H.governedPublish({...publishOptions,api:droppedApi}),H.governedPublish(publishOptions)]);
+ assert.equal(concurrent.publication.publication_id,published.publication.publication_id);
+ assert.equal(published.draft.publication_id,published.publication.publication_id,'publication and draft association commit together');
+ assert.equal((await H.governedPublish(publishOptions)).publication.publication_id,published.publication.publication_id,'reload resumes completed publication');
+ assert.equal((await db.query("select count(*)::int n from atlas_reforecast_heads where community_id=$1 and scenario_id=$2",[B,published.scenarioId])).rows[0].n,1);
+ assert.equal((await db.query('select count(*)::int n from atlas_reforecast_publications where community_id=$1',[B])).rows[0].n,1,'one publication after concurrent/dropped-response retries');
+ await signIn(GM);await assert.rejects(()=>api.preparePublication({draftId,expectedRevision:5,summary}),/authorized VP/);await signIn(VP);
  assert.equal(published.recordType,'initial_budget');assert(published.publication?.publication_id,'governed publication created');assert(steps.length>=5);
  const original=(await db.query('select payload from atlas_approved_budget_versions where community_id=$1 and calendar_year=2027',[B])).rows[0]?.payload;
  assert(original,'VP publication created the canonical original budget');
  for(const gl of ['5120','5220','6330','6463','6537','1533'])assert.deepEqual(original.rows.find(r=>r.glCode===gl).monthly.map(Number),result.rows[gl].monthly,`published ${gl} equals the builder`);
- const summary={totals:result.totals.annual,groups:result.groups};
  d=await move(5,'vp_approve',null,{publicationId:published.publication.publication_id,summary});
  assert.equal(d.status,'approved_locked');assert.equal(d.publication_id,published.publication.publication_id);assert.deepEqual(d.locked_summary.totals,JSON.parse(JSON.stringify(summary.totals)));
 
@@ -93,13 +113,13 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
 
  // The VP edit is republished as a revised budget against the approved original, then re-approved.
  await signIn(VP);
- await assert.rejects(()=>move(7,'vp_approve',null,{publicationId:published.publication.publication_id,summary}),/Republish the edited budget/);
+ await assert.rejects(()=>move(7,'vp_approve',null,{publicationId:published.publication.publication_id,summary}),/atomic governed publication/);
  // The revision also adds a short-term rental programme on two units of one floor plan.
  const str={...S.newStrProgram(),curve:'flat',drivers:{adr:150,occupancy:0.6,alos:3,ltElectricPerOccUnitMo:30},floorPlans:[{...S.newFloorPlan({type:'B1',units:4,marketRent:1100}),strUnits:2,startMonth:2,rampMonths:2}]};
  const revisedModel={...model,overrides:{'6537':9000},str},revised=E.calculate(revisedModel);
  assert(revised.rows['6840'].annual>0&&revised.rows['1504'].annual>0&&revised.rows['5220'].strAnnual<0,'the programme posts STR income, fees, capital and conversion loss');
  const baselineVersionIds=(await db.query('select version_id from atlas_approved_budget_versions where community_id=$1 and calendar_year=2027',[B])).rows.map(r=>r.version_id);
- const republished=await H.governedPublish({api,XLSX,parseWorkbook:parseReforecastWorkbook,dispositions:planningMappingDispositions,uuid:randomUUID,result:revised,communityId:B,draftId,actorId:'00000000-0000-0000-0000-000000000005',
+ const republished=await H.governedPublish({api,XLSX,parseWorkbook:parseReforecastWorkbook,dispositions:planningMappingDispositions,uuid:randomUUID,result:revised,communityId:B,draftId,expectedRevision:7,summary,actorId:'00000000-0000-0000-0000-000000000005',
   periods,calendar:{basis:'calendar',startMonth:1},name:'Synthetic FY2027 (VP revision)',model:'conventional',baselineVersionIds,originalGls:original.rows.map(r=>r.glCode)});
  assert.equal(republished.recordType,'revised_budget');
  assert.equal((await call('atlas_reforecast_effective_baseline',[[B],periods]))[0].publicationId,republished.publication.publication_id,'the VP revision is the effective baseline');
@@ -107,19 +127,48 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  const pubTotal=gl=>Math.round(republished.publication.snapshot.lines.filter(l=>l.accountCode===gl).reduce((t,l)=>t+Number(l.forecast),0)*100)/100;
  for(const gl of ['5144','5932','5220','6840','6830','6463','1504'])assert.equal(pubTotal(gl),revised.rows[gl].annual,`published ${gl} includes the STR programme exactly`);
  d=await move(7,'vp_approve',null,{publicationId:republished.publication.publication_id,summary});assert.equal(d.revised_after_approval,false);assert.equal(d.publication_id,republished.publication.publication_id);
- await assert.rejects(()=>move(8,'vp_approve',null,{publicationId:republished.publication.publication_id,summary}),/Nothing changed/);
+ assert.equal((await move(8,'vp_approve',null,{publicationId:republished.publication.publication_id,summary})).revision,8,'association replay does not change the draft');
  await assert.rejects(()=>call('atlas_claim_budget_investor_delivery',[draftId,randomUUID(),['not-an-email']]),/valid recipient/);
- const claimId=randomUUID(),claim=await call('atlas_claim_budget_investor_delivery',[draftId,claimId,['Investor@Example.com','investor@example.com']]);
- assert.deepEqual(claim.recipients,['investor@example.com']);assert.equal((await call('atlas_claim_budget_investor_delivery',[draftId,claimId,['investor@example.com']])).delivery_id,claim.delivery_id,'claim replay is idempotent');
+ const claimId=randomUUID(),claimReceipt=await call('atlas_claim_budget_investor_delivery_v2',[draftId,claimId,['Investor@Example.com','investor@example.com']]),claim=claimReceipt.delivery;assert.equal(claimReceipt.sendAuthorized,true);
+ assert.deepEqual(claim.recipients,['investor@example.com']);assert.equal((await call('atlas_claim_budget_investor_delivery_v2',[draftId,claimId,['investor@example.com']])).sendAuthorized,false,'claim replay cannot send twice');
  await assert.rejects(()=>call('atlas_finish_budget_investor_delivery',[claim.delivery_id,'sent',null]),/permission denied/);
+ const racingClaims=await Promise.all(Array.from({length:3},()=>call('atlas_claim_budget_investor_delivery_v2',[draftId,randomUUID(),['another@example.com']])));
+ for(const receipt of racingClaims){assert.equal(receipt.sendAuthorized,false);assert.equal(receipt.delivery.delivery_id,claim.delivery_id,'unresolved publication blocks all recipient sets');}
+ await assert.rejects(()=>call('atlas_claim_budget_investor_delivery',[draftId,randomUUID(),['investor@example.com']]),/automatic resend is blocked/,'legacy worker cannot replay a claim');
+ await assert.rejects(()=>call('atlas_claim_budget_investor_delivery_v2',[draftId,claimId,['changed@example.com']]),/request reused/);
+
  await db.exec('reset role');await call('atlas_finish_budget_investor_delivery',[claim.delivery_id,'sent','msg-1']);
  assert.equal((await db.query('select status from atlas_budget_builder_drafts where draft_id=$1',[draftId])).rows[0].status,'sent_to_investors');
+ await signIn(VP);
+ const sentReplay=await call('atlas_claim_budget_investor_delivery_v2',[draftId,randomUUID(),[' INVESTOR@EXAMPLE.COM ']]);
+ assert.equal(sentReplay.sendAuthorized,false);assert.equal(sentReplay.delivery.status,'sent');
+ await assert.rejects(()=>call('atlas_claim_budget_investor_delivery_v2',[draftId,randomUUID(),['investor@example.com','new@example.com']]),/already sent/);
+ const uncertain=await call('atlas_claim_budget_investor_delivery_v2',[draftId,randomUUID(),['new@example.com']]);assert.equal(uncertain.sendAuthorized,true);
+ await db.exec('reset role');await call('atlas_finish_budget_investor_delivery',[uncertain.delivery.delivery_id,'unknown',null]);await signIn(VP);
+ const uncertainReplay=await call('atlas_claim_budget_investor_delivery_v2',[draftId,randomUUID(),['third@example.com']]);
+ assert.equal(uncertainReplay.sendAuthorized,false);assert.equal(uncertainReplay.delivery.status,'unknown');
+ assert.equal((await db.query('select count(*)::int n from atlas_budget_investor_deliveries where draft_id=$1',[draftId])).rows[0].n,2,'new request IDs never create another unresolved delivery');
+
 
  // Learning observations and aggregate-only benchmarks.
  await signIn(GM);
  assert.equal(await call('atlas_budget_learning_record',[B,[{source_kind:'t12',metric:'per_unit',value:1500,basis:{group:'Payroll',assetClass:'conventional'},period_from:'2025-09',period_to:'2026-08'}]]),1);
  assert.deepEqual(await call('atlas_budget_benchmarks',[null]),{},'fewer than three communities never reveals a benchmark');
 
+ // Reconciliation accepts valid history and refuses missing or ambiguous links.
+ await db.exec('reset role');
+ const publicationMigration=migration('20261109204913_budget_builder_atomic_publication_delivery.sql');
+ const reconciliation=publicationMigration.slice(publicationMigration.indexOf('do $$begin'),publicationMigration.indexOf('insert into public.atlas_budget_builder_publication_attempts'));
+ await db.exec(reconciliation);
+ await db.exec('begin');
+ await db.query("delete from atlas_budget_builder_events where draft_id=$1 and action='vp_approve'",[draftId]);
+ await assert.rejects(()=>db.exec(reconciliation),/orphan or ambiguous/);await db.exec('rollback');
+ await db.exec('begin');
+ await db.query("insert into atlas_budget_builder_events(draft_id,community_id,request_id,actor_id,actor_role,action,from_status,to_status,revision,detail) select draft_id,community_id,gen_random_uuid(),actor_id,actor_role,action,from_status,to_status,revision,detail from atlas_budget_builder_events where draft_id=$1 and action='vp_approve' limit 1",[draftId]);
+ await assert.rejects(()=>db.exec(reconciliation),/orphan or ambiguous/);await db.exec('rollback');
+ await signIn(RM);
+ assert.equal((await db.query('select publication_id from atlas_budget_builder_drafts where draft_id=$1',[draftId])).rows[0].publication_id,republished.publication.publication_id,'second authorized user reads the same publication');
+ await signIn(2);await assert.rejects(()=>api.preparePublication({draftId,expectedRevision:7,summary}),/authorized VP/);
  // Ledger is immutable and complete; anonymous and out-of-scope users see nothing.
  await db.exec('reset role');
  const events=(await db.query('select action from atlas_budget_builder_events where draft_id=$1 order by created_at',[draftId])).rows.map(r=>r.action);
@@ -127,5 +176,5 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  await db.exec("set role anon");await assert.rejects(()=>db.query('select * from atlas_budget_builder_drafts'),/permission denied/);
  await db.exec('reset role');await signIn(2);assert.equal((await db.query('select count(*)::int n from atlas_budget_builder_drafts')).rows[0].n,0,'Regional of another community sees no draft');
  await assert.rejects(()=>db.query("update atlas_budget_builder_events set reason='forged'"),/permission denied/);
- console.log('PASS Budget Builder v2: proposal-linked drivers, GM→Regional→VP workflow, idempotent saves, governed initial-budget publication equal to the builder, VP in-place edits with reasons, investor delivery claims, learning observations and access control');
+ console.log('PASS Budget Builder v2: atomic canonical publication and association, rollback after publication, concurrent/reloaded/dropped-response retry, migration reconciliation guards, investor claimed/unknown/sent suppression across request IDs and recipient changes, workflow and authorization');
 })().catch(error=>{console.error(error);process.exit(1);});

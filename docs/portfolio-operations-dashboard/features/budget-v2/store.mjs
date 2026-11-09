@@ -80,6 +80,7 @@ function base64(bytes) {
 export function governedApi(central) {
   return {
     base64,
+    preparePublication: ({draftId, expectedRevision, summary}) => rpc(central, 'atlas_prepare_budget_builder_publication', {p_draft_id: draftId, p_expected_revision: expectedRevision, p_summary: summary}),
     saveAudit: async ({communityId, sourceHash, integrity, bytes, requestId}) => persistWorkbookAudit(central, integrity, {communityId, sourceHash, requestId, sourceBytes: bytes}),
     uploadPayload: ({evidence, audit, assignment, actorId, at}) => ({...evidence, integrity: audit, propertyAssignment: assignment,
       comparison: {priorUploadId: null, firstVersionConfirmed: true, confirmedBy: actorId, confirmedAt: at}}),

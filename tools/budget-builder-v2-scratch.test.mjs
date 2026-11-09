@@ -36,3 +36,17 @@ assert.equal(E.calculate(bm).rows['6330'].annual, r.rows['6330'].annual, 'payrol
 assert.throws(() => SC.suggestStart({...base, units: 0}), /number of units/);
 console.log('PASS Budget Builder v2 from scratch: suggested lines, staffing, leasing schedule, state and asset-class adjustments, lease-up and portfolio medians');
 function near(a, b, msg, tol) { assert(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b}`); }
+// Military expense-only behavior must survive the actual publication boundary.
+const military = SC.suggestStart({...base, assetClass: 'military'});
+military.bah = [{grade:'E-5',homes:80,monthlyBah:1800}];
+const militaryResult = E.calculate(military);
+const incomeSections = ['Rental Income','Cost Of Leasing','Other Income'];
+assert(!military.lines.some(line=>incomeSections.includes(line.section)), 'military scratch creates no income or contra-income lines');
+assert(!military.lines.some(line=>line.gl==='6320'), 'military scratch does not infer a fee from excluded income');
+assert.equal(militaryResult.totals.annual.income,0);
+assert(militaryResult.memo.annual>0, 'BAH remains a memo');
+const militaryRows=E.publicationRows(militaryResult,military.periods);
+assert(militaryRows.length>0);
+assert(!militaryRows.some(row=>Number(row.gl || row.accountCode || row.glCode)>=5000 && Number(row.gl || row.accountCode || row.glCode)<6000), 'canonical publication has no military revenue');
+assert(militaryRows.some(row=>row.gl==='6330'||row.accountCode==='6330'||row.glCode==='6330'), 'military payroll still publishes');
+console.log('PASS military scratch publication: expenses and payroll only, BAH memo retained.');

@@ -10,7 +10,7 @@
  *
  * All I/O is injected (`api`) so the identical sequence runs in the browser and in
  * the PGlite database test. */
-import {publicationRows, INCOME_SECTIONS, BELOW_NOI_SECTIONS} from './engine.mjs?v=cc80fc96bf9f688a';
+import {publicationRows, INCOME_SECTIONS, BELOW_NOI_SECTIONS} from './engine.mjs?v=bd1244e3577931f1';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const periodLabel = p => `${MON[Number(p.slice(5)) - 1]} ${p.slice(0, 4)}`;
@@ -74,31 +74,63 @@ export function scenarioPayload({name, model, recordType, periods, calendar, reg
     registryVersionId, ownerId: actorId, reviewerId: reviewerId || actorId, drivers: [], overrides: [], reason: 'Budget Builder v2 approved budget', budgetBuilderDraftId: draftId};
 }
 
-/* Run the governed lifecycle. Returns {scenarioId, revision, publication}. Each step is
- * idempotent through its request ID so a retry after a dropped response is safe. */
-export async function governedPublish({api, XLSX, parseWorkbook, dispositions, uuid, result, communityId, draftId, actorId, periods, calendar, name, model, baselineVersionIds = [], originalGls = null, reviewedAt = new Date().toISOString(), onStep = () => {}}) {
-  onStep('Rendering the approved GL × month workbook');
-  const bytes = workbookBytes(XLSX, result, periods);
-  const fileName = `Budget Builder ${name}.xlsx`.replace(/[^\w .-]/g, '');
-  const evidence = await parseWorkbook(bytes, {xlsx: XLSX, fileName});
-  onStep('Retaining workbook evidence');
-  const audit = await api.saveAudit({communityId, sourceHash: evidence.source.sha256, integrity: evidence.integrity, bytes, requestId: uuid()});
-  const assignment = {communityId, confirmed: true, sourceEntities: [], actorId, reason: 'Budget Builder community', assignedAt: reviewedAt};
-  const upload = await api.saveUpload({communityId, requestId: uuid(), payload: api.uploadPayload({evidence, audit, bytes, assignment, actorId, at: reviewedAt})});
-  onStep('Confirming GL mapping');
-  const head = await api.readRegistry({communityId});
-  const merged = mergeRegistry(head?.payload, result, periods[0]);
-  const registry = merged.added || !head ? await api.saveRegistry({communityId, expectedVersionId: head?.version_id || null, requestId: uuid(), payload: merged.payload}) : head;
-  const mapping = importMapping({evidence, registryVersionId: registry.version_id, registryAccounts: registry.payload?.accounts || merged.payload.accounts, communityId, actorId, periods, calendar, reviewedAt, dispositions, originalGls: baselineVersionIds.length && originalGls ? new Set([...originalGls].map(String)) : null});
-  const recordType = baselineVersionIds.length ? 'revised_budget' : 'initial_budget';
-  const payload = scenarioPayload({name, model, recordType, periods, calendar: mapping.calendar, registryVersionId: registry.version_id, baselineVersionIds, actorId, draftId});
-  onStep('Creating the governed budget scenario');
-  const scenarioId = uuid();
-  let rec = await api.createFromImport({communityId, scenarioId, expectedRevision: 0, requestId: uuid(), uploadId: upload.upload_id, mapping, payload});
+/* Every request identity and the locked summary belong to a durable saved-draft
+ * attempt. Reloads resume its immutable receipts; publication also locks the draft
+ * in the same database transaction. */
+export async function governedPublish({api, XLSX, parseWorkbook, dispositions, result, communityId, draftId, expectedRevision, summary, actorId, periods, calendar, name, model, baselineVersionIds = [], originalGls = null, onStep = () => {}}) {
+  if (!Number.isInteger(expectedRevision) || expectedRevision < 1 || !summary) throw Error('Save the budget and its investor summary before publishing.');
+  const prepare = () => api.preparePublication({draftId, expectedRevision, summary});
+  let progress = await prepare();
+  const attempt = progress.attempt, scenarioId = attempt.scenario_id;
+  if (attempt.draft_id !== draftId || attempt.community_id !== communityId || attempt.draft_revision !== expectedRevision) throw Error('The publication attempt does not match this saved budget.');
+  const finish = state => {
+    if (!state.publication?.publication_id || state.draft?.publication_id !== state.publication.publication_id || state.attempt.publication_id !== state.publication.publication_id) throw Error('The canonical publication and budget lock could not be verified. Reload this budget before continuing.');
+    return {scenarioId, publication: state.publication, draft: state.draft, recordType: state.publication.snapshot?.identity?.recordType || (baselineVersionIds.length ? 'revised_budget' : 'initial_budget')};
+  };
+  if (progress.publication) return finish(progress);
+  const reviewedAt = attempt.created_at;
+  let rec = progress.submitted || progress.import;
+  if (!rec) {
+    let upload = progress.upload, evidence;
+    if (upload) evidence = upload.payload;
+    else {
+      onStep('Rendering the approved GL × month workbook');
+      const bytes = workbookBytes(XLSX, result, periods);
+      const fileName = `Budget Builder ${name}.xlsx`.replace(/[^\w .-]/g, '');
+      evidence = await parseWorkbook(bytes, {xlsx: XLSX, fileName});
+      onStep('Retaining workbook evidence');
+      const audit = await api.saveAudit({communityId, sourceHash: evidence.source.sha256, integrity: evidence.integrity, bytes, requestId: attempt.audit_request_id});
+      const assignment = {communityId, confirmed: true, sourceEntities: [], actorId, reason: 'Budget Builder community', assignedAt: reviewedAt};
+      upload = await api.saveUpload({communityId, requestId: attempt.upload_request_id, payload: api.uploadPayload({evidence, audit, bytes, assignment, actorId, at: reviewedAt})});
+    }
+    onStep('Confirming GL mapping');
+    let registry = progress.registry;
+    if (!registry) {
+      const head = await api.readRegistry({communityId});
+      const merged = mergeRegistry(head?.payload, result, periods[0]);
+      registry = merged.added || !head ? await api.saveRegistry({communityId, expectedVersionId: head?.version_id || null, requestId: attempt.registry_request_id, payload: merged.payload}) : head;
+    }
+    const mapping = importMapping({evidence, registryVersionId: registry.version_id, registryAccounts: registry.payload.accounts, communityId, actorId, periods, calendar, reviewedAt, dispositions, originalGls: baselineVersionIds.length && originalGls ? new Set([...originalGls].map(String)) : null});
+    const recordType = baselineVersionIds.length ? 'revised_budget' : 'initial_budget';
+    const payload = {...scenarioPayload({name, model, recordType, periods, calendar: mapping.calendar, registryVersionId: registry.version_id, baselineVersionIds, actorId, draftId}), budgetBuilderAttemptId: attempt.attempt_id, budgetBuilderRevision: expectedRevision};
+    const expectedLines = evidence.lines.filter(l => mapping.selectedLineIds.includes(l.id)).map(l => ({period: l.period, accountCode: String(l.accountCode), amount: l.amount, sourceLineId: l.id, sourceCoordinates: {sheet: l.sheet, address: l.address, row: l.row, column: l.column}}));
+    onStep('Creating the governed budget scenario');
+    rec = await api.createFromImport({communityId, scenarioId, expectedRevision: 0, requestId: attempt.import_request_id, uploadId: upload.upload_id, mapping, payload, expectedLines});
+  }
   if (rec.snapshot?.completeness?.blockerCount) throw Object.assign(new Error('The governed scenario has unresolved blockers: ' + (rec.snapshot.diagnostics || []).filter(d => d.severity === 'error').map(d => d.message).join('; ')), {diagnostics: rec.snapshot.diagnostics});
-  onStep('Submitting for VP publication');
-  rec = await api.saveScenario({communityId, scenarioId, expectedRevision: rec.head.revision, requestId: uuid(), action: 'submit', payload: rec.revision.payload});
-  onStep('VP approval and publication');
-  rec = await api.saveScenario({communityId, scenarioId, expectedRevision: rec.head.revision, requestId: uuid(), action: 'vp_approve', payload: rec.revision.payload});
-  return {scenarioId, revision: rec.revision, publication: rec.publication, uploadId: upload.upload_id, registryVersionId: registry.version_id, recordType};
+  if (!progress.submitted) {
+    onStep('Submitting for VP publication');
+    rec = await api.saveScenario({communityId, scenarioId, expectedRevision: rec.head.revision, requestId: attempt.submit_request_id, action: 'submit', payload: rec.revision.payload});
+  }
+  onStep('VP approval, publication and budget lock');
+  try {
+    await api.saveScenario({communityId, scenarioId, expectedRevision: rec.head.revision, requestId: attempt.publish_request_id, action: 'vp_approve', payload: rec.revision.payload});
+  } catch (error) {
+    // A timeout is not evidence of rollback. Read the persisted association before
+    // presenting a failure; never start another canonical publication to recover.
+    progress = await prepare();
+    if (progress.publication) return finish(progress);
+    throw error;
+  }
+  return finish(await prepare());
 }

@@ -2,7 +2,7 @@
  * Each parser takes plain row arrays (SheetJS sheet_to_json {header:1}) or extracted text,
  * so they run identically in the browser, a worker and Node tests. They never guess
  * silently: every result carries `warnings` describing what could not be read. */
-import {sectionForGl, num} from './engine.mjs?v=cc80fc96bf9f688a';
+import {sectionForGl, num, fiscalPeriods} from './engine.mjs?v=bd1244e3577931f1';
 
 const clean = v => String(v ?? '').replace(/\s+/g, ' ').trim();
 const isNum = v => typeof v === 'number' ? Number.isFinite(v) : /^\(?-?\$?[\d,]+(\.\d+)?\)?$/.test(clean(v));
@@ -38,12 +38,16 @@ export function parseT12Sheet(rows) {
   for (const r of rows.slice(head + 1)) {
     const a = clean(r?.[0]), b = clean(r?.[1]);
     if (/^\d{4}$/.test(a) && b) {
-      const byPeriod = Object.fromEntries(monthCols.map(c => [c.period, toNum(r[c.i])]));
-      const total = totalCol >= 0 && isNum(r[totalCol]) ? toNum(r[totalCol]) : Object.values(byPeriod).reduce((t, v) => t + v, 0);
+      const byPeriod = Object.fromEntries(monthCols.map(c => [c.period, isNum(r[c.i]) ? toNum(r[c.i]) : null]));
+      const missing = monthCols.filter(c => !isNum(r[c.i]));
+      if (missing.length) warnings.push(`${a}: actual evidence unavailable for ${missing.map(c => c.period).join(', ')}.`);
+      const total = totalCol >= 0 && isNum(r[totalCol]) ? toNum(r[totalCol]) : (missing.length ? null : Object.values(byPeriod).reduce((t, v) => t + v, 0));
       lines.push({gl: a, name: b, section: a.startsWith('1') ? sectionForGl(a, b) : (normalizeSection(section) || sectionForGl(a, b)), byPeriod, total});
     } else if (a && !isNum(r?.[1]) && (normalizeSection(a) || !/^total|net |cash flow|controllable cash/i.test(a))) section = a;
   }
   const periods = monthCols.map(c => c.period).sort();
+  if (new Set(periods).size !== periods.length) warnings.push('Duplicate month columns found; review the source before closing periods.');
+  if (new Set(lines.map(l => l.gl)).size !== lines.length) warnings.push('Duplicate GL rows found; review the source before closing periods.');
   return {ok: lines.length > 0, kind: 't12', property, periods, lines, warnings};
 }
 
@@ -64,10 +68,54 @@ export function parseT12Text(textLines) {
       const per = periods || [];
       const byPeriod = Object.fromEntries(per.map((p, i) => [p, nums[i]]));
       lines.push({gl: m[1], name: m[2], section: m[1].startsWith('1') ? sectionForGl(m[1], m[2]) : (normalizeSection(section) || sectionForGl(m[1], m[2])), byPeriod, total: nums[12]});
-    } else if (ln && ln.length < 48 && !/\d\.\d\d/.test(ln) && !/^(Account|RISE|Property|Accrual|Page)/.test(ln)) section = ln;
+    } else if (/^\d{4}\s+\S/.test(ln)) warnings.push(`Could not read actual evidence for GL ${ln.slice(0, 4)}.`);
+    else if (ln && ln.length < 48 && !/\d\.\d\d/.test(ln) && !/^(Account|RISE|Property|Accrual|Page)/.test(ln)) section = ln;
   }
   if (!periods) warnings.push('Month header not found; months are unlabelled.');
+  if (new Set(lines.map(l => l.gl)).size !== lines.length) warnings.push('Duplicate GL rows found; review the source before closing periods.');
   return {ok: lines.length > 0, kind: 't12', periods: (periods || []).slice().sort(), lines, warnings};
+}
+
+/* A complete report still requires review: headers alone cannot establish that an
+ * omitted account had no activity. Blanks or unreadable rows never qualify. */
+export function canApproveT12Completeness(t12) {
+  const periods = [...(t12?.periods || [])].sort();
+  if (!t12?.ok || periods.length !== 12 || new Set(periods).size !== 12 || (t12.warnings || []).length || !t12.lines?.length) return false;
+  const [year, month] = periods[0].split('-').map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) return false;
+  const expected = fiscalPeriods(year + (month > 1 ? 1 : 0), month);
+  if (periods.some((p, i) => p !== expected[i]) || new Set(t12.lines.map(l => String(l.gl))).size !== t12.lines.length) return false;
+  return t12.lines.every(l => periods.every(p => Number.isFinite(l.byPeriod?.[p])));
+}
+
+/* Persist evidence for every model GL, including proposal-only accounts. An absent
+ * GL becomes zero only after a reviewer confirms a complete source's no-activity
+ * convention. A present row's missing cell always remains unavailable. */
+export function buildClosedActuals({lines = [], periods = [], t12, approvedComplete = false} = {}) {
+  const availablePeriods = new Set(t12?.periods || []);
+  let closedMonths = 0;
+  while (closedMonths < periods.length && availablePeriods.has(periods[closedMonths])) closedMonths++;
+  const completeSource = canApproveT12Completeness(t12);
+  const approved = approvedComplete === true && completeSource;
+  const byGl = new Map(), duplicateGls = new Set();
+  for (const line of t12?.lines || []) {
+    const gl = String(line.gl);
+    if (byGl.has(gl)) duplicateGls.add(gl);
+    byGl.set(gl, line);
+  }
+  const unavailable = [];
+  const actuals = Object.fromEntries([...new Set(lines.map(l => String(l.gl)))].map(gl => {
+    const source = byGl.get(gl);
+    return [gl, periods.map((period, m) => {
+      if (m >= closedMonths) return null;
+      const value = source?.byPeriod?.[period];
+      if (!duplicateGls.has(gl) && Number.isFinite(value)) return value;
+      if (!source && approved) return 0;
+      unavailable.push({gl, period, reason: duplicateGls.has(gl) ? 'duplicate_gl' : source ? 'missing_cell' : 'absent_gl_unconfirmed'});
+      return null;
+    })];
+  }));
+  return {closedMonths, actuals, actualEvidence: {approvedComplete: approved, completeSource, periods: [...availablePeriods].sort(), sourceGls: [...byGl.keys()], unavailable}};
 }
 
 /* Group pdf.js text items into lines by baseline. */
@@ -202,14 +250,21 @@ export function parseVenaBudget(rows, {fiscalYear} = {}) {
   return {ok: out.length > 0, kind: 'vena_budget', entity, fiscalYear: label ? Number(label.slice(2)) : null, lines: out, warnings};
 }
 /* RISE budget model workbooks ("Import Sheet": BUDGET_ID | ACCT_NO | DEPT_ID | … | month columns). */
-export function parseImportSheet(rows, {fiscalYear, names = {}} = {}) {
+export function parseImportSheet(rows, {fiscalYear, startMonth = 1, names = {}} = {}) {
   const head = rows.findIndex(r => (r || []).map(clean).includes('ACCT_NO'));
   if (head < 0) return {ok: false, warnings: ['ACCT_NO header not found.']};
   const h = rows[head].map(clean), acct = h.indexOf('ACCT_NO');
   const cols = h.map((x, i) => { const m = /(?:month ended\s+)?([a-z]{3})[a-z]*\.?\s+(\d{4})$/i.exec(x); return m && MONTHS[m[1].toLowerCase()] ? {i, year: Number(m[2]), month: MONTHS[m[1].toLowerCase()]} : null; }).filter(Boolean);
-  const year = fiscalYear || Math.min(...cols.map(c => c.year));
-  const yc = cols.filter(c => c.year === Number(year)).sort((a, b) => a.month - b.month);
-  if (yc.length !== 12) return {ok: false, warnings: [`Twelve monthly columns for ${year} not found (found ${yc.length}).`]};
+  const firstStart = cols.filter(c => c.month === Number(startMonth)).sort((a, b) => a.year - b.year)[0];
+  const year = Number(fiscalYear || (firstStart ? firstStart.year + (Number(startMonth) > 1 ? 1 : 0) : NaN));
+  if (!Number.isInteger(year) || !Number.isInteger(Number(startMonth)) || Number(startMonth) < 1 || Number(startMonth) > 12) return {ok: false, warnings: ['A valid fiscal year and start month are required.']};
+  const periods = fiscalPeriods(year, Number(startMonth));
+  const matches = periods.map(period => cols.filter(c => `${c.year}-${String(c.month).padStart(2, '0')}` === period));
+  const missing = periods.filter((_, i) => matches[i].length === 0), duplicates = periods.filter((_, i) => matches[i].length > 1);
+  if (missing.length || duplicates.length) return {ok: false, fiscalYear: year, startMonth: Number(startMonth), periods, warnings: [
+    ...(missing.length ? [`Fiscal FY${year} requires ${periods[0]} through ${periods.at(-1)}; missing ${missing.join(', ')}.`] : []),
+    ...(duplicates.length ? [`Duplicate monthly columns for ${duplicates.join(', ')}.`] : [])]};
+  const yc = matches.map(m => m[0]);
   const lines = new Map();
   for (const r of rows.slice(head + 1)) {
     const gl = clean(r?.[acct]);
@@ -220,7 +275,7 @@ export function parseImportSheet(rows, {fiscalYear, names = {}} = {}) {
     else lines.set(gl, {gl, name: names[gl] || '', section: sectionForGl(gl, names[gl]), monthly, items: [], comments: [], note: ''});
   }
   const out = [...lines.values()].map(l => ({...l, total: l.monthly.reduce((t, v) => t + v, 0)})).filter(l => l.total);
-  return {ok: out.length > 0, kind: 'import_sheet', fiscalYear: Number(year), lines: out, warnings: out.length ? [] : [`All ${year} values are zero — the workbook may not be filled in yet.`]};
+  return {ok: out.length > 0, kind: 'import_sheet', fiscalYear: year, startMonth: Number(startMonth), periods, lines: out, warnings: out.length ? [] : [`All ${year} values are zero — the workbook may not be filled in yet.`]};
 }
 function commentIn(r, totalCol) {
   for (let i = totalCol + 1; i <= totalCol + 4 && i < r.length; i++) { const v = r[i]; if (typeof v === 'string' && clean(v).length > 2 && !isNum(v)) return clean(v); }

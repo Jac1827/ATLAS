@@ -1,5 +1,5 @@
 /* RISE company budget — persistence through ATLAS Central (Supabase RPCs). */
-import {calculate} from './engine.mjs?v=cc80fc96bf9f688a';
+import {calculate} from './engine.mjs?v=bd1244e3577931f1';
 
 export const uuid = () => crypto.randomUUID();
 const rpc = async (central, name, args) => { const d = await central.fetchJson('/rpc/' + name, {method: 'POST', body: JSON.stringify(args)}); return Array.isArray(d) ? d[0] : d; };
@@ -31,7 +31,7 @@ export async function propertyFees(central, year) {
   const out = {};
   const add = (cid, kind, ref, periods, monthly, status = null) => {
     const o = out[cid] ||= {kind, ref, status, byPeriod: {}};
-    periods.forEach((p, i) => { if (!(p in o.byPeriod) && Number.isFinite(Number(monthly[i]))) o.byPeriod[p] = Number(monthly[i]); });
+    periods.forEach((p, i) => { if (!(p in o.byPeriod) && monthly[i] !== null && monthly[i] !== undefined && String(monthly[i]).trim() !== '' && Number.isFinite(Number(monthly[i]))) o.byPeriod[p] = Number(monthly[i]); });
   };
   for (const y of [Number(year), Number(year) + 1]) {
     const approved = await central.fetchJson(`/atlas_approved_budget_versions?calendar_year=eq.${y}&select=community_id,version_id,payload`).catch(() => []);

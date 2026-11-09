@@ -108,7 +108,31 @@ export const DRIVER_LABELS = {
 const sum = a => a.reduce((t, v) => t + (Number(v) || 0), 0);
 const zeros = () => Array(12).fill(0);
 export const num = x => { const n = typeof x === 'number' ? x : parseFloat(String(x ?? '').replace(/[$,%\s]/g, '')); return Number.isFinite(n) ? n : 0; };
-const round2 = n => Math.round(n * 100) / 100;
+const round2 = n => Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+const evidenceSum = values => values.every(Number.isFinite) ? values.reduce((total, value) => total + value, 0) : null;
+const evidenceDifference = (a, b) => Number.isFinite(a) && Number.isFinite(b) ? a - b : null;
+const evidenceRatio = (a, b) => Number.isFinite(a) && b ? a / b : null;
+
+function closedActual(model, gl, month) {
+  const values = model.actuals?.[gl];
+  if (Number.isFinite(values?.[month])) return values[month];
+  // Accounts added after import (for example STR postings) use the same reviewed
+  // complete report, but an existing row's missing cell can never become zero.
+  const evidence = model.actualEvidence;
+  if (!values && evidence?.approvedComplete === true && evidence.completeSource === true &&
+      evidence.periods?.includes(model.periods?.[month]) && Array.isArray(evidence.sourceGls) && !evidence.sourceGls.includes(String(gl))) return 0;
+  return null;
+}
+
+/* Imported closed periods cannot be reopened by lowering the editable count.
+ * Legacy models retain the closure established by their saved T12 source too. */
+export function effectiveClosedMonths(model) {
+  const evidencePeriods = model.actualEvidence?.periods || (model.actuals ? model.sources?.t12?.periods : []);
+  const available = new Set(evidencePeriods || []);
+  let sourceClosed = 0;
+  while (sourceClosed < 12 && available.has(model.periods?.[sourceClosed])) sourceClosed++;
+  return Math.max(sourceClosed, Math.max(0, Math.min(12, Math.floor(num(model.closedMonths)))));
+}
 
 export function defaultAssumptions() {
   return {marketRent: 0, rentGrowth: 0, ltlPct: 0, concessionPct: 0, badDebtPct: 0, mgmtPct: 3, inflation: 3, taxChange: 0, insChange: 0,
@@ -236,7 +260,7 @@ export function calculate(model) {
   const base = model.base ? buildContext({...model, ...model.base, property: model.property, strUnitsFixed: model.base.strUnits || zeros()}) : c;
   const basis = {rent: num(model.basis?.rent), occUM: num(model.basis?.occUM), vacUM: num(model.basis?.vacUM), mi: num(model.basis?.moveIns), mo: num(model.basis?.moveOuts), salaries: num(model.basis?.salaries)};
   const asset = ASSET_CLASSES[model.property?.assetClass] || ASSET_CLASSES.conventional;
-  const closed = Math.max(0, Math.min(12, num(model.closedMonths)));
+  const closed = effectiveClosedMonths(model);
   const start = model.start || 'proposal';
   const out = {};
   const lines = (model.lines || []).filter(l => !l.removed && l.section !== NON_OPERATING);
@@ -268,24 +292,23 @@ export function calculate(model) {
         if (Array.isArray(ov)) ov.forEach((v, m) => { if (v != null && v !== '') monthly[m] = num(v); });
         else { const shaped = shape(monthly.some(v => v) ? monthly : (proposal || model12), num(ov)); shaped.forEach((v, m) => { monthly[m] = v; }); }
       }
-      const actual = model.actuals?.[line.gl];
       const locked = zeros().map((_, m) => m < closed);
-      if (closed && actual) for (let m = 0; m < closed; m++) monthly[m] = num(actual[m]);
-      out[line.gl] = {line, kind, type, monthly: monthly.map(round2), annual: round2(sum(monthly)), model: model12 ? model12.map(round2) : null,
+      for (let m = 0; m < closed; m++) monthly[m] = closedActual(model, line.gl, m);
+      out[line.gl] = {line, kind, type, monthly: monthly.map(round2), annual: round2(evidenceSum(monthly)), model: model12 ? model12.map(round2) : null,
         modelAnnual: model12 ? round2(sum(model12)) : null, proposalAnnual: proposal ? round2(sum(proposal)) : null, t12: num(line.t12?.total), overridden, locked};
     }
   };
 
   pass(INCOME_SECTIONS, null, null);
   const incomeM = zeros(), baseIncomeM = zeros();
-  for (const r of Object.values(out)) r.monthly.forEach((v, m) => { incomeM[m] += v; });
+  for (const r of Object.values(out)) r.monthly.forEach((v, m) => { incomeM[m] = evidenceSum([incomeM[m], v]); });
   const str = model.str?.enabled ? strCalculate(model, c) : null;
   const postStr = str && model.str.postToProperty !== false;
   // The property management fee excludes STR income unless the agreement charges it.
   // Converted units' rent always leaves the fee base.
   if (postStr) for (let m = 0; m < 12; m++) {
-    incomeM[m] += str.lines.conversionLoss[m];
-    if (model.str.propertyMgmtFeeOnStr) incomeM[m] += str.monthly.revenue[m] + str.monthly.deductions[m];
+    incomeM[m] = evidenceSum([incomeM[m], str.lines.conversionLoss[m]]);
+    if (model.str.propertyMgmtFeeOnStr) incomeM[m] = evidenceSum([incomeM[m], str.monthly.revenue[m], str.monthly.deductions[m]]);
   }
   if (model.base?.incomeMonthly) model.base.incomeMonthly.forEach((v, m) => { baseIncomeM[m] = num(v); });
   else lines.filter(l => INCOME_SECTIONS.includes(l.section)).forEach(l => (l.proposal?.monthly || []).forEach((v, m) => { baseIncomeM[m] += num(v); }));
@@ -294,6 +317,7 @@ export function calculate(model) {
 
   if (postStr) mergeStr(model, out, str, closed);
   const result = summarize(model, c, out, asset);
+  result.unavailableActuals = Object.values(out).flatMap(r => r.monthly.flatMap((value, month) => month < closed && !Number.isFinite(value) ? [{gl: String(r.line.gl), period: model.periods?.[month] || String(month + 1)}] : []));
   if (str) {
     // The same budget without the programme: the difference is the programme's
     // full effect on the property, including long-term income it displaces.
@@ -308,17 +332,16 @@ export function calculate(model) {
  * separately (convMonthly) so overrides and views stay exact. */
 function mergeStr(model, out, str, closed) {
   for (const g of str.glRows) {
-    const actual = model.actuals?.[g.gl];
     let r = out[g.gl];
     if (!r) {
       const line = {gl: g.gl, name: g.name, section: strSectionFor(g.nature, g.gl, sectionForGl), str: true};
       r = out[g.gl] = {line, kind: 'str', type: 'str', monthly: zeros(), annual: 0, model: null, modelAnnual: null, proposalAnnual: null, t12: 0, overridden: false, locked: zeros().map((_, m) => m < closed)};
     }
     r.convMonthly = r.monthly.slice();
-    r.strMonthly = g.monthly.map((v, m) => (m < closed && actual ? 0 : v));
-    if (r.type === 'str' && closed && actual) for (let m = 0; m < closed; m++) r.convMonthly[m] = num(actual[m]);
-    r.monthly = r.convMonthly.map((v, m) => round2(v + r.strMonthly[m]));
-    r.annual = round2(sum(r.monthly));
+    r.strMonthly = g.monthly.map((v, m) => (m < closed ? 0 : v));
+    if (r.type === 'str') for (let m = 0; m < closed; m++) r.convMonthly[m] = closedActual(model, g.gl, m);
+    r.monthly = r.convMonthly.map((v, m) => round2(evidenceSum([v, r.strMonthly[m]])));
+    r.annual = round2(evidenceSum(r.monthly));
     r.strAnnual = round2(sum(r.strMonthly));
     r.strKeys = g.keys;
   }
@@ -329,12 +352,12 @@ function impactOf(result, without) {
   const gls = new Set([...Object.keys(result.rows), ...Object.keys(without.rows)]);
   for (const gl of gls) {
     const a = result.rows[gl], b = without.rows[gl];
-    const monthly = zeros().map((_, m) => round2((a?.monthly[m] || 0) - (b?.monthly[m] || 0)));
-    if (monthly.some(v => Math.abs(v) >= 0.005)) rows[gl] = {gl, name: (a || b).line.name, section: (a || b).line.section, monthly, annual: round2(sum(monthly)), strDirect: a?.strAnnual || 0};
+    const monthly = zeros().map((_, m) => round2(evidenceDifference(a ? a.monthly[m] : 0, b ? b.monthly[m] : 0)));
+    if (monthly.some(v => v === null || Math.abs(v) >= 0.005)) rows[gl] = {gl, name: (a || b).line.name, section: (a || b).line.section, monthly, annual: round2(evidenceSum(monthly)), strDirect: a?.strAnnual || 0};
   }
-  const t = k => round2(result.totals.annual[k] - without.totals.annual[k]);
+  const t = k => round2(evidenceDifference(result.totals.annual[k], without.totals.annual[k]));
   return {rows, totals: {income: t('income'), opex: t('opex'), noi: t('noi'), reserves: t('reserves'), capex: t('capex'), cashFlow: t('cashFlow')},
-    monthly: {income: result.monthly.income.map((v, m) => round2(v - without.monthly.income[m])), opex: result.monthly.opex.map((v, m) => round2(v - without.monthly.opex[m])), noi: result.monthly.noi.map((v, m) => round2(v - without.monthly.noi[m]))}};
+    monthly: {income: result.monthly.income.map((v, m) => round2(evidenceDifference(v, without.monthly.income[m]))), opex: result.monthly.opex.map((v, m) => round2(evidenceDifference(v, without.monthly.opex[m]))), noi: result.monthly.noi.map((v, m) => round2(evidenceDifference(v, without.monthly.noi[m])))}};
 }
 
 function summarize(model, c, rows, asset) {
@@ -342,26 +365,27 @@ function summarize(model, c, rows, asset) {
   const bySection = {};
   for (const r of Object.values(rows)) {
     const s = bySection[r.line.section] ||= {section: r.line.section, monthly: zeros(), annual: 0, t12: 0, proposal: 0, model: 0, lines: []};
-    r.monthly.forEach((v, m) => { s.monthly[m] += v; });
-    s.annual += r.annual; s.t12 += r.t12; s.proposal += r.proposalAnnual || 0; s.model += r.modelAnnual ?? r.annual; s.lines.push(r);
+    r.monthly.forEach((v, m) => { s.monthly[m] = evidenceSum([s.monthly[m], v]); });
+    s.annual = evidenceSum([s.annual, r.annual]); s.t12 += r.t12; s.proposal += r.proposalAnnual || 0; s.model = evidenceSum([s.model, r.modelAnnual ?? r.annual]); s.lines.push(r);
   }
-  const tot = (sections, k) => sections.reduce((t, s) => t + (bySection[s]?.[k] || 0), 0);
-  const totM = sections => { const o = zeros(); sections.forEach(s => (bySection[s]?.monthly || []).forEach((v, m) => { o[m] += v; })); return o; };
+  const tot = (sections, k) => evidenceSum(sections.map(s => bySection[s] ? bySection[s][k] : 0));
+  const totM = sections => { const o = zeros(); sections.forEach(s => (bySection[s]?.monthly || []).forEach((v, m) => { o[m] = evidenceSum([o[m], v]); })); return o; };
   const keys = ['annual', 't12', 'proposal', 'model'];
   const T = {};
   for (const k of keys) {
     const inc = asset.incomeInNoi ? tot(INCOME_SECTIONS, k) : 0;
     const opex = tot(OPEX_SECTIONS, k);
     const reserves = tot(['Replacement Reserves'], k), capex = tot(['Capital Expenditures'], k);
-    T[k] = {income: inc, opex, noi: inc - opex, reserves, capex, cashFlow: inc - opex - reserves - capex};
+    const noi = evidenceDifference(inc, opex);
+    T[k] = {income: inc, opex, noi, reserves, capex, cashFlow: evidenceDifference(evidenceDifference(noi, reserves), capex)};
   }
   const incomeM = asset.incomeInNoi ? totM(INCOME_SECTIONS) : zeros();
   const opexM = totM(OPEX_SECTIONS);
-  const groups = SUMMARY_GROUPS.map(([name, secs]) => ({name, final: tot(secs, 'annual'), t12: tot(secs, 't12'), proposal: tot(secs, 'proposal'), model: tot(secs, 'model'), perUnit: tot(secs, 'annual') / units})).filter(g => g.name !== 'Short-term rental' || g.final || g.t12 || g.proposal);
+  const groups = SUMMARY_GROUPS.map(([name, secs]) => ({name, final: tot(secs, 'annual'), t12: tot(secs, 't12'), proposal: tot(secs, 'proposal'), model: tot(secs, 'model'), perUnit: evidenceRatio(tot(secs, 'annual'), units)})).filter(g => g.name !== 'Short-term rental' || g.final === null || g.final || g.t12 || g.proposal);
   const memo = asset.incomeInNoi ? null : {label: 'BAH memo (not collected; excluded from NOI)', annual: bahMemo(model, c)};
-  return {context: c, rows, sections: bySection, totals: T, monthly: {income: incomeM, opex: opexM, noi: incomeM.map((v, m) => v - opexM[m])},
+  return {context: c, rows, sections: bySection, totals: T, monthly: {income: incomeM, opex: opexM, noi: incomeM.map((v, m) => evidenceDifference(v, opexM[m]))},
     groups, memo, kpis: {avgOccupancy: c.units ? c.occUM / 12 / c.units : 0, moveIns: c.miTotal, moveOuts: c.moTotal, turnover: c.units ? c.moTotal / c.units : 0,
-      noiPerUnit: T.annual.noi / units, opexPerUnit: T.annual.opex / units, strUnitsAvg: sum(c.strUnits) / 12}};
+      noiPerUnit: evidenceRatio(T.annual.noi, units), opexPerUnit: evidenceRatio(T.annual.opex, units), strUnitsAvg: sum(c.strUnits) / 12}};
 }
 
 /* Military: BAH that would be collected = Σ pay-grade homes × monthly BAH × occupancy share. */
@@ -374,7 +398,7 @@ export function bahMemo(model, c = buildContext(model)) {
 /* Lines needing a written note: variance vs T12 above both $1,000 and 10%. */
 export function noteFlags(result, notes = {}, {dollars = 1000, pct = 10} = {}) {
   return Object.values(result.rows).filter(r => {
-    if (r.type === 'str' || !r.line.t12) return false;  // nothing to compare without a T12
+    if (r.type === 'str' || !r.line.t12 || !Number.isFinite(r.annual)) return false;  // nothing to compare without complete evidence
     const t12 = r.t12, d = r.annual - t12;
     const p = t12 ? Math.abs(d / t12) * 100 : (Math.abs(d) > 0 ? Infinity : 0);
     const note = notes[r.line.gl] ?? r.line.note;
@@ -392,6 +416,7 @@ export function freezeBase(model) {
 
 /* GL × month rows for the governed workbook hand-off. Capex/reserves are included (below NOI). */
 export function publicationRows(result) {
+  if (Object.values(result.rows).some(r => r.monthly.length !== 12 || r.monthly.some(v => !Number.isFinite(v)))) throw new Error('Closed-month actual evidence is unavailable. Complete and review the source before publishing.');
   return Object.values(result.rows).map(r => ({gl: String(r.line.gl), name: r.line.name, section: r.line.section, monthly: r.monthly.map(round2)}));
 }
 

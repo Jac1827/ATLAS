@@ -15,7 +15,7 @@ The ATLAS Budget tab now opens **Budget Builder v2** (`portfolio-operations-dash
 | Learning model | Run-rates per occupied unit, move-in, move-out and salary dollar from the T12; seasonality from Trending Occupancy; loss to lease from the box score; utility rates from Conservice; portfolio medians per unit by category (aggregate-only, ≥3 communities); per-GL calibration from reviewers' final-vs-model decisions. Every suggestion appears beside the budget with **Use model**. |
 | Checks | Lines over ±10% and $1,000 vs T12 without a note; positions in T12 but missing from the budget; water and sewer increases added together; large model differences; partial-period T12 uploads (annualized and flagged). |
 | Notes | A regional note on every GL (site comments from the Vena file are imported) with an **Investor** checkbox that puts the note in the investor package. |
-| Reforecast | Months covered by the uploaded T12 are closed and lock to actuals; remaining months re-project from drivers. |
+| Reforecast | Months covered by the uploaded T12 are closed and lock to actuals; remaining months re-project from drivers. Missing cells remain unavailable. An omitted GL becomes zero only after the reviewer confirms a complete T12 with no activity for omitted accounts. Missing closed actuals block approval and investor exports. |
 | Approval | GM draft → Regional review → VP approval. VP approval renders the GL × month result as a workbook and runs the existing governed lifecycle (evidence, registry, import, submit, `vp_approve`), so Financial Position, Bonus, Community Command and exports read the same fingerprinted publication as before. |
 | VP edits | The VP can edit a locked budget in place with a logged reason; it is flagged "Revised" and the investor package is blocked until the VP re-approves, which republishes it as a revised budget against the approved original. |
 | Investor package | Cover page, summary, expense categories, assumptions and selected notes. Download as PDF, or email (VP) through `/api/atlas/budget-investor/email`; the Worker renders the PDF from the VP-locked summary and records the delivery. |
@@ -37,7 +37,7 @@ Migrations: `supabase/migrations/20261106182901_budget_builder_new_community.sql
 
 ## Deployment
 
-1. Apply `supabase/migrations/20261104200000_budget_builder_v2.sql` after the existing chain. It adds four tables (drafts, events, learning observations, investor deliveries), RLS read policies via `reforecast_access`, and the RPCs `atlas_budget_builder_save`, `atlas_budget_builder_transition`, `atlas_budget_learning_record`, `atlas_budget_benchmarks`, `atlas_claim_budget_investor_delivery` and the service-only `atlas_finish_budget_investor_delivery`. No existing table or function is changed.
+1. Apply `supabase/migrations/20261105123257_budget_builder_v2.sql` after the existing chain. It adds four tables (drafts, events, learning observations, investor deliveries), RLS read policies via `reforecast_access`, and the RPCs `atlas_budget_builder_save`, `atlas_budget_builder_transition`, `atlas_budget_learning_record`, `atlas_budget_benchmarks`, `atlas_claim_budget_investor_delivery` and the service-only `atlas_finish_budget_investor_delivery`. No existing table or function is changed.
 2. Deploy the Worker (`src/worker.mjs` registers the investor email route; it uses the existing `EMAIL` binding and `ATLAS_DLR_FROM_EMAIL`).
 3. Publish the site. `atlas-mounts.js` points the Budget tab at v2.
 
@@ -46,6 +46,19 @@ Migrations: `supabase/migrations/20261106182901_budget_builder_new_community.sql
 - `node tools/budget-builder-v2.test.mjs` — importers, contract terms, drivers, payroll, reforecast actuals, military memo, learning, workbook rendering, investor PDF.
 - `node tools/budget-builder-v2-str.test.mjs` — STR floor-plan engine, ramp and capital, property integration and the three views, publication rows, investor table, saved-programme import.
 - `node tools/budget-builder-v2-db.test.cjs` — the real migration chain in PGlite: workflow and role gates, idempotent saves, governed initial-budget publication equal to the builder, VP edit (adding an STR programme) → revised-budget republish carrying the STR GLs exactly, investor delivery claims, learning, access control.
+
+## Integrity repair — 9 November 2026
+
+- Failed saves stop submission and approval; a saved draft retains its original model calibration on reload.
+- Each saved draft revision has a durable publication attempt. Canonical activation, draft linkage, the approval event and the draft lock commit together. Retrying a dropped response resumes the same attempt.
+- Claimed or unknown investor deliveries block further sends for that publication. Completed recipient deliveries are not sent twice; the claimed locked summary is immutable.
+- Import Sheet selects the community calendar’s exact twelve periods across calendar years. Missing evidence remains unavailable in property and company tracking, forecasts, summaries and exports.
+- Company month review validates month/YTD evidence and variance comments in the database. Linked property fees merge only covered fiscal months.
+- Military scratch budgets contain expenses; BAH stays a memo.
+
+Apply both repair migrations before publishing the matching client and Worker: `budget_builder_atomic_publication_delivery` and `company_budget_review_evidence`. The publication migration refuses ambiguous legacy associations or duplicate unresolved delivery claims instead of guessing a repair. The production preflight found zero builder drafts, events, investor deliveries, company budgets and company months.
+
+Focused regressions include `budget-builder-v2-workflow-browser.test.mjs`, `budget-builder-v2-evidence.test.mjs`, `budget-builder-v2-db.test.cjs`, company budget tests, military scratch publication, and investor email retry tests.
 
 ## Production acceptance still required
 

@@ -2,8 +2,8 @@
  * Learns from uploaded evidence (T12s, box scores, trending occupancy, Conservice,
  * prior budgets, contracts) and from reviewer decisions. Everything it suggests
  * carries its source and a confidence, and is only a suggestion until a person accepts it. */
-import {sectionForGl, freezeBase, num, ASSET_CLASSES, SUMMARY_GROUPS, INCOME_SECTIONS} from './engine.mjs?v=cc80fc96bf9f688a';
-import {t12Basis, conserviceRates} from './importers.mjs?v=bdf56fceeb76e770';
+import {sectionForGl, freezeBase, num, ASSET_CLASSES, SUMMARY_GROUPS, INCOME_SECTIONS} from './engine.mjs?v=bd1244e3577931f1';
+import {t12Basis, conserviceRates} from './importers.mjs?v=1e65bd0a30f98dcb';
 
 const median = a => { const s = a.filter(Number.isFinite).sort((x, y) => x - y); if (!s.length) return null; const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
@@ -54,10 +54,10 @@ export function buildModel({property, fiscalYear, startMonth = 1, periods, propo
   const t12Months = (t12?.periods || []).length, annualize = t12Months > 0 && t12Months < 12 ? 12 / t12Months : 1;
   for (const l of t12?.lines || []) {
     const per = t12.periods || [];
-    add(l.gl, {name: l.name, section: l.section, t12: {total: l.total * annualize, monthly: annualize === 1 ? monthlyByCalendar(l.byPeriod, per, periods) : null, months: t12Months}});
+    add(l.gl, {name: l.name, section: l.section, t12: {total: Number.isFinite(l.total) ? l.total * annualize : null, monthly: annualize === 1 ? monthlyByCalendar(l.byPeriod, per, periods) : null, months: t12Months}});
   }
   for (const l of proposal?.lines || []) add(l.gl, {name: map.get(String(l.gl))?.name || l.name || chart[l.gl] || '', section: map.get(String(l.gl))?.section || l.section, proposal: {total: l.total, monthly: l.monthly}, items: l.items || [], note: l.note || ''});
-  const lines = [...map.values()].filter(l => l.section !== 'Non-Operating' && (num(l.t12?.total) || num(l.proposal?.total) || l.items?.length));
+  const lines = [...map.values()].filter(l => l.section !== 'Non-Operating' && (l.t12 || num(l.proposal?.total) || l.items?.length));
   const season = trending ? seasonality(trending) : null;
   const begin = beginOccupiedFor(trending, box, periods);
   const tb = trending && t12 ? t12Basis(t12, trending, units) : null;
@@ -90,7 +90,7 @@ export function buildModel({property, fiscalYear, startMonth = 1, periods, propo
 
 function monthlyByCalendar(byPeriod, t12Periods, periods) {
   if (!byPeriod || t12Periods.length !== 12) return null;
-  return periods.map(p => num(byPeriod[t12Periods.find(x => x.slice(5) === p.slice(5))]));
+  return periods.map(p => { const value = byPeriod[t12Periods.find(x => x.slice(5) === p.slice(5))]; return Number.isFinite(value) ? value : null; });
 }
 
 function beginOccupiedFor(trending, box, periods) {
@@ -111,7 +111,7 @@ export function portfolioBenchmarks(observations) {
 /* Observations to store after an import or approval (feeds portfolio benchmarks). */
 export function observationsFromResult(result, {communityId, sourceKind, periodFrom, periodTo, assetClass}) {
   const units = result.context.units || 1;
-  return result.groups.map(g => ({community_id: communityId, source_kind: sourceKind, gl_code: null, metric: 'per_unit', value: Math.round(g.final / units * 100) / 100,
+  return result.groups.filter(g => Number.isFinite(g.final)).map(g => ({community_id: communityId, source_kind: sourceKind, gl_code: null, metric: 'per_unit', value: Math.round(g.final / units * 100) / 100,
     basis: {group: g.name, assetClass, units}, period_from: periodFrom, period_to: periodTo}));
 }
 
@@ -131,11 +131,16 @@ export function modelChecks(model, result) {
     out.push({id: 'ws-sum', gl: '6463', severity: 'warn', message: `Water and sewer increases appear added together. Applied to their share of the bill they blend to about ${(num(a.sewer) * num(a.sewerShare) / 100 + num(a.water) * (1 - num(a.sewerShare) / 100)).toFixed(1)}%.`});
   const info = [];
   for (const r of Object.values(result.rows)) {
+    if (!Number.isFinite(r.annual)) continue;
     const t12 = r.t12, f = r.annual - (r.strAnnual || 0);
     if (['6330', '6332', '6335', '6510', '6511', '6512'].includes(String(r.line.gl)) && t12 > 20000 && f === 0)
       out.push({id: 'pos-' + r.line.gl, gl: r.line.gl, severity: 'warn', message: `${r.line.name}: T12 ${Math.round(t12).toLocaleString()} but no budget — confirm the position is eliminated.`});
     if (r.modelAnnual !== null && Math.abs(f - r.modelAnnual) > Math.max(5000, Math.abs(r.modelAnnual) * 0.15) && Math.abs(f - t12) > 5000)
       info.push({size: Math.abs(f - r.modelAnnual), id: 'model-' + r.line.gl, gl: r.line.gl, severity: 'info', message: `${r.line.name}: budget differs from the model by ${Math.round(Math.abs(f - r.modelAnnual)).toLocaleString()} and from T12 by ${Math.round(Math.abs(f - t12)).toLocaleString()}.`});
+  }
+  for (const gl of [...new Set((result.unavailableActuals || []).map(x => x.gl))]) {
+    const missing = result.unavailableActuals.filter(x => x.gl === gl).map(x => x.period);
+    out.push({id: 'actuals-' + gl, gl, severity: 'error', message: `GL ${gl}: closed-month actual evidence is unavailable for ${missing.join(', ')}. Upload complete source evidence and review omitted no-activity accounts before publishing.`});
   }
   if (model.sources?.t12?.annualizedFromMonths) out.unshift({id: 't12-partial', gl: null, severity: 'warn', message: `The T12 upload covers ${model.sources.t12.annualizedFromMonths} month(s); T12 amounts are annualized. Upload a full 12-month T12 for accurate run-rates.`});
   for (const c of result.str?.checks || []) out.push({id: 'str-' + out.length, gl: null, severity: c.severity, message: 'STR programme: ' + c.message});

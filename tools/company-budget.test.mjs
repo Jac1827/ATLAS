@@ -91,3 +91,90 @@ assert(big.needComments > 0, 'variances over threshold need a comment');
 const fc = C.trackCompany({periods, budget: entrata, months, period: '2026-09'}).rows.find(x => x.gl === '6237');
 near(fc.forecast, fc.ytdActual + entrata['6237'].slice(9).reduce((a, b) => a + b, 0), 'forecast = YTD actual + remaining budget');
 console.log('PASS RISE company budget: Budget vs Actual import, drivers, linked fees, allocations, reforecast and monthly tracking');
+
+// Missing cells and GLs are unknown across import, calculation, reload and tracking.
+const missingRep = C.parseBudgetVsActual(bva('Mar 2026', [
+  row('6237', 'Software', '', 2000, null, 6000, 24000),
+  row('4007', 'Other Income', 0, 0, 0, 0, 0),
+]));
+assert.equal(missingRep.lines.find(x => x.gl === '6237').actual, null);
+assert.equal(missingRep.lines.find(x => x.gl === '4007').actual, 0);
+assert.equal(C.amount('  '), null); assert.equal(C.amount('unavailable'), null); assert.equal(C.amount('(1,000.00)'), -1000);
+const loadedMonth = JSON.parse(JSON.stringify(C.monthFromReport(missingRep)));
+assert.equal(loadedMonth.actuals['6237'], null); assert.equal(loadedMonth.actuals['4007'], 0);
+const evidenceBudget = {'6237': Array(12).fill(2000), '4007': Array(12).fill(0), '4120': Array(12).fill(10000)};
+const mt = C.trackCompany({periods, budget: evidenceBudget, months: [loadedMonth], period: '2026-03'});
+const missingLine = mt.rows.find(x => x.gl === '6237'), absentLine = mt.rows.find(x => x.gl === '4120'), zeroLine = mt.rows.find(x => x.gl === '4007');
+for (const field of ['monthActual', 'monthVar', 'ytdActual', 'ytdVar', 'forecast', 'forecastVar']) {
+  assert.equal(missingLine[field], null, `${field} remains unknown for a blank actual`);
+  assert.equal(absentLine[field], null, `${field} remains unknown for an absent GL`);
+}
+assert.equal(zeroLine.monthActual, 0); assert.equal(zeroLine.ytdActual, 0); assert.equal(zeroLine.forecast, 0);
+assert.equal(missingLine.needsComment, false, 'missing evidence is not a numeric variance');
+assert.equal(mt.totals.noi.monthActual, null); assert.equal(mt.totals.expenses.forecast, null);
+const priorMissing = C.trackCompany({periods, budget: {'6237': Array(12).fill(2000)}, months: [{period: '2026-02', actuals: {'6237': 2000}}], period: '2026-02'});
+assert.equal(priorMissing.rows[0].monthVar, 0); assert.equal(priorMissing.rows[0].ytdActual, null); assert.equal(priorMissing.rows[0].forecast, null);
+const reportTotal = {...loadedMonth, actuals: {'6237': 2000}, ytdActual: {'6237': 6000}, ytdBudget: {'6237': 6000}, annualBudget: {'6237': 24000}, entrataBudget: {'6237': 2000}};
+const recovered = C.trackCompany({periods, budget: {'6237': Array(12).fill(2000)}, months: [reportTotal], period: '2026-03'});
+assert.equal(recovered.rows[0].ytdActual, 6000); assert.equal(recovered.rows[0].forecast, 24000); assert(recovered.rows[0].ytdFromReport);
+const partial = C.trackCompany({periods, budget: {'6237': Array(12).fill(2000)}, months: [{...reportTotal, ytdFrom: '2026-02', monthsYtd: 2}], period: '2026-03'});
+assert.equal(partial.rows[0].ytdActual, null, 'partial report YTD cannot stand in for fiscal YTD');
+const absentPriorGl = C.trackCompany({periods, budget: {'6237': Array(12).fill(2000)}, months: [{period: '2026-01', actuals: {}}, {period: '2026-02', actuals: {'6237': 2000}}], period: '2026-02'});
+assert.equal(absentPriorGl.rows[0].ytdActual, null, 'an uploaded month with the GL absent is still missing evidence');
+const complete = C.trackCompany({periods, budget: {'6237': Array(12).fill(2000)}, months: [1, 2, 3].map(i => ({period: `2026-0${i}`, actuals: {'6237': i === 1 ? 0 : 2000}})), period: '2026-03'});
+assert.equal(complete.rows[0].ytdActual, 4000); assert.equal(complete.rows[0].forecast, 22000);
+const noAnnual = C.budgetFromReports(periods, [{period: '2026-01', entrataBudget: {'6237': 0}, annualBudget: {'6237': null}}]);
+assert.equal(noAnnual['6237'][0], 0); assert.equal(noAnnual['6237'][1], null, 'an absent annual total cannot invent remaining monthly budgets');
+const unknownModel = C.buildCompanyModel({fiscalYear: 2027, reports: [C.parseBudgetVsActual(bva('Mar 2026', [row('6237', 'Software', null, null, null, null, null)]))]});
+const unknownResult = C.calculateCompany(JSON.parse(JSON.stringify(unknownModel)));
+assert.equal(unknownResult.rows['6237'].annual, null); assert.equal(unknownResult.rows['6237'].prior, null); assert.equal(unknownResult.totals.annual.noi, null);
+const closedMissing = C.calculateCompany({...model, closedMonths: 2, actuals: {'6237': [0, null]}});
+assert.deepEqual(closedMissing.rows['6237'].monthly.slice(0, 3), [0, null, 2000]); assert.equal(closedMissing.rows['6237'].annual, null);
+const approvedMissing = JSON.parse(JSON.stringify(C.companyLockedSummary({...model, closedMonths: 2, actuals: {'6237': [0, null]}}, closedMissing)));
+assert.equal(approvedMissing.budgetByGl['6237'][1], null); assert.equal(approvedMissing.totals.noi, null);
+
+// Property fiscal budgets only claim covered numeric slots; the next fiscal budget fills gaps.
+const CS = await import('../docs/portfolio-operations-dashboard/features/budget-v2/company-store.mjs');
+const sourceRows = [
+  {community_id: 'alpha', version_id: 'fiscal-a', payload: {rows: [{glCode: '6320', monthly: [0, 10, 10, 10, 10, 10, 10, null, null, null, null, null]}]}},
+  {community_id: 'alpha', version_id: 'fiscal-b', payload: {rows: [{glCode: '6320', monthly: [null, '', ' ', null, null, null, null, 20, 20, 20, 20, 20]}]}}
+];
+const sources = await CS.propertyFees({fetchJson: async url => url.includes('calendar_year=eq.2026') ? sourceRows : []}, 2026);
+assert.equal(sources.alpha.byPeriod['2026-01'], 0); assert.equal(sources.alpha.byPeriod['2026-08'], 20);
+assert.equal(sources.alpha.byPeriod['2026-12'], 20);
+assert.equal(Object.keys(sources.alpha.byPeriod).length, 12);
+
+// Workbook cells remain blank and numeric zero stays numeric after the export boundary.
+const uiEvents = {};
+globalThis.document = {addEventListener(name, fn) { uiEvents[name] = fn; }};
+let exported;
+globalThis.window = {XLSX: {utils: {book_new: () => ({}), aoa_to_sheet: a => { exported = a; return a; }, book_append_sheet() {}}, write: () => new Uint8Array()}};
+const {trackingWorkbook} = await import('../docs/portfolio-operations-dashboard/features/budget-v2/company-ui.mjs');
+trackingWorkbook(mt, 'Synthetic budget');
+assert.equal(exported.find(r => r[0] === '6237')[3], null); assert.equal(exported.find(r => r[0] === '6237')[12], null);
+assert.equal(exported.find(r => r[0] === '4007')[3], 0);
+console.log('PASS company missing evidence: blank/absent GL, monthly and report YTD coverage, forecast/summary/reload/export, property fiscal overlap');
+
+const ytdOnly = C.trackCompany({periods, budget: {}, months: [{period: '2026-03', actuals: {}, ytdBudget: {'6237': 6000}}], period: '2026-03'});
+assert.equal(ytdOnly.rows.length, 1); assert.equal(ytdOnly.rows[0].monthActual, null); assert.equal(ytdOnly.rows[0].ytdActual, null);
+const CompanyUI = await import('../docs/portfolio-operations-dashboard/features/budget-v2/company-ui.mjs');
+const uiBudget = {budget_id: 'synthetic-company', fiscal_year: 2027, status: 'draft', revision: 1, name: 'Synthetic company', payload: {model: unknownModel}};
+const uiMonth = {...loadedMonth, period: '2027-03', ytdFrom: '2027-01', ytdTo: '2027-03'};
+const host = {$app: {}, $ctx: {}, status() {}, communities: [], back() {}, esc: v => String(v ?? ''), money: v => '$' + Number(v).toFixed(0), central: {fetchJson: async url => {
+  if (url.endsWith('atlas_company_budget_my_role')) return 'builder';
+  if (url.startsWith('/atlas_company_budget_months')) return [{period: uiMonth.period, status: 'uploaded', payload: uiMonth, source: {file: 'synthetic.xlsx'}}];
+  if (url.startsWith('/atlas_company_budgets?budget_id=')) return [uiBudget];
+  return [];
+}}};
+await CompanyUI.role(host.central); await CompanyUI.open(host);
+const clickUI = async dataset => uiEvents.click({target: {closest: () => ({dataset})}});
+await clickUI({coOpen: 'synthetic-company'});
+assert.match(host.$app.innerHTML, /Some accounts have incomplete evidence/);
+assert.match(host.$app.innerHTML, /<td class="r"><b>—<\/b>/, 'approval summary renders unknown amounts as a dash');
+await clickUI({coTab: 'lines'});
+assert.match(host.$app.innerHTML, /data-co-ov="6237" value=""/, 'unknown editable annual amount stays blank');
+await clickUI({coTab: 'tracking'});
+assert.match(host.$app.innerHTML, /data-co-act="monthreview" disabled/, 'incomplete monthly review is disabled');
+assert.match(host.$app.innerHTML, /A dash means unavailable/);
+assert.doesNotMatch(host.$app.innerHTML, /counts those months as zero|NaN/);
+console.log('PASS company interface: summary, editable blank and incomplete monthly review render honestly');

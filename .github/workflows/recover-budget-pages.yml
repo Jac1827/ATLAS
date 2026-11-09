@@ -1,0 +1,184 @@
+name: Recover tested Budget Builder Pages artifact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: atlas-production-publisher
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    if: github.repository == 'Jac1827/ATLAS' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: https://jac1827.github.io/ATLAS/
+    steps:
+      - name: Verify tested artifact provenance and retry Pages only
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const {createHash} = require('node:crypto');
+            const expected = Object.freeze({
+              repositoryId: 1279553811,
+              sourceRunId: 42699803966,
+              sourceJobId: 129441197260,
+              sourceAttempt: 1,
+              sourceWorkflowId: 301814189,
+              sourceWorkflow: '.github/workflows/deploy-cloudflare.yml',
+              sourceSha: '7854f633a93a8506a5bf511faf208c2df758b03d',
+              artifactId: 13711983408,
+              artifactBytes: 1815586816,
+              artifactDigest: 'sha256:cdaeba0c38d7b4fbc2b6a80bcf4f8de3b7a1e72c81171407c738e7845a7d9a4a',
+              recoveryWorkflow: '.github/workflows/recover-budget-pages.yml',
+              releaseId: 'bb98ff8e395aa995d231176b8f0288487ab4b80480ad1b8a4f5942d298277d53',
+              manifestSha256: '7595fca062147f8314122532291a08e3ae47f828017504569d1b1261c01e7599',
+              retainedReleases: 81,
+              pagesUrl: 'https://jac1827.github.io/ATLAS/'
+            });
+            const repo = {owner: 'Jac1827', repo: 'ATLAS'};
+            const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+            const reject = message => { const e = new Error(message); e.safeRecoveryMessage = true; throw e; };
+            const requireGuard = (ok, message) => { if (!ok) reject(message); };
+            let phase = 'provenance verification', pending = null;
+            try {
+              requireGuard(context.eventName === 'workflow_dispatch' && context.ref === 'refs/heads/main' &&
+                context.repo.owner === repo.owner && context.repo.repo === repo.repo,
+                'Recovery must be dispatched from this repository main branch.');
+              const {data: main} = await github.rest.git.getRef({...repo, ref: 'heads/main'});
+              requireGuard(main.object.sha === context.sha, 'Main changed after this recovery was dispatched.');
+              const {data: comparison} = await github.rest.repos.compareCommitsWithBasehead({
+                ...repo, basehead: `${expected.sourceSha}...${context.sha}`
+              });
+              requireGuard(comparison.status === 'ahead' && comparison.merge_base_commit.sha === expected.sourceSha &&
+                comparison.total_commits > 0 && comparison.total_commits <= 5 &&
+                comparison.commits.length === comparison.total_commits,
+                'Recovery must descend directly from the tested commit with a short, fully inspectable history.');
+              requireGuard(comparison.files?.length === 1 && comparison.files[0].filename === expected.recoveryWorkflow &&
+                comparison.files[0].status === 'added', 'Only the recovery workflow may differ from the tested commit.');
+              // Inspect every intervening commit, including changes later reverted.
+              for (const item of comparison.commits) {
+                const {data: commit} = await github.rest.repos.getCommit({...repo, ref: item.sha});
+                requireGuard(commit.files?.length === 1 && commit.files[0].filename === expected.recoveryWorkflow &&
+                  ['added', 'modified'].includes(commit.files[0].status) && !commit.files[0].previous_filename,
+                  'An intervening commit changed files outside this recovery workflow.');
+              }
+              const {data: run} = await github.rest.actions.getWorkflowRun({...repo, run_id: expected.sourceRunId});
+              requireGuard(run.id === expected.sourceRunId && run.repository.id === expected.repositoryId &&
+                run.head_repository.id === expected.repositoryId && run.head_sha === expected.sourceSha &&
+                run.head_branch === 'main' && run.event === 'push' && run.path === expected.sourceWorkflow &&
+                run.workflow_id === expected.sourceWorkflowId && run.run_attempt === expected.sourceAttempt &&
+                run.status === 'completed' && run.conclusion === 'failure',
+                'Source run identity, attempt, or completed failure state did not match.');
+              const {data: job} = await github.rest.actions.getJobForWorkflowRun({...repo, job_id: expected.sourceJobId});
+              requireGuard(job.run_id === expected.sourceRunId && job.head_sha === expected.sourceSha &&
+                job.run_attempt === expected.sourceAttempt && job.name === 'production' &&
+                job.status === 'completed' && job.conclusion === 'failure', 'Source production job did not match.');
+              const step = name => {
+                const matches = job.steps.filter(s => s.name === name);
+                requireGuard(matches.length === 1, `Expected exactly one source step: ${name}`);
+                return matches[0];
+              };
+              for (const name of ['Run complete discovered test suite', 'Verify scoped workspace database reader is deployed',
+                'Configure GitHub Pages', 'Build and retain one artifact for both hosts', 'Deploy production Worker',
+                'Upload the same artifact to GitHub Pages']) {
+                const s = step(name);
+                requireGuard(s.status === 'completed' && s.conclusion === 'success', `Source prerequisite did not succeed: ${name}`);
+              }
+              const failed = job.steps.filter(s => !['success', 'skipped'].includes(s.conclusion));
+              requireGuard(failed.length === 1 && failed[0].name === 'Deploy GitHub Pages' &&
+                failed[0].status === 'completed' && failed[0].conclusion === 'failure', 'Pages must be the only failed source step.');
+              const {data: artifact} = await github.rest.actions.getArtifact({...repo, artifact_id: expected.artifactId});
+              requireGuard(artifact.id === expected.artifactId && artifact.name === 'github-pages' && !artifact.expired &&
+                artifact.size_in_bytes === expected.artifactBytes && artifact.digest === expected.artifactDigest &&
+                artifact.workflow_run?.id === expected.sourceRunId && artifact.workflow_run.repository_id === expected.repositoryId &&
+                artifact.workflow_run.head_repository_id === expected.repositoryId && artifact.workflow_run.head_sha === expected.sourceSha &&
+                artifact.workflow_run.head_branch === 'main', 'Artifact metadata or digest did not match the tested upload.');
+              const upload = step('Upload the same artifact to GitHub Pages');
+              requireGuard(Date.parse(artifact.created_at) >= Date.parse(upload.started_at) &&
+                Date.parse(artifact.created_at) <= Date.parse(upload.completed_at), 'Artifact was not created by the verified upload step.');
+              core.info(`Verified original artifact ${expected.artifactId} from tested commit ${expected.sourceSha}. No rebuild or upload.`);
+              phase = 'Pages deployment creation';
+              const idToken = await core.getIDToken();
+              core.setSecret(idToken);
+              // Do not log this payload: it contains the short-lived OIDC token.
+              // Submit once. An uncertain creation response must be investigated, not blindly retried.
+              const {data: deployment} = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
+                ...repo, artifact_id: expected.artifactId, environment: 'github-pages',
+                pages_build_version: expected.sourceSha, oidc_token: idToken
+              });
+              const deploymentId = String(deployment.id || expected.sourceSha);
+              requireGuard(/^[a-zA-Z0-9_-]{1,128}$/.test(deploymentId), 'Unexpected Pages deployment identifier.');
+              pending = deploymentId;
+              core.setOutput('deployment_id', deploymentId);
+              core.info(`Created Pages recovery deployment ${deploymentId}.`);
+              phase = 'Pages status polling';
+              const deadline = Date.now() + 600000;
+              const terminal = new Set(['deployment_failed', 'deployment_perms_error', 'deployment_content_failed',
+                'deployment_cancelled', 'deployment_lost']);
+              let errors = 0, previousStatus = null, succeeded = false;
+              while (Date.now() < deadline) {
+                await wait(Math.min(10000, Math.max(1, deadline - Date.now())));
+                let status;
+                try {
+                  const {data} = await github.request('GET /repos/{owner}/{repo}/pages/deployments/{deployment_id}', {
+                    ...repo, deployment_id: deploymentId
+                  });
+                  status = data.status; errors = 0;
+                } catch (error) {
+                  errors++;
+                  core.warning(`Pages status request failed (${Number(error.status) || 'network'}); attempt ${errors}/10.`);
+                  if (errors >= 10) reject('Pages status could not be verified after ten consecutive errors.');
+                  continue;
+                }
+                if (status !== previousStatus) { core.info(`Pages status: ${String(status)}`); previousStatus = status; }
+                if (status === 'succeed') { pending = null; succeeded = true; break; }
+                if (terminal.has(status)) { pending = null; reject(`Pages reported terminal status: ${status}`); }
+              }
+              requireGuard(succeeded, 'Pages recovery exceeded the supported ten-minute deployment window.');
+              phase = 'live Pages verification';
+              let verified = false;
+              for (let attempt = 0; attempt < 6; attempt++) {
+                try {
+                  const response = await fetch(`${expected.pagesUrl}atlas-asset-manifest.json?recovery=${context.runId}&attempt=${attempt}`, {
+                    headers: {'cache-control': 'no-cache'}, signal: AbortSignal.timeout(15000)
+                  });
+                  if (response.ok) {
+                    const bytes = Buffer.from(await response.arrayBuffer());
+                    if (createHash('sha256').update(bytes).digest('hex') === expected.manifestSha256) {
+                      const manifest = JSON.parse(bytes.toString('utf8'));
+                      verified = manifest.releaseId === expected.releaseId && manifest.retainedReleaseIds?.length === expected.retainedReleases;
+                      if (verified) break;
+                    }
+                  }
+                } catch {
+                  core.warning(`Live manifest verification request ${attempt + 1}/6 failed; retrying.`);
+                }
+                await wait(10000);
+              }
+              requireGuard(verified, 'Pages reported success but the exact tested live manifest was not verified.');
+              core.info(`Verified live release ${expected.releaseId} with all ${expected.retainedReleases} retained releases.`);
+              core.setOutput('page_url', expected.pagesUrl);
+            } catch (error) {
+              core.setFailed(error.safeRecoveryMessage ? error.message :
+                `Recovery failed during ${phase} (HTTP ${Number(error.status) || 'network/runtime'}). No request credentials were logged.`);
+            } finally {
+              if (pending) {
+                try {
+                  await github.request('POST /repos/{owner}/{repo}/pages/deployments/{deployment_id}/cancel', {
+                    ...repo, deployment_id: pending
+                  });
+                  core.info(`Cancelled pending recovery deployment ${pending}.`);
+                } catch (error) {
+                  core.warning(`Could not confirm cancellation (${Number(error.status) || 'network'}); inspect the deployment before retrying.`);
+                }
+              }
+            }

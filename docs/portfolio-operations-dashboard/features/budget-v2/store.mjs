@@ -58,7 +58,7 @@ export async function decisions(central, communityIds) {
 }
 
 export async function approvedBaseline(central, communityId, year) {
-  return central.fetchJson(`/atlas_approved_budget_versions?community_id=eq.${communityId}&calendar_year=eq.${year}&select=version_id&limit=20`).catch(() => []);
+  return central.fetchJson(`/atlas_approved_budget_versions?community_id=eq.${communityId}&calendar_year=eq.${year}&select=version_id,payload&limit=20`).catch(() => []);
 }
 
 export async function sendInvestorPackage(central, {draftId, recipients, requestId = uuid()}) {
@@ -94,4 +94,12 @@ export function governedApi(central) {
     createFromImport: options => rf.createFromImport(central, options),
     saveScenario: options => rf.saveScenario(central, options)
   };
+}
+
+/* A community not in ATLAS yet (VP only). */
+export async function createCommunity(central, {name, units, propertyType, market, development = false}) {
+  const id = await central.fetchJson('/rpc/atlas_budget_builder_create_community', {method: 'POST', body: JSON.stringify({p_name: name, p_units: units, p_property_type: propertyType, p_market: market, p_development: development})});
+  const v = Array.isArray(id) ? id[0] : id;
+  if (!UUID.test(String(v || ''))) throw Error('The community could not be created.');
+  return String(v);
 }

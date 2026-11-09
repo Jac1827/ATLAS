@@ -6,6 +6,7 @@
  * Sign convention: income positive, contra-income (vacancy, concessions…) negative,
  * expenses positive. NOI = total income − operating expenses.
  */
+import {strUnitsByMonth, strCalculate, strSectionFor, STR_INCOME_SECTION, STR_EXPENSE_SECTION} from './str.mjs?v=f3b38a6b870d777f';
 
 export const ASSET_CLASSES = {
   conventional: {label: 'Conventional apartments', unitLabel: 'unit', model: 'conventional', incomeInNoi: true},
@@ -16,8 +17,8 @@ export const ASSET_CLASSES = {
   military: {label: 'Military housing', unitLabel: 'home', model: 'owner_specific', incomeInNoi: false}
 };
 
-export const INCOME_SECTIONS = ['Rental Income', 'Cost Of Leasing', 'Other Income'];
-export const OPEX_SECTIONS = ['Payroll Office', 'Payroll Maintenance', 'Payroll Related Expenses', 'General & Administrative', 'Professional Fees', 'Contract Services', 'Turnover Expense', 'Repairs & Maintenance', 'Marketing & Leasing', 'Common Area Utilities', 'Unit Utilities', 'Management Fees', 'Taxes & Insurance'];
+export const INCOME_SECTIONS = ['Rental Income', 'Cost Of Leasing', 'Other Income', STR_INCOME_SECTION];
+export const OPEX_SECTIONS = ['Payroll Office', 'Payroll Maintenance', 'Payroll Related Expenses', 'General & Administrative', 'Professional Fees', 'Contract Services', 'Turnover Expense', 'Repairs & Maintenance', 'Marketing & Leasing', 'Common Area Utilities', 'Unit Utilities', 'Management Fees', 'Taxes & Insurance', STR_EXPENSE_SECTION];
 export const BELOW_NOI_SECTIONS = ['Replacement Reserves', 'Capital Expenditures'];
 export const ALL_SECTIONS = [...INCOME_SECTIONS, ...OPEX_SECTIONS, ...BELOW_NOI_SECTIONS];
 export const SUMMARY_GROUPS = [
@@ -29,7 +30,8 @@ export const SUMMARY_GROUPS = [
   ['Marketing & Leasing', ['Marketing & Leasing']],
   ['Utilities', ['Common Area Utilities', 'Unit Utilities']],
   ['Management Fees', ['Management Fees']],
-  ['Taxes & Insurance', ['Taxes & Insurance']]
+  ['Taxes & Insurance', ['Taxes & Insurance']],
+  ['Short-term rental', [STR_EXPENSE_SECTION]]
 ];
 
 /* Section from the RISE chart of accounts when an imported or new GL has no section. */
@@ -130,18 +132,25 @@ export function buildContext(model) {
   const rent = num(a.marketRent) * (1 + num(a.rentGrowth) / 100);
   const s = model.schedule || {};
   const mi = (s.moveIns || zeros()).map(num), mo = (s.moveOuts || zeros()).map(num);
-  const occ = [];
+  const occRaw = [];
   let o = num(s.beginOccupied);
-  for (let m = 0; m < 12; m++) { o = Math.max(0, Math.min(units, o + mi[m] - mo[m])); occ.push(o); }
-  const vac = occ.map(v => Math.max(0, units - v));
+  for (let m = 0; m < 12; m++) { o = Math.max(0, Math.min(units, o + mi[m] - mo[m])); occRaw.push(o); }
+  // STR units leave the long-term pool: the schedule's occupancy rate applies to the
+  // remaining long-term units, so occupied units, move-ins and move-outs scale down.
+  const strUnits = Array.isArray(model.strUnitsFixed) ? model.strUnitsFixed.map(num) : strUnitsByMonth(model);
+  const ltUnits = strUnits.map(n => Math.max(0, units - n));
+  const share = ltUnits.map(n => (units ? n / units : 1));
+  const occ = occRaw.map((v, m) => v * share[m]);
+  const vac = occ.map((v, m) => Math.max(0, ltUnits[m] - v));
+  const miLt = mi.map((v, m) => v * share[m]), moLt = mo.map((v, m) => v * share[m]);
   const salaries = zeros();
   for (const p of model.positions || []) positionMonthly(p).forEach((v, m) => { salaries[m] += v; });
   const sewerShare = num(a.sewerShare) / 100;
   const ws = num(a.sewer) * sewerShare + num(a.water) * (1 - sewerShare);
-  return {units, rent, gprM: units * rent, occ, vac, mi, mo, salaries, a,
+  return {units, rent, gprM: units * rent, occ, occRaw, vac, mi: miLt, mo: moLt, miRaw: mi, moRaw: mo, strUnits, ltUnits, salaries, a,
     E: num(a.electric), WS: ws, ltl: num(a.ltlPct), conc: num(a.concessionPct), bd: num(a.badDebtPct), mgmt: num(a.mgmtPct),
     infl: num(a.inflation), tax: num(a.taxChange), ins: num(a.insChange), reserve: num(a.reservePerUnit),
-    occUM: sum(occ), vacUM: sum(vac), miTotal: sum(mi), moTotal: sum(mo), salTotal: sum(salaries)};
+    occUM: sum(occRaw), occLtUM: sum(occ), vacUM: sum(vac), miTotal: sum(mi), moTotal: sum(mo), salTotal: sum(salaries)};
 }
 
 /* Quantity per month for linked scaling (proposal × qty/baseQty). */
@@ -224,7 +233,7 @@ function shape(values, annual) {
 /* Main calculation. */
 export function calculate(model) {
   const c = buildContext(model);
-  const base = model.base ? buildContext({...model, ...model.base, property: model.property}) : c;
+  const base = model.base ? buildContext({...model, ...model.base, property: model.property, strUnitsFixed: model.base.strUnits || zeros()}) : c;
   const basis = {rent: num(model.basis?.rent), occUM: num(model.basis?.occUM), vacUM: num(model.basis?.vacUM), mi: num(model.basis?.moveIns), mo: num(model.basis?.moveOuts), salaries: num(model.basis?.salaries)};
   const asset = ASSET_CLASSES[model.property?.assetClass] || ASSET_CLASSES.conventional;
   const closed = Math.max(0, Math.min(12, num(model.closedMonths)));
@@ -270,12 +279,62 @@ export function calculate(model) {
   pass(INCOME_SECTIONS, null, null);
   const incomeM = zeros(), baseIncomeM = zeros();
   for (const r of Object.values(out)) r.monthly.forEach((v, m) => { incomeM[m] += v; });
+  const str = model.str?.enabled ? strCalculate(model, c) : null;
+  const postStr = str && model.str.postToProperty !== false;
+  // The property management fee excludes STR income unless the agreement charges it.
+  // Converted units' rent always leaves the fee base.
+  if (postStr) for (let m = 0; m < 12; m++) {
+    incomeM[m] += str.lines.conversionLoss[m];
+    if (model.str.propertyMgmtFeeOnStr) incomeM[m] += str.monthly.revenue[m] + str.monthly.deductions[m];
+  }
   if (model.base?.incomeMonthly) model.base.incomeMonthly.forEach((v, m) => { baseIncomeM[m] = num(v); });
   else lines.filter(l => INCOME_SECTIONS.includes(l.section)).forEach(l => (l.proposal?.monthly || []).forEach((v, m) => { baseIncomeM[m] += num(v); }));
   pass([...OPEX_SECTIONS, ...BELOW_NOI_SECTIONS], incomeM, baseIncomeM);
   if (lines.some(l => !ALL_SECTIONS.includes(l.section))) pass(lines.filter(l => !ALL_SECTIONS.includes(l.section)).map(l => l.section), incomeM, baseIncomeM);
 
-  return summarize(model, c, out, asset);
+  if (postStr) mergeStr(model, out, str, closed);
+  const result = summarize(model, c, out, asset);
+  if (str) {
+    // The same budget without the programme: the difference is the programme's
+    // full effect on the property, including long-term income it displaces.
+    const without = model.str.postToProperty === false ? result : calculate({...model, str: {...model.str, enabled: false}});
+    result.str = {...str, posted: postStr, without: without.totals.annual, withoutMonthly: without.monthly, withoutRows: Object.fromEntries(Object.entries(without.rows).map(([gl, r]) => [gl, r.monthly])),
+      impact: impactOf(result, without)};
+  }
+  return result;
+}
+
+/* Add STR GL amounts to the property rows. Shared GLs keep their conventional part
+ * separately (convMonthly) so overrides and views stay exact. */
+function mergeStr(model, out, str, closed) {
+  for (const g of str.glRows) {
+    const actual = model.actuals?.[g.gl];
+    let r = out[g.gl];
+    if (!r) {
+      const line = {gl: g.gl, name: g.name, section: strSectionFor(g.nature, g.gl, sectionForGl), str: true};
+      r = out[g.gl] = {line, kind: 'str', type: 'str', monthly: zeros(), annual: 0, model: null, modelAnnual: null, proposalAnnual: null, t12: 0, overridden: false, locked: zeros().map((_, m) => m < closed)};
+    }
+    r.convMonthly = r.monthly.slice();
+    r.strMonthly = g.monthly.map((v, m) => (m < closed && actual ? 0 : v));
+    if (r.type === 'str' && closed && actual) for (let m = 0; m < closed; m++) r.convMonthly[m] = num(actual[m]);
+    r.monthly = r.convMonthly.map((v, m) => round2(v + r.strMonthly[m]));
+    r.annual = round2(sum(r.monthly));
+    r.strAnnual = round2(sum(r.strMonthly));
+    r.strKeys = g.keys;
+  }
+}
+
+function impactOf(result, without) {
+  const rows = {};
+  const gls = new Set([...Object.keys(result.rows), ...Object.keys(without.rows)]);
+  for (const gl of gls) {
+    const a = result.rows[gl], b = without.rows[gl];
+    const monthly = zeros().map((_, m) => round2((a?.monthly[m] || 0) - (b?.monthly[m] || 0)));
+    if (monthly.some(v => Math.abs(v) >= 0.005)) rows[gl] = {gl, name: (a || b).line.name, section: (a || b).line.section, monthly, annual: round2(sum(monthly)), strDirect: a?.strAnnual || 0};
+  }
+  const t = k => round2(result.totals.annual[k] - without.totals.annual[k]);
+  return {rows, totals: {income: t('income'), opex: t('opex'), noi: t('noi'), reserves: t('reserves'), capex: t('capex'), cashFlow: t('cashFlow')},
+    monthly: {income: result.monthly.income.map((v, m) => round2(v - without.monthly.income[m])), opex: result.monthly.opex.map((v, m) => round2(v - without.monthly.opex[m])), noi: result.monthly.noi.map((v, m) => round2(v - without.monthly.noi[m]))}};
 }
 
 function summarize(model, c, rows, asset) {
@@ -298,11 +357,11 @@ function summarize(model, c, rows, asset) {
   }
   const incomeM = asset.incomeInNoi ? totM(INCOME_SECTIONS) : zeros();
   const opexM = totM(OPEX_SECTIONS);
-  const groups = SUMMARY_GROUPS.map(([name, secs]) => ({name, final: tot(secs, 'annual'), t12: tot(secs, 't12'), proposal: tot(secs, 'proposal'), model: tot(secs, 'model'), perUnit: tot(secs, 'annual') / units}));
+  const groups = SUMMARY_GROUPS.map(([name, secs]) => ({name, final: tot(secs, 'annual'), t12: tot(secs, 't12'), proposal: tot(secs, 'proposal'), model: tot(secs, 'model'), perUnit: tot(secs, 'annual') / units})).filter(g => g.name !== 'Short-term rental' || g.final || g.t12 || g.proposal);
   const memo = asset.incomeInNoi ? null : {label: 'BAH memo (not collected; excluded from NOI)', annual: bahMemo(model, c)};
   return {context: c, rows, sections: bySection, totals: T, monthly: {income: incomeM, opex: opexM, noi: incomeM.map((v, m) => v - opexM[m])},
     groups, memo, kpis: {avgOccupancy: c.units ? c.occUM / 12 / c.units : 0, moveIns: c.miTotal, moveOuts: c.moTotal, turnover: c.units ? c.moTotal / c.units : 0,
-      noiPerUnit: T.annual.noi / units, opexPerUnit: T.annual.opex / units}};
+      noiPerUnit: T.annual.noi / units, opexPerUnit: T.annual.opex / units, strUnitsAvg: sum(c.strUnits) / 12}};
 }
 
 /* Military: BAH that would be collected = Σ pay-grade homes × monthly BAH × occupancy share. */
@@ -315,6 +374,7 @@ export function bahMemo(model, c = buildContext(model)) {
 /* Lines needing a written note: variance vs T12 above both $1,000 and 10%. */
 export function noteFlags(result, notes = {}, {dollars = 1000, pct = 10} = {}) {
   return Object.values(result.rows).filter(r => {
+    if (r.type === 'str' || !r.line.t12) return false;  // nothing to compare without a T12
     const t12 = r.t12, d = r.annual - t12;
     const p = t12 ? Math.abs(d / t12) * 100 : (Math.abs(d) > 0 ? Infinity : 0);
     const note = notes[r.line.gl] ?? r.line.note;
@@ -327,7 +387,7 @@ export function freezeBase(model) {
   const lines = model.lines || [];
   const incomeMonthly = zeros();
   lines.filter(l => INCOME_SECTIONS.includes(l.section)).forEach(l => (l.proposal?.monthly || []).forEach((v, m) => { incomeMonthly[m] += num(v); }));
-  return {schedule: structuredClone(model.schedule || {}), assumptions: structuredClone(model.assumptions || {}), positions: structuredClone(model.positions || []), incomeMonthly};
+  return {schedule: structuredClone(model.schedule || {}), assumptions: structuredClone(model.assumptions || {}), positions: structuredClone(model.positions || []), incomeMonthly, strUnits: strUnitsByMonth(model)};
 }
 
 /* GL × month rows for the governed workbook hand-off. Capex/reserves are included (below NOI). */

@@ -1,16 +1,19 @@
 /* Budget Builder v2 — user interface. Mounted in the ATLAS Budget tab (iframe). */
-import * as E from './engine.mjs';
-import * as I from './importers.mjs';
-import * as Lr from './learning.mjs';
-import * as H from './handoff.mjs';
-import * as S from './store.mjs';
-import {investorSummary, investorHtml, investorPdf, money as moneyFmt} from './investor-package.mjs';
+import * as E from './engine.mjs?v=cc80fc96bf9f688a';
+import * as I from './importers.mjs?v=bdf56fceeb76e770';
+import * as Lr from './learning.mjs?v=98ea2a8288a01d98';
+import * as H from './handoff.mjs?v=8da6d2244d091be5';
+import * as S from './store.mjs?v=e0a9c5dfe08b787d';
+import * as SU from './str-ui.mjs?v=6bae4cda970dcaba';
+import * as CU from './company-ui.mjs?v=c7edc3606ae43bba';
+import * as SC from './scratch.mjs?v=6a13f2b12f093fda';
+import {investorSummary, investorHtml, investorPdf, money as moneyFmt} from './investor-package.mjs?v=6fab0b0adb2b9ed3';
 import {parseReforecastWorkbook} from '../reforecast-intake.mjs?v=74bbd52d93a197cc';
 import {planningMappingDispositions} from '../planning-governance.mjs?v=a4de8d3f5a50966c';
 
 const $app = document.getElementById('bb-app'), $ctx = document.getElementById('bb-context'), $status = document.getElementById('bb-status');
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const TABS = [['setup', 'Setup'], ['leasing', 'Leasing schedule'], ['income', 'Income'], ['expenses', 'Expenses'], ['payroll', 'Payroll'], ['drivers', 'Drivers & documents'], ['summary', 'Summary & approval'], ['investor', 'Investor package']];
+const TABS = [['setup', 'Setup'], ['leasing', 'Leasing schedule'], ['income', 'Income'], ['expenses', 'Expenses'], ['payroll', 'Payroll'], ['str', 'Short-term rental'], ['drivers', 'Drivers & documents'], ['summary', 'Summary & approval'], ['investor', 'Investor package']];
 const STATUS = {gm_draft: ['Draft · GM', ''], regional_review: ['In review · Regional', 'warn'], vp_review: ['Awaiting VP', 'warn'], approved_locked: ['Approved · Locked', 'lock'], sent_to_investors: ['Sent to investors', 'lock'], archived: ['Archived', '']};
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const money = n => moneyFmt(n);
@@ -45,6 +48,7 @@ function recalc() {
   s.checks = Lr.modelChecks(s.model, s.result);
 }
 function mark() { s.dirty = true; recalc(); render(); scheduleSave(); }
+const strCtx = () => ({s, dis, canEdit, mark, money, esc, MON, num, status, render});
 
 /* ---------------- boot ---------------- */
 /* Month-end close, reforecast review, STR and report tools remain in the classic
@@ -60,6 +64,7 @@ async function boot() {
   s.cid = s.communities[0]?.id || '';
   try { s.benchmarks = await S.benchmarks(s.central) || {}; } catch { s.benchmarks = {}; }
   try { const d = await S.decisions(s.central, s.communities.map(c => c.id)); s.decisions = (d || []).map(r => ({gl: r.gl_code, model: r.basis?.model, final: r.value})); } catch { s.decisions = []; }
+  s.coRole = await CU.role(s.central).catch(() => null);
   await loadDrafts();
   render();
   window.addEventListener('message', e => {
@@ -82,8 +87,12 @@ async function openDraft(id) {
   recalc(); render();
 }
 
+const START_MODES = [['existing', 'Existing budget', 'Work from a Vena Budget Report or a budget model (Import Sheet)'], ['model', 'T12 & reports', 'Learn from a T12, box score, trending occupancy, Conservice and contracts'], ['scratch', 'From scratch', 'Enter the property details; ATLAS suggests a full starting budget to finish on each tab']];
 function newDraft() {
-  const c = s.communities.find(x => x.id === s.cid);
+  if (s.newDraft.start === 'scratch' && s.newDraft.newCommunity && (s.newDraft.communityName || '').trim().length < 2) { status('Enter the new community name.', true); return; }
+  const c = s.newDraft.start === 'scratch' && s.newDraft.newCommunity ? {name: s.newDraft.communityName.trim()} : s.communities.find(x => x.id === s.cid);
+  s.startChoice = s.newDraft.start || 'existing';
+  s.scratch = {name: c?.name || '', units: s.newDraft.newCommunity ? '' : (s.communities.find(x => x.id === s.cid)?.units || ''), status: 'operating', state: 'FL', newCommunity: !!(s.newDraft.start === 'scratch' && s.newDraft.newCommunity), absorption: '', firstMoveInMonth: 0};
   s.draft = {draft_id: S.uuid(), revision: 0, status: 'gm_draft', community_id: s.cid, fiscal_year: num(s.newDraft.year), plan_type: s.newDraft.planType, asset_class: s.newDraft.assetClass, name: `${c?.name || 'Community'} FY${s.newDraft.year} ${s.newDraft.planType === 'reforecast' ? 'Reforecast' : 'Budget'}`};
   s.model = null; s.result = null; s.sources = []; s.documents = []; s.events = []; s.tab = 'setup'; s.dirty = false; render();
 }
@@ -170,7 +179,7 @@ async function buildFromSources() {
   const proposal = pick('vena_budget') || pick('import_sheet');
   const box = pick('boxscore');
   const model = Lr.buildModel({property: {name: c?.name || '', units: c?.units || box?.units, assetClass: s.draft.asset_class}, fiscalYear: s.draft.fiscal_year, startMonth, periods,
-    proposal, t12: pick('t12'), box, trending: pick('trending'), conservice: pick('conservice'), start: s.startChoice});
+    proposal, t12: pick('t12'), box, trending: pick('trending'), conservice: pick('conservice'), start: s.startChoice === 'model' ? 'model' : undefined});
   if (!model.property.units) { status('Unit count unknown — upload a box score or set units in Community Settings.', true, 8000); return; }
   model.learned = Lr.calibrate(s.decisions);
   if (s.draft.plan_type === 'reforecast' && pick('t12')) {
@@ -207,7 +216,7 @@ function summaryForInvestors() {
     `Average market rent ${money(r.context.rent)} (${num(a.rentGrowth) >= 0 ? '+' : ''}${num(a.rentGrowth)}% growth); average occupancy ${(r.kpis.avgOccupancy * 100).toFixed(1)}%.`,
     `${r.kpis.moveIns} move-ins and ${r.kpis.moveOuts} move-outs; concessions ${num(a.concessionPct).toFixed(2)}% and loss to lease ${num(a.ltlPct).toFixed(2)}% of GPR.`,
     `Utilities: electric +${num(a.electric).toFixed(1)}%, water +${num(a.water).toFixed(1)}%, sewer +${num(a.sewer).toFixed(1)}% (blended water/sewer +${r.context.WS.toFixed(1)}%).`,
-    `Management fee ${num(a.mgmtPct).toFixed(2)}% of total income; replacement reserves ${money(a.reservePerUnit)} per ${Lr.unitLabel(m)}.`];
+    `Management fee ${num(a.mgmtPct).toFixed(2)}% of total income; replacement reserves ${money(a.reservePerUnit)} per ${Lr.unitLabel(m)}.`, SU.investorLine(r, money)].filter(Boolean);
   return investorSummary({community: c?.name || m.property.name, units: m.property.units, unitLabel: Lr.unitLabel(m), fiscalYear: s.draft.fiscal_year,
     periodLabel: `${MON[num(p[0].slice(5)) - 1]} ${p[0].slice(0, 4)} – ${MON[num(p[11].slice(5)) - 1]} ${p[11].slice(0, 4)}`, assetClass: E.ASSET_CLASSES[m.property.assetClass]?.label, result: r, assumptions, notes,
     approvals: [...approvals(), {role: 'VP', name: s.me?.name || '', at: new Date().toISOString()}].filter((x, i, arr) => arr.findIndex(y => y.role === x.role) === i)});
@@ -233,11 +242,12 @@ async function vpApprove() {
   if (!confirm(`Approve and lock ${s.draft.name}? This publishes the budget to ATLAS (Financial Position, Bonus, Community Command and exports).${flags.length ? `\n\n${flags.length} line(s) still have no variance note.` : ''}`)) return;
   s.busy = true; render();
   try {
-    const baseline = s.draft.publication_id ? (await S.approvedBaseline(s.central, s.draft.community_id, Number(s.model.periods[0].slice(0, 4)))).map(r => r.version_id) : [];
+    const versions = s.draft.publication_id ? await S.approvedBaseline(s.central, s.draft.community_id, Number(s.model.periods[0].slice(0, 4))) : [];
+    const baseline = versions.map(r => r.version_id), originalGls = versions.flatMap(r => (r.payload?.rows || []).map(x => String(x.glCode)));
     const published = await H.governedPublish({api: S.governedApi(s.central), XLSX: window.XLSX, parseWorkbook: parseReforecastWorkbook, dispositions: planningMappingDispositions, uuid: S.uuid,
       result: s.result, communityId: s.draft.community_id, draftId: s.draft.draft_id, actorId: s.me.userId, periods: s.model.periods,
       calendar: {basis: s.model.startMonth === 1 ? 'calendar' : 'fiscal', startMonth: s.model.startMonth}, name: s.draft.name + (baseline.length ? ' (VP revision)' : ''),
-      model: E.ASSET_CLASSES[s.model.property.assetClass]?.model || 'conventional', baselineVersionIds: baseline, onStep: m => status(m + '…', false, 0)});
+      model: E.ASSET_CLASSES[s.model.property.assetClass]?.model || 'conventional', baselineVersionIds: baseline, originalGls, onStep: m => status(m + '…', false, 0)});
     s.draft = await S.transition(s.central, {draftId: s.draft.draft_id, expectedRevision: s.draft.revision, action: 'vp_approve', detail: {publicationId: published.publication.publication_id, scenarioId: published.scenarioId, summary: summaryForInvestors()}});
     const obs = Lr.observationsFromResult(s.result, {communityId: s.draft.community_id, sourceKind: 'approved_budget', periodFrom: s.model.periods[0], periodTo: s.model.periods[11], assetClass: s.model.property.assetClass});
     S.recordObservations(s.central, s.draft.community_id, obs.map(({community_id, ...o}) => o)).catch(() => {});
@@ -256,6 +266,7 @@ async function downloadPdf(summary) {
 
 /* ---------------- rendering ---------------- */
 function render() {
+  if (CU.isActive()) { CU.render(); return; }
   renderContext();
   if (!s.draft) { $app.innerHTML = renderStart(); return; }
   const st = draftStatus();
@@ -272,10 +283,13 @@ function renderContext() {
   const st = s.draft ? STATUS[draftStatus()] : null;
   $ctx.innerHTML = `<label class="f" style="flex-direction:row;align-items:center;gap:8px">Community<select class="sel" data-ctx="community">${opts}</select></label>
   <label class="f" style="flex-direction:row;align-items:center;gap:8px">Budget<select class="sel" data-ctx="draft"><option value="">${s.drafts.length ? 'Choose…' : 'No budgets yet'}</option>${drafts}</select></label>
-  <button class="btn ghost" data-act="new">+ New</button><a class="btn ghost" href="${classicUrl('?atlasView=actuals')}" title="Actuals & close, reforecasts, STR, reports and exports">Close & reports</a>${st ? `<span class="pill ${st[1]}">${st[0]}${s.vpEditing ? ' · VP editing' : ''}</span>` : ''}`;
+  <button class="btn ghost" data-act="new">+ New</button>${s.coRole ? '<button class="btn ghost" data-act="company" title="RISE Residential, LLC company budget and monthly tracking">RISE company budget</button>' : ''}<a class="btn ghost" href="${classicUrl('?atlasView=actuals')}" title="Actuals & close, reforecasts, STR, reports and exports">Close & reports</a>${st ? `<span class="pill ${st[1]}">${st[0]}${s.vpEditing ? ' · VP editing' : ''}</span>` : ''}`;
 }
 function renderStart() {
-  return `<div class="card"><p class="h2">Start a budget or reforecast</p><p class="muted">Choose the year, plan type and asset class, then upload the sources the model should learn from.</p>
+  const how = s.newDraft.start || 'existing';
+  return `<div class="card"><p class="h2">Start a budget or reforecast</p><p class="muted">Choose the year, plan type and asset class, and how to start: from an existing budget, from a T12 and reports, or from scratch with a suggested starting point.</p>
+  <div class="grid" style="margin-top:10px">${START_MODES.map(([k, l, d]) => `<button class="choice ${how === k ? 'on' : ''}" data-startnew="${k}"><b>${l}</b><span>${d}</span></button>`).join('')}</div>
+  ${how === 'scratch' ? `<div class="row" style="margin-top:10px"><label class="f" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="chk" data-new-community ${s.newDraft.newCommunity ? 'checked' : ''}> This community isn't in ATLAS yet</label>${s.newDraft.newCommunity ? `<label class="f">Community name<input class="inp" data-new="communityName" value="${esc(s.newDraft.communityName || '')}" placeholder="e.g. RISE Riverside"></label>` : `<span class="muted">Budget for: <b>${esc(s.communities.find(c => c.id === s.cid)?.name || '')}</b> (change it in the Community list above)</span>`}</div>` : ''}
   <div class="row" style="margin-top:12px"><label class="f">Fiscal year<input class="inp sm" data-new="year" value="${esc(s.newDraft.year)}"></label>
   <label class="f">Plan<select class="sel" data-new="planType"><option value="budget" ${s.newDraft.planType === 'budget' ? 'selected' : ''}>Budget</option><option value="reforecast" ${s.newDraft.planType === 'reforecast' ? 'selected' : ''}>Reforecast</option></select></label>
   <label class="f">Asset class<select class="sel" data-new="assetClass">${Object.entries(E.ASSET_CLASSES).map(([k, v]) => `<option value="${k}" ${s.newDraft.assetClass === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
@@ -288,30 +302,74 @@ function kpis() {
   const memo = s.result.memo ? `<div class="kpi"><div class="k">BAH memo</div><div class="v">${money(s.result.memo.annual)}</div><div class="d">Not collected · excluded from NOI</div></div>` : '';
   return `<div class="kpis">
   <div class="kpi"><div class="k">Total income</div><div class="v">${money(T.annual.income)}</div><div class="d">${pct(T.annual.income, T.t12.income)} vs T12${T.proposal.income ? ' · proposal ' + money(T.proposal.income) : ''}</div></div>
-  <div class="kpi"><div class="k">Operating expenses</div><div class="v">${money(T.annual.opex)}</div><div class="d">${pct(T.annual.opex, T.t12.opex)} vs T12 · model ${money(T.model.opex)}</div></div>
+  <div class="kpi"><div class="k">Operating expenses</div><div class="v">${money(T.annual.opex)}</div><div class="d">${pct(T.annual.opex, T.t12.opex)} vs T12${s.model.sources?.t12 ? ' · model ' + money(T.model.opex) : ''}</div></div>
   <div class="kpi"><div class="k">NOI</div><div class="v">${money(T.annual.noi)}</div><div class="d">${pct(T.annual.noi, T.t12.noi)} vs T12</div></div>
   <div class="kpi"><div class="k">NOI / ${ul}</div><div class="v">${money(T.annual.noi / u)}</div><div class="d">OpEx ${money(T.annual.opex / u)} / ${ul}</div></div>
   <div class="kpi"><div class="k">Avg occupancy</div><div class="v">${(K.avgOccupancy * 100).toFixed(1)}%</div><div class="d">${K.moveIns} move-ins · ${K.moveOuts} move-outs</div></div>
-  <div class="kpi"><div class="k">Notes needed</div><div class="v">${flags}</div><div class="d">Over ±10% and $1,000 vs T12 without a note</div></div>${memo}</div>`;
+  <div class="kpi"><div class="k">Notes needed</div><div class="v">${flags}</div><div class="d">${s.model.sources?.t12 ? 'Over ±10% and $1,000 vs T12 without a note' : 'Upload a T12 to compare lines'}</div></div>${memo}</div>`;
 }
 function body() {
   if (s.tab === 'setup' || !s.model) return setupTab();
-  return {leasing: leasingTab, income: () => gridTab('income'), expenses: () => gridTab('expenses'), payroll: payrollTab, drivers: driversTab, summary: summaryTab, investor: investorTab}[s.tab]();
+  return {leasing: leasingTab, income: () => gridTab('income'), expenses: () => gridTab('expenses'), payroll: payrollTab, str: () => SU.strTab(strCtx()), drivers: driversTab, summary: summaryTab, investor: investorTab}[s.tab]();
 }
 
 function setupTab() {
   const ac = s.model?.property.assetClass || s.draft.asset_class;
   const srcRows = (s.sources.length ? s.sources.map(x => ({file: x.file, kind: x.kind, sheet: x.sheet, ok: x.parsed.ok, warnings: x.parsed.warnings || []})) : (s.sourcesSummary || []));
   const label = {t12: 'T12 income statement', boxscore: 'Box score', trending: 'Trending occupancy', conservice: 'Conservice utility projection', vena_budget: 'Existing budget (Vena)', import_sheet: 'Existing budget (Import Sheet)', error: 'Could not read', unknown: 'Not recognized'};
+  const how = s.startChoice || 'existing';
   return `<div class="card"><p class="h2">1 · Asset class</p><div class="grid" style="margin-top:10px">${Object.entries(E.ASSET_CLASSES).map(([k, v]) => `<button class="choice ${ac === k ? 'on' : ''}" data-asset="${k}" ${dis() && s.model ? 'disabled' : ''}><b>${v.label}</b><span>Per ${v.unitLabel}${v.incomeInNoi ? '' : ' · expense-only, BAH memo'}${v.manualSeason ? ' · leasing season set manually' : ''}</span></button>`).join('')}</div>
   ${ac === 'military' ? bahEditor() : ''}</div>
-  <div class="card"><p class="h2">2 · Sources</p><p class="muted">Upload any of: an existing budget (Vena Budget Report or a budget model with an Import Sheet), T12 (Entrata xlsx or the monthly financial package PDF), box score, trending occupancy, Conservice projection, and vendor contracts (PDF or Word).</p>
+  <div class="card"><p class="h2">2 · How to start</p><div class="grid" style="margin-top:10px">${START_MODES.map(([k, l, d]) => `<button class="choice ${how === k ? 'on' : ''}" data-startmode="${k}" ${canEdit() || !s.model ? '' : 'disabled'}><b>${l}</b><span>${d}</span></button>`).join('')}</div></div>
+  ${how === 'scratch' ? scratchForm(ac) : `<div class="card"><p class="h2">3 · Sources</p><p class="muted">Upload any of: an existing budget (Vena Budget Report or a budget model with an Import Sheet), T12 (Entrata xlsx or the monthly financial package PDF), box score, trending occupancy, Conservice projection, and vendor contracts (PDF or Word).</p>
   <div class="drop" style="margin:12px 0"><label style="cursor:pointer"><b style="color:var(--navy)">Choose files</b><input type="file" multiple accept=".xlsx,.xls,.pdf,.docx" data-files hidden></label><div class="muted">Files are read in your browser. Only the budget values you approve are saved.</div></div>
   ${srcRows.length ? `<div class="scroll"><table><thead><tr><th>File</th><th>Read as</th><th>Sheet</th><th>Status</th></tr></thead><tbody>${srcRows.map(x => `<tr><td>${esc(x.file)}</td><td>${label[x.kind] || esc(x.kind)}</td><td>${esc(x.sheet || '')}</td><td>${x.ok ? '<span class="chip ok">Read</span>' : '<span class="chip warn">Check</span>'} <span class="muted">${esc((x.warnings || []).slice(0, 2).join(' '))}</span></td></tr>`).join('')}</tbody></table></div>` : ''}
   ${s.documents.length ? `<p class="muted" style="margin-top:8px">${s.documents.length} contract/proposal document(s) read — review them under Drivers & documents.</p>` : ''}
-  <div class="row" style="margin-top:12px"><label class="f">Start from<select class="sel" data-startchoice><option value="">Existing budget if uploaded, otherwise the model</option><option value="model" ${s.startChoice === 'model' ? 'selected' : ''}>Model suggestions (T12 + drivers)</option></select></label>
-  <button class="btn" data-act="build" ${s.sources.some(x => x.parsed.ok) ? '' : 'disabled'} style="align-self:flex-end">${s.model ? 'Rebuild from sources' : 'Build budget'}</button></div>
-  ${s.model ? '<p class="muted">Rebuilding replaces lines, schedule and drivers with what the sources say; notes and documents are kept.</p>' : ''}</div>`;
+  ${how === 'existing' && !s.sources.some(x => ['vena_budget', 'import_sheet'].includes(x.kind) && x.parsed.ok) ? '<p class="muted">Upload the existing budget (Vena Budget Report or Import Sheet). A T12 and other reports are optional and add the model column.</p>' : ''}
+  <div class="row" style="margin-top:12px"><button class="btn" data-act="build" ${s.sources.some(x => x.parsed.ok) ? '' : 'disabled'}>${s.model ? 'Rebuild from sources' : 'Build budget'}</button></div>
+  ${s.model ? '<p class="muted">Rebuilding replaces lines, schedule and drivers with what the sources say; notes and documents are kept.</p>' : ''}</div>`}
+  ${s.model?.scratch ? `<div class="card"><p class="h2">Suggested starting point</p>${s.model.scratch.notes.map(n => `<div class="log">${esc(n)}</div>`).join('')}<p class="muted">Every line shows how it was suggested. Change the staffing on Payroll, rent and rates on Drivers, the leasing schedule on Leasing, and any line on Income and Expenses — linked lines follow.</p></div>` : ''}`;
+}
+function scratchForm(ac) {
+  const x = s.scratch ||= {status: 'operating', state: 'FL'}, ul = E.ASSET_CLASSES[ac]?.unitLabel || 'unit', ro = s.model && !canEdit() ? 'disabled' : '';
+  const f = (k, label, cls = '', ph = '') => `<label class="f">${label}<input class="inp ${cls}" data-scratch="${k}" value="${esc(x[k] ?? '')}" placeholder="${esc(ph)}" ${ro}></label>`;
+  const months = (s.model?.periods || E.fiscalPeriods(s.draft.fiscal_year, ac.startsWith('student') ? 8 : 1));
+  return `<div class="card"><p class="h2">3 · Property details</p><p class="muted">ATLAS suggests staffing, a leasing schedule and every budget line from these details (and RISE portfolio medians where at least three communities report). You then finish the build on each tab.</p>
+  <div class="row" style="margin-top:10px">${f('name', 'Community name', '', 'RISE Riverside')}${f('units', `Number of ${ul}s`, 'sm')}${f('marketRent', `Average market rent per ${ul} ($/mo)`, 'num')}</div>
+  <div class="row" style="margin-top:8px">${f('street', 'Street address', '', '123 Main St')}${f('city', 'City')}${f('state', 'State', 'xs', 'FL')}${f('zip', 'ZIP', 'xs')}</div>
+  <div class="row" style="margin-top:8px"><label class="f">Status<select class="sel" data-scratch="status" ${ro}><option value="operating" ${x.status !== 'leaseup' ? 'selected' : ''}>Operating</option><option value="leaseup" ${x.status === 'leaseup' ? 'selected' : ''}>New construction / lease-up</option></select></label>
+  ${f('currentOccupied', `Occupied ${ul}s at the start (optional)`, 'sm')}
+  ${x.status === 'leaseup' ? `<label class="f">First move-ins<select class="sel" data-scratch="firstMoveInMonth" ${ro}>${months.map((p, i) => `<option value="${i}" ${num(x.firstMoveInMonth) === i ? 'selected' : ''}>${MON[num(p.slice(5)) - 1]} ${p.slice(0, 4)}</option>`).join('')}</select></label>${f('absorption', `Move-ins per month`, 'xs', String(Math.round(num(x.units) / 10) || ''))}` : ''}</div>
+  <div class="row" style="margin-top:12px"><button class="btn" data-act="scratch" ${ro} ${s.busy ? 'disabled' : ''}>${s.model ? 'Suggest again (replaces lines)' : 'Suggest starting budget'}</button></div></div>`;
+}
+async function buildScratch() {
+  const x = s.scratch || {}, ac = s.draft.asset_class, units = Math.round(num(x.units));
+  if ((x.name || '').trim().length < 2) { status('Enter the community name.', true); return; }
+  if (!units) { status('Enter the number of units.', true); return; }
+  if (!/^[A-Za-z]{2}$/.test(String(x.state || '').trim())) { status('Enter the two-letter state.', true); return; }
+  s.busy = true; render();
+  try {
+    if (x.newCommunity && !s.model) {
+      status('Adding the community to ATLAS…', false, 0);
+      const id = await S.createCommunity(s.central, {name: x.name.trim(), units, propertyType: E.ASSET_CLASSES[ac]?.label, market: [x.city, String(x.state).toUpperCase()].filter(Boolean).join(', '), development: x.status === 'leaseup'});
+      s.communities = await S.communities(s.central).catch(() => s.communities);
+      s.cid = id; s.draft.community_id = id; s.draft.name = `${x.name.trim()} FY${s.draft.fiscal_year} ${s.draft.plan_type === 'reforecast' ? 'Reforecast' : 'Budget'}`; x.newCommunity = false;
+    }
+    let startMonth = 1;
+    try { const cal = await s.central.fetchJson('/rpc/atlas_read_budget_calendar', {method: 'POST', body: JSON.stringify({p_community_id: s.draft.community_id})}); startMonth = num(cal?.startMonth) || 1; } catch {}
+    if (ac.startsWith('student') && startMonth === 1) startMonth = 8;
+    const periods = E.fiscalPeriods(s.draft.fiscal_year, startMonth);
+    const bm = await S.benchmarks(s.central, ac).catch(() => ({}));
+    const model = SC.suggestStart({name: x.name.trim(), assetClass: ac, units, marketRent: num(x.marketRent), address: {street: x.street || '', city: x.city || '', state: String(x.state).toUpperCase(), zip: x.zip || ''},
+      fiscalYear: s.draft.fiscal_year, startMonth, periods, status: x.status, currentOccupied: x.currentOccupied === '' || x.currentOccupied === undefined ? undefined : num(x.currentOccupied), firstMoveInMonth: num(x.firstMoveInMonth), absorption: num(x.absorption)}, {benchmarks: bm || {}});
+    if (ac === 'military') model.bah = s.model?.bah || [];
+    model.notes = s.model?.notes || {}; model.investorNotes = s.model?.investorNotes || {};
+    model.learned = Lr.calibrate(s.decisions);
+    s.model = model;
+    s.sourcesSummary = [{file: 'Suggested starting point', kind: 'scratch', sheet: null, ok: true, warnings: model.scratch.notes}];
+    recalc(); s.tab = 'leasing'; s.dirty = true;
+  } catch (e) { status(e.message, true, 9000); return; } finally { s.busy = false; render(); }
+  await save({reason: 'Suggested starting point from property details'});
 }
 function bahEditor() {
   const rows = s.model?.bah || [];
@@ -323,7 +381,7 @@ function leasingTab() {
   const m = s.model, c = s.result.context, units = c.units, closed = num(m.closedMonths);
   let occ = num(m.schedule.beginOccupied);
   const goal = Math.round(units * num(m.schedule.targetOccPct || 95) / 100);
-  const rows = m.periods.map((p, i) => { const b = occ; occ = c.occ[i]; return {p, i, b, e: occ, pc: occ / units * 100, hit: occ >= goal}; });
+  const rows = m.periods.map((p, i) => { const b = occ; occ = c.occRaw[i]; return {p, i, b, e: occ, pc: occ / units * 100, hit: occ >= goal}; });
   const student = m.property.assetClass.startsWith('student');
   return `<div class="card"><div class="row" style="justify-content:space-between"><div><p class="h2">Leasing schedule</p><p class="muted" style="margin:0">Begins at <input class="inp xs" data-sched="begin" value="${num(m.schedule.beginOccupied)}" ${dis()}> occupied of ${units} ${Lr.unitLabel(m)}s. Changes re-run vacancy loss, fee income, turnover, utilities, leasing bonuses and the management fee.</p></div>
   <div class="row"><button class="btn ghost" data-act="learned" ${dis()}>Use learned seasonality</button><label class="f" style="flex-direction:row;align-items:center;gap:6px">Target <input class="inp xs" data-target value="${num(m.schedule.targetOccPct || 95)}" ${dis()}>%</label>
@@ -339,8 +397,9 @@ function leasingTab() {
   <td class="r"><button class="btn ghost tiny" data-step="mi:${r.i}:-1" ${ro ? 'disabled' : ''} aria-label="Fewer move-ins">−</button> <input class="inp xs" data-mm="mi:${r.i}" value="${m.schedule.moveIns[r.i]}" ${ro ? 'disabled' : ''}> <button class="btn ghost tiny" data-step="mi:${r.i}:1" ${ro ? 'disabled' : ''} aria-label="More move-ins">+</button></td>
   <td class="r"><button class="btn ghost tiny" data-step="mo:${r.i}:-1" ${ro ? 'disabled' : ''} aria-label="Fewer move-outs">−</button> <input class="inp xs" data-mm="mo:${r.i}" value="${m.schedule.moveOuts[r.i]}" ${ro ? 'disabled' : ''}> <button class="btn ghost tiny" data-step="mo:${r.i}:1" ${ro ? 'disabled' : ''} aria-label="More move-outs">+</button></td>
   <td class="r">${r.e}</td><td class="r"><b>${r.pc.toFixed(1)}%</b></td><td>${r.i < closed ? '<span class="chip fix">Actual (closed)</span>' : r.hit ? '<span class="chip ok">At target</span>' : '<span class="chip warn">Below target</span>'}</td></tr>`; }).join('')}
-  <tr class="tot"><td>Total</td><td></td><td class="r">${c.miTotal}</td><td class="r">${c.moTotal}</td><td class="r">${c.occ[11]}</td><td class="r">${(s.result.kpis.avgOccupancy * 100).toFixed(1)}% avg</td><td>Turnover ${(s.result.kpis.turnover * 100).toFixed(0)}%</td></tr></tbody></table></div>
-  ${m.schedule.source ? `<p class="muted">${esc(m.schedule.source)}</p>` : ''}`;
+  <tr class="tot"><td>Total</td><td></td><td class="r">${c.miTotal}</td><td class="r">${c.moTotal}</td><td class="r">${c.occRaw[11]}</td><td class="r">${(s.result.kpis.avgOccupancy * 100).toFixed(1)}% avg</td><td>Turnover ${(s.result.kpis.turnover * 100).toFixed(0)}%</td></tr></tbody></table></div>
+  ${m.schedule.source ? `<p class="muted">${esc(m.schedule.source)}</p>` : ''}
+  ${c.strUnits.some(Boolean) ? `<div class="banner info">Short-term rental: ${Math.min(...c.strUnits)}–${Math.max(...c.strUnits)} ${Lr.unitLabel(m)}s are in the STR programme. The occupancy rate above applies to the remaining long-term ${Lr.unitLabel(m)}s (${Math.min(...c.ltUnits)}–${Math.max(...c.ltUnits)}), so move-ins, move-outs, vacancy, resident fees and utilities scale to them.</div>` : ''}`;
 }
 
 function gridTab(which) {
@@ -354,27 +413,28 @@ function gridTab(which) {
   const lineRow = r => {
     const gl = r.line.gl, note = m.notes?.[gl] ?? r.line.note ?? '', open = s.openGL[gl];
     const v = r.t12 ? (r.annual - r.t12) / Math.abs(r.t12) * 100 : null;
-    const flag = Math.abs(r.annual - r.t12) > 1000 && (v === null ? r.annual !== 0 : Math.abs(v) > 10) && !String(note).trim();
+    const flag = !!r.line.t12 && Math.abs(r.annual - r.t12) > 1000 && (v === null ? r.annual !== 0 : Math.abs(v) > 10) && !String(note).trim();
     const md = r.modelAnnual !== null && Math.abs(r.modelAnnual - r.annual) > 1000 && Math.abs(r.modelAnnual - r.annual) / Math.max(1, Math.abs(r.annual)) > 0.1;
-    const drv = r.type === 'linked' ? `Linked · ${E.DRIVER_LABELS[r.kind]}` : r.type === 'payroll' ? 'Payroll positions' : r.type === 'contract' ? 'Contract' : r.kind === 'capex' ? 'Project list' : 'Fixed';
+    const drv = r.type === 'str' ? 'STR programme' : r.type === 'linked' ? `Linked · ${E.DRIVER_LABELS[r.kind]}` : r.type === 'payroll' ? 'Payroll positions' : r.type === 'contract' ? 'Contract' : r.kind === 'capex' ? 'Project list' : 'Fixed';
+    const strChip = r.strMonthly && r.type !== 'str' && r.strAnnual ? `<span class="chip model" title="Short-term rental programme amount included in this line">incl. STR ${money(r.strAnnual)}</span>` : '';
     const anyLocked = r.locked.some(Boolean);
     return `<tr><td class="gl">${esc(gl)}</td><td><b>${esc(r.line.name)}</b><br><button class="linkbtn" data-gl-toggle="${esc(gl)}">${open ? 'Hide' : 'Months'}${r.line.items?.length ? ` · ${r.line.items.length} line item${r.line.items.length > 1 ? 's' : ''}` : ''}</button></td>
     <td class="r">${money(r.t12)}</td><td class="r">${r.proposalAnnual === null ? '—' : money(r.proposalAnnual)}</td>
     <td class="r"><span class="${md ? 'neg' : ''}">${r.modelAnnual === null ? '—' : money(r.modelAnnual)}</span>${md && canEdit() && r.type !== 'payroll' ? `<br><button class="linkbtn" data-usemodel="${esc(gl)}">Use model</button>` : ''}</td>
-    <td class="r"><input class="inp num" aria-label="Budget ${esc(gl)}" data-ov="${esc(gl)}" value="${Math.round(r.annual)}" ${dis() || (r.type === 'payroll' || anyLocked ? 'disabled' : '')}>${r.overridden && canEdit() ? `<br><button class="linkbtn" data-reset="${esc(gl)}">Reset to driver</button>` : ''}</td>
+    <td class="r"><input class="inp num" aria-label="Budget ${esc(gl)}" data-ov="${esc(gl)}" value="${Math.round(r.annual)}" ${dis() || (r.type === 'payroll' || r.type === 'str' || anyLocked ? 'disabled' : '')}>${r.overridden && canEdit() ? `<br><button class="linkbtn" data-reset="${esc(gl)}">Reset to driver</button>` : ''}</td>
     <td class="r">${v === null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%'}</td>
-    <td><span class="chip ${r.type === 'linked' ? 'link' : 'fix'}">${esc(drv)}</span>${flag ? '<span class="chip warn">Note needed</span>' : ''}</td>
+    <td><span class="chip ${r.type === 'linked' ? 'link' : r.type === 'str' ? 'model' : 'fix'}">${esc(drv)}</span>${strChip}${flag ? '<span class="chip warn">Note needed</span>' : ''}</td>
     <td><input class="inp note" aria-label="Note ${esc(gl)}" data-note="${esc(gl)}" value="${esc(note)}" placeholder="Note for reviewers / investors" ${s.draft && canEdit() ? '' : 'disabled'}></td>
     <td style="text-align:center"><input type="checkbox" class="chk" aria-label="Show note to investors ${esc(gl)}" data-inv="${esc(gl)}" ${m.investorNotes?.[gl] ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}></td></tr>
-    ${open ? `<tr class="item"><td></td><td colspan="8"><div class="monthly">${m.periods.map((p, i) => `<label>${MON[num(p.slice(5)) - 1]} ${p.slice(2, 4)}${r.locked[i] ? ' (actual)' : ''}<input class="inp num" style="width:100%" data-mon="${esc(gl)}:${i}" value="${Math.round(r.monthly[i])}" ${dis() || (r.type === 'payroll' || r.locked[i] ? 'disabled' : '')}></label>`).join('')}</div>
+    ${open ? `<tr class="item"><td></td><td colspan="8"><div class="monthly">${m.periods.map((p, i) => `<label>${MON[num(p.slice(5)) - 1]} ${p.slice(2, 4)}${r.locked[i] ? ' (actual)' : ''}<input class="inp num" style="width:100%" data-mon="${esc(gl)}:${i}" value="${Math.round(r.monthly[i])}" ${dis() || (r.type === 'payroll' || r.type === 'str' || r.locked[i] ? 'disabled' : '')}></label>`).join('')}</div>
     ${r.model ? `<div class="muted">Model by month: ${r.model.map(x => money(x)).join(' · ')}</div>` : ''}
-    ${(r.line.items || []).map(it => `<div class="muted">↳ ${esc(it.description)} — ${money(it.amount)}${it.comment ? ' · ' + esc(it.comment) : ''}</div>`).join('')}</td></tr>` : ''}`;
+    ${r.line.suggestion ? `<div class="muted">Suggested: ${esc(r.line.suggestion)}</div>` : ''}${(r.line.items || []).map(it => `<div class="muted">↳ ${esc(it.description)} — ${money(it.amount)}${it.comment ? ' · ' + esc(it.comment) : ''}</div>`).join('')}</td></tr>` : ''}`;
   };
   return `<div class="card" style="padding:14px 18px"><div class="row" style="justify-content:space-between"><div><p class="h2">${inc ? 'Income' : 'Expenses, reserves & capital'}</p>
   <p class="muted" style="margin:0"><b>Linked</b> lines move with the leasing schedule and drivers; <b>Fixed</b> and contract lines hold their amounts. “Model suggests” is learned from T12, the box score, Conservice and past decisions.</p></div>
   <div class="row"><button class="btn ghost" data-act="expand">Expand all</button><button class="btn ghost" data-act="collapse">Collapse all</button>${canEdit() ? '<button class="btn ghost" data-act="addgl">+ Add GL code</button>' : ''}</div></div>
   ${!inc && s.model.property.assetClass === 'military' ? '' : ''}${inc && s.result.memo ? `<div class="banner info" style="margin:10px 0 0">Military: income lines are a memo and excluded from NOI. BAH memo ${money(s.result.memo.annual)}.</div>` : ''}</div>
-  <div class="scroll"><table><thead><tr><th>GL</th><th>Account</th><th class="r">T12 actual</th><th class="r">Proposal</th><th class="r">Model suggests</th><th class="r">Budget</th><th class="r">vs T12</th><th>Driver</th><th style="min-width:240px">Regional notes</th><th>Investor</th></tr></thead><tbody>
+  <div class="scroll"><table><thead><tr><th>GL</th><th>Account</th><th class="r">T12 actual</th><th class="r">${s.model.sources?.proposal?.scratch ? 'Starting point' : 'Proposal'}</th><th class="r">Model suggests</th><th class="r">Budget</th><th class="r">vs T12</th><th>Driver</th><th style="min-width:240px">Regional notes</th><th>Investor</th></tr></thead><tbody>
   ${all.map(sec => { const S_ = s.result.sections[sec], open = s.open[sec] !== false; return `<tr class="sec"><td colspan="10"><button data-sec="${esc(sec)}" aria-expanded="${open}">${open ? '▾' : '▸'} ${esc(sec)} · ${S_.lines.length} accounts${E.BELOW_NOI_SECTIONS.includes(sec) ? ' · below NOI' : ''}</button></td></tr>
   ${open ? S_.lines.sort((a, b) => String(a.line.gl).localeCompare(String(b.line.gl))).map(lineRow).join('') : ''}
   <tr class="sub"><td></td><td>Total ${esc(sec)}</td><td class="r">${money(S_.t12)}</td><td class="r">${money(S_.proposal)}</td><td class="r">${money(S_.model)}</td><td class="r">${money(S_.annual)}</td><td class="r">${pct(S_.annual, S_.t12)}</td><td colspan="3">${money(S_.annual / s.model.property.units)} / ${Lr.unitLabel(s.model)}</td></tr>`; }).join('')}
@@ -440,7 +500,8 @@ function summaryTab() {
   return `<div class="card"><p class="h2">Approval</p><div class="step">${steps.map((x, i) => `<div class="st ${i < idx ? 'done' : i === idx ? 'cur' : ''}"><b>${x[1]}</b>${x[2]}</div>`).join('')}</div>
   <div class="row">${actions.join('')}${s.vpEditing ? `<label class="f" style="flex:1 1 280px">Reason for VP edit (logged)<input class="inp" data-vpreason value="${esc(s.vpReason)}" placeholder="e.g., Insurance renewal quote received"></label><button class="btn" data-act="save">Save VP edit</button>` : ''}</div>
   <div style="margin-top:14px"><p class="h3">Activity</p>${s.events.slice(0, 30).map(e => `<div class="log"><b>${esc(e.action.replaceAll('_', ' '))}</b> · ${esc(e.actor_role)} · ${new Date(e.created_at).toLocaleString()}${e.reason ? ' — ' + esc(e.reason) : ''}</div>`).join('') || '<p class="muted">No activity yet.</p>'}</div></div>
-  <div class="scroll"><table><thead><tr><th>Summary</th><th class="r">T12 actual</th><th class="r">Proposal</th><th class="r">Model</th><th class="r">Budget</th><th class="r">vs T12</th><th class="r">Per ${Lr.unitLabel(s.model)}</th><th class="r">Portfolio median</th></tr></thead><tbody>
+  ${s.result.str ? `<div class="banner info">${s.result.str.posted ? `Includes the short-term rental programme: STR operating NOI ${money(s.result.str.annual.noi)}; net effect on property NOI ${money(s.result.str.impact.totals.noi)} (without STR: ${money(s.result.str.without.noi)}).` : `The STR programme is shown separately and is not in this budget (STR operating NOI ${money(s.result.str.annual.noi)}).`} <button class="linkbtn" data-tab="str">Open views</button></div>` : ''}
+  <div class="scroll"><table><thead><tr><th>Summary</th><th class="r">T12 actual</th><th class="r">${s.model.sources?.proposal?.scratch ? 'Starting point' : 'Proposal'}</th><th class="r">Model</th><th class="r">Budget</th><th class="r">vs T12</th><th class="r">Per ${Lr.unitLabel(s.model)}</th><th class="r">Portfolio median</th></tr></thead><tbody>
   ${group('Total income', t('income'), 'sub')}${s.result.groups.map(g => group(g.name, g, '', s.benchmarks?.[g.name])).join('')}${group('Operating expenses', t('opex'), 'sub')}${group('Net operating income', t('noi'), 'tot')}${group('Replacement reserves', t('reserves'))}${group('Capital expenditures', t('capex'))}${group('Cash flow after reserves & capex', t('cashFlow'), 'tot')}</tbody></table></div>`;
 }
 
@@ -454,7 +515,9 @@ function investorTab() {
 
 /* ---------------- events ---------------- */
 document.addEventListener('click', async e => {
-  const t = e.target.closest('[data-tab],[data-act],[data-open],[data-asset],[data-sec],[data-gl-toggle],[data-usemodel],[data-reset],[data-step],[data-flow],[data-posdel],[data-posok],[data-docapply],[data-docdel],[data-bahdel]');
+  if (CU.isActive()) return;
+  if (e.target.closest('[data-act="company"]')) { if (s.dirty && !confirm('Leave this property budget with unsaved changes?')) return; await CU.open({central: s.central, $app, $ctx, status, esc, money, communities: s.communities, back: () => render()}); return; }
+  const t = e.target.closest('[data-tab],[data-act],[data-open],[data-asset],[data-sec],[data-gl-toggle],[data-usemodel],[data-reset],[data-step],[data-flow],[data-posdel],[data-posok],[data-docapply],[data-docdel],[data-bahdel],[data-strview],[data-strfpdel],[data-strchdel],[data-strreset],[data-strtoggle],[data-startnew],[data-startmode]');
   if (!t) return;
   const d = t.dataset;
   if (d.tab) { s.tab = d.tab; render(); return; }
@@ -469,6 +532,9 @@ document.addEventListener('click', async e => {
   if (d.posdel) { s.model.positions.splice(num(d.posdel), 1); mark(); return; }
   if (d.posok) { s.model.positions[num(d.posok)].confirmed = true; mark(); return; }
   if (d.bahdel) { s.model.bah.splice(num(d.bahdel), 1); mark(); return; }
+  if (SU.strClick(t, strCtx())) return;
+  if (d.startnew) { s.newDraft.start = d.startnew; render(); return; }
+  if (d.startmode) { s.startChoice = d.startmode; render(); return; }
   if (d.docdel) { s.documents.splice(num(d.docdel), 1); s.dirty = true; render(); return; }
   if (d.docapply) {
     const doc = s.documents[num(d.docapply)], gl = String(doc.gl || doc.terms?.gl?.value || ''), amt = num(doc.amount ?? doc.terms?.monthlyAmount);
@@ -480,6 +546,7 @@ document.addEventListener('click', async e => {
   switch (d.act) {
     case 'new': s.draft = null; s.model = null; render(); break;
     case 'create': newDraft(); break;
+    case 'scratch': await buildScratch(); break;
     case 'save': await save(); break;
     case 'build': await buildFromSources(); break;
     case 'expand': Object.keys(s.result.sections).forEach(k => { s.open[k] = true; }); render(); break;
@@ -520,19 +587,23 @@ document.addEventListener('click', async e => {
 });
 
 document.addEventListener('change', async e => {
+  if (CU.isActive()) return;
   const t = e.target, d = t.dataset;
   if (d.ctx === 'community') { s.cid = t.value; s.draft = null; s.model = null; await loadDrafts(); render(); return; }
   if (d.ctx === 'draft') { if (t.value) await openDraft(t.value).catch(err => status(err.message, true)); return; }
   if (d.new) { s.newDraft[d.new] = t.value; return; }
   if (t.matches('[data-files]')) { await onFiles([...t.files]); return; }
-  if (t.matches('[data-startchoice]')) { s.startChoice = t.value || undefined; return; }
+  if (t.matches('[data-new-community]')) { s.newDraft.newCommunity = t.checked; render(); return; }
+  if (d.scratch) { (s.scratch ||= {})[d.scratch] = t.value; if (d.scratch === 'status') render(); return; }
   if (t.matches('[data-recipients]')) { s.recipients = t.value; return; }
   if (t.matches('[data-vpreason]')) { s.vpReason = t.value; return; }
   if (!s.model) return;
+  if (await SU.strChange(t, strCtx())) return;
   const m = s.model;
   if (d.a) { m.assumptions[d.a] = num(t.value); mark(); return; }
-  if (d.ov) { m.overrides[d.ov] = num(t.value); mark(); return; }
-  if (d.mon) { const [gl, i] = d.mon.split(':'); const r = s.result.rows[gl]; const arr = Array.isArray(m.overrides[gl]) ? m.overrides[gl].slice() : r.monthly.slice(); arr[num(i)] = num(t.value); m.overrides[gl] = arr; mark(); return; }
+  // On a line that includes STR, the typed amount is the total; the override is its conventional part.
+  if (d.ov) { m.overrides[d.ov] = num(t.value) - (s.result.rows[d.ov]?.strAnnual || 0); mark(); return; }
+  if (d.mon) { const [gl, i] = d.mon.split(':'); const r = s.result.rows[gl]; const arr = Array.isArray(m.overrides[gl]) ? m.overrides[gl].slice() : (r.convMonthly || r.monthly).slice(); arr[num(i)] = num(t.value) - (r.strMonthly?.[num(i)] || 0); m.overrides[gl] = arr; mark(); return; }
   if (d.note !== undefined && d.note !== '') { m.notes[d.note] = t.value; s.dirty = true; recalc(); render(); scheduleSave(); return; }
   if (d.inv) { m.investorNotes ||= {}; m.investorNotes[d.inv] = t.checked; s.dirty = true; scheduleSave(); return; }
   if (d.mm) { const [k, i] = d.mm.split(':'); (k === 'mi' ? m.schedule.moveIns : m.schedule.moveOuts)[num(i)] = Math.max(0, num(t.value)); mark(); return; }

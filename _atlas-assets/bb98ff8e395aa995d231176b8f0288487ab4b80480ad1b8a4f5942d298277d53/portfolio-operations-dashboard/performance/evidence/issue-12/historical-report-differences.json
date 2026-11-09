@@ -1,0 +1,347 @@
+[
+  {
+    "path": "$.communityReports[0].stabilization.months",
+    "oldType": "int",
+    "newType": "NoneType"
+  },
+  {
+    "path": "$.communityReports[0].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[0].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[1].stabilization.avgNetAbsorption",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.communityReports[1].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[1].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[2].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[2].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[3].stabilization.avgNetAbsorption",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.communityReports[3].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[3].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[4].stabilization.avgNetAbsorption",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.communityReports[4].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[4].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[5].stabilization.avgNetAbsorption",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.communityReports[5].stabilization.months",
+    "oldType": "int",
+    "newType": "NoneType"
+  },
+  {
+    "path": "$.communityReports[5].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[5].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[6].stabilization.avgNetAbsorption",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.communityReports[6].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[6].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[6].trendRows[0].guestCards",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.communityReports[6].trendRows[0].guestCardsAdjusted",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.communityReports[6].trendRows[1].guestCardsAdjusted",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.communityReports[6].trendRows[2].guestCardsAdjusted",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.communityReports[7].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[7].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[8].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[8].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[9].stabilization.months",
+    "oldType": "int",
+    "newType": "NoneType"
+  },
+  {
+    "path": "$.communityReports[9].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[9].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[10].stabilization.months",
+    "oldType": "int",
+    "newType": "NoneType"
+  },
+  {
+    "path": "$.communityReports[10].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[10].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[11].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[11].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[12].hasLeadSourceBreakdown",
+    "oldType": "bool",
+    "newType": "bool"
+  },
+  {
+    "path": "$.communityReports[12].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[12].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.communityReports[13].stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.communityReports[13].stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.dataAlerts",
+    "oldLength": 5,
+    "newLength": 4
+  },
+  {
+    "path": "$.dataAlerts[0].body",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.dataAlerts[0].title",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.dataAlerts[1].body",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.dataAlerts[1].level",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.dataAlerts[1].title",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.dataAlerts[2].body",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.dataAlerts[2].level",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.dataAlerts[2].title",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.dataAlerts[3].body",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.dataAlerts[3].title",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.hasLeadSourceBreakdown",
+    "oldType": "bool",
+    "newType": "bool"
+  },
+  {
+    "path": "$.leadSourceBreakdown",
+    "oldType": "NoneType",
+    "newType": "dict"
+  },
+  {
+    "path": "$.leadSourceBreakdownTotal",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.notes[2]",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.paceRows[0].note",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.stabilization.avgNetAbsorption",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.stabilization.reason",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.stabilization.targetUnits",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.stabilization.verified",
+    "missing": "old"
+  },
+  {
+    "path": "$.trafficMetrics.emailsOnline",
+    "oldType": "NoneType",
+    "newType": "int"
+  },
+  {
+    "path": "$.trafficMetrics.offSiteEvent",
+    "oldType": "NoneType",
+    "newType": "int"
+  },
+  {
+    "path": "$.trafficMetrics.phoneCalls",
+    "oldType": "NoneType",
+    "newType": "int"
+  },
+  {
+    "path": "$.trafficMetrics.sourceMode",
+    "oldType": "str",
+    "newType": "str"
+  },
+  {
+    "path": "$.trafficMetrics.textChatOther",
+    "oldType": "NoneType",
+    "newType": "int"
+  },
+  {
+    "path": "$.trafficMetrics.walkIn",
+    "oldType": "NoneType",
+    "newType": "int"
+  },
+  {
+    "path": "$.trendRows[0].guestCards",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.trendRows[0].guestCardsAdjusted",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.trendRows[1].guestCardsAdjusted",
+    "oldType": "int",
+    "newType": "int"
+  },
+  {
+    "path": "$.trendRows[2].guestCardsAdjusted",
+    "oldType": "int",
+    "newType": "int"
+  }
+]

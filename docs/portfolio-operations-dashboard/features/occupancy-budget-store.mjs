@@ -1,6 +1,6 @@
 import {readApprovedBudgets,financeAccessKey} from './canonical-finance.mjs?v=210b482c6f40c656';
 import {readActive} from './reforecast-store.mjs?v=b59fd4df88ff8fe3';
-import {occupancyBudgetForPeriod} from './community-goal-planning.mjs?v=e58e6bfdee0a1dee';
+import {occupancyBudgetForPeriod} from './community-goal-planning.mjs?v=05c1805f2f7acdae';
 // Read-only bridge: never copy a governed budget into the mutable legacy curve.
 export function createOccupancyBudgetStore(central,{read=readApprovedBudgets,readReforecasts=readActive}={}) {
  const cache=new Map(),pending=new Map(),aliases=new Map();let epoch=0,revision=0;

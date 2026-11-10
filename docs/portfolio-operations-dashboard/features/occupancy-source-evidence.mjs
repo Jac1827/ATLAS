@@ -24,6 +24,9 @@ function periodFromRows(rows) {
   for (const row of rows.slice(0, 6)) {
     const raw = text(row?.[0]), dates = raw.match(/\d{1,2}\/\d{1,2}\/\d{4}/g);
     if (dates?.length === 2) { const a = isoDate(dates[0]), b = isoDate(dates[1]); if (a && b && a.slice(0, 7) === b.slice(0, 7)) return a.slice(0, 7); }
+    // Daily exports print one explicit report date, separate from generated time.
+    const day = isoDate(row?.[0]);
+    if (day) return day.slice(0, 7);
     const m = raw.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})$/i);
     if (m) return `${m[2]}-${String(['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[1].toLowerCase()) + 1).padStart(2, '0')}`;
   }
@@ -44,8 +47,16 @@ function readControl(t, label, {integer = false, occurrence = 0} = {}) {
   const parse = integer ? count : numeric;
   return {value: column == null ? null : parse(t.total[column]), row:t.end + 1, column:column == null ? null : column + 1, header:column == null ? label : text(t.headers[column])};
 }
+function boxAvailabilityRows(rows) {
+  const start = rows.findIndex(row => /^availability\b/i.test(text(row?.[0])));
+  if (start < 0) return rows;
+  // Each Box Score section has its own empty marker and Total row. Keep original
+  // row indexes while excluding unrelated activity from occupancy validation.
+  const next = rows.findIndex((row, i) => i > start && /^(?:property pulse|lead activity|lead conversions|make ready(?: status)?|report parameters)\b/i.test(text(row?.[0])));
+  return next < 0 ? rows : rows.slice(0, next);
+}
 function boxEvidence(rows) {
-  const t = table(rows, /^availability\b/i, r => norm(r?.[0]) === 'unit type', r => /^total:?$/i.test(text(r?.[0])));
+  const t = table(boxAvailabilityRows(rows), /^availability\b/i, r => norm(r?.[0]) === 'unit type', r => /^total:?$/i.test(text(r?.[0])));
   if (!t) return {status:'unavailable', reason:'Availability totals are missing; filtered-empty is not zero.'};
   const controls = {};
   const get = (field, label, integer = true) => (controls[field] = readControl(t, label, {integer})).value;
@@ -144,7 +155,8 @@ export function parseOccupancySheet({rows=[],reportType,sourceSheet='',metadata=
   // Keep the empty-source guard through the current unit total so genuinely
   // empty current inventory still cannot become measured zero or valid GPR.
   const currentUnits=reportType==='rent_roll' ? table(rows, /^unit details$/i, r=>r.some(v=>norm(v)==='bldg-unit'), r=>r.some(v=>/(?:^|\s)total:$/i.test(text(v)))) : null;
-  const sourcePeriod=periodFromRows(rows), empty=(currentUnits ? rows.slice(0,currentUnits.end+1) : rows).some(row=>row.some(v=>/selected report filters returned no data/i.test(text(v))));
+  const occupancyRows=reportType==='box_score' ? boxAvailabilityRows(rows) : currentUnits ? rows.slice(0,currentUnits.end+1) : rows;
+  const sourcePeriod=periodFromRows(rows), empty=occupancyRows.some(row=>row.some(v=>/selected report filters returned no data/i.test(text(v))));
   const parameterKeys=new Set(['calculate delinquency using','period','lease statuses','minimum unpaid balance','inter-company','unpaid deposits','lease occupancy types','lease terms (student)','unit status','future resident details includes','future residents not assigned a unit','consider proration for scheduled charges']);
   const reportScope=reportParameters.filter(row=>parameterKeys.has(norm(row?.[0]))).map(row=>({label:text(row[0]),value:text(row[1])}));
   const base={schemaVersion:1,reportType,reportScope,propertySource:embeddedCommunity,sourceSheet,identityBasis:reportTitleSheet?'report_title':'community_sheet',period:sourcePeriod,sourceFile,sourceFingerprint:fileHash,sourceEffectiveAt:text(metadata.dataAsOf||metadata.generatedAt),status:identityMatches&&sourcePeriod&&!empty?'valid':'unavailable',reason:!identityMatches?'Embedded community and source sheet disagree.':!sourcePeriod?'Source period is unavailable.':empty?'Source reports no data; this is not zero.':null};

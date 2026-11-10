@@ -14190,7 +14190,7 @@ function prepareAtlasOccupancyBudgetView() {
   const panel = document.getElementById(`tab-panel-${activeTab}`);
   if (panel) panel.innerHTML = '<div class="card" role="status">Reading saved community budgets…</div>';
   if (!prepareAtlasOccupancyBudgetView.pending) {
-    prepareAtlasOccupancyBudgetView.pending = import('./features/occupancy-budget-store.mjs?v=e32b767ebd6ae4ec').then(async module => {
+    prepareAtlasOccupancyBudgetView.pending = import('./features/occupancy-budget-store.mjs?v=27bd2b0684e5dfeb').then(async module => {
       if (!window.AtlasOccupancyBudgets) {
         window.AtlasOccupancyBudgets = module.createOccupancyBudgetStore(central);
         const clear = () => { window.AtlasOccupancyBudgets.clear(); scheduleAtlasSharedRender(); };
@@ -24486,7 +24486,7 @@ function queueCommunityRosterFinancials(items) {
       hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=b4957bd7a8bcc9a4");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=67e80904095705e9");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -48298,7 +48298,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false, cellStyles: plan.reportType === "renewal_tracker" });
   const sheets = [];
   const occupancySourceParser = ["box_score", "rent_roll", "delinquency"].includes(plan.reportType)
-    ? (await import("./features/occupancy-source-evidence.mjs?v=36f147710db65c57")).parseOccupancySheet : null;
+    ? (await import("./features/occupancy-source-evidence.mjs?v=3240e5e6d65f1685")).parseOccupancySheet : null;
   plan.occupancyEvidenceBySheet = {};
   const occupancyParameterSheet = (workbook.SheetNames || []).find(name => /^report parameters$/i.test(name.trim()));
   const occupancyReportParameters = occupancySourceParser && occupancyParameterSheet

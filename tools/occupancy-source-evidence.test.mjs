@@ -63,6 +63,30 @@ test('named source controls preserve precision, count/rate distinction and missi
  const mismatch=box();mismatch[2]=['Other Community'];assert.equal(parse(mismatch,'box_score').status,'unavailable');
  const empty=[[],['Box Score'],['Test Community'],['09/01/2026 - 09/30/2026'],['Selected report filters returned no data']];assert.equal(parse(empty,'box_score').status,'unavailable');
 });
+test('daily Box Score keeps populated Availability when activity sections report no data',()=>{
+ const rows=box();rows[3]=['09/28/2026'];
+ rows.push(['Property Pulse (09/28/2026 - 09/28/2026)'],['Unit Type','Move-Ins','Move-Outs'],['Selected report filters returned no data'],
+  ['Lead Conversions (09/28/2026 - 09/28/2026)'],['Unit Type','Completed'],['Selected report filters returned no data']);
+ const evidence=parse(rows,'box_score','box_scorehash');assert.equal(evidence.status,'valid');assert.equal(evidence.period,'2026-09');assert.equal(evidence.snapshot.status,'valid');assert.equal(evidence.snapshot.occupiedUnits,40);assert.equal(evidence.snapshot.leasedUnits,50);assert.equal(evidence.snapshot.controls.occupiedUnits.row,9,'Original worksheet coordinates remain unchanged');
+ const source=state();source.canonicalRecords=source.canonicalRecords.filter(r=>r.section!=='Lead Conversions');source.canonicalRecords[0].occupancyEvidence=evidence;
+ const readback=readOccupancySourceEvidence({...scope,importState:source});assert.equal(readback.snapshot.status,'valid');assert.equal(readback.snapshot.occupiedUnits,40);assert.equal(readback.closing.status,'unavailable');assert.equal(readback.closing.rate,null,'An empty conversion section remains unavailable, not a fabricated zero');
+ for(const date of ['2026-09-28',new Date('2026-09-28T00:00:00Z')]){rows[3]=[date];assert.equal(parse(rows,'box_score').period,'2026-09');}
+ rows[3]=['02/30/2026'];assert.equal(parse(rows,'box_score').status,'unavailable','An invalid printed day cannot inherit a nearby section or generation date');
+});
+test('Availability must supply its own controls; another section cannot fill an empty or missing total',()=>{
+ const empty=box();empty.splice(7,2,['Selected report filters returned no data']);
+ empty.push(['Property Pulse (09/01/2026 - 09/30/2026)'],box()[6],box()[7],box()[8]);
+ assert.equal(parse(empty,'box_score').status,'unavailable','Filtered-empty Availability remains unavailable despite populated activity');
+ const missing=box();missing.pop();missing.push(['Property Pulse (09/01/2026 - 09/30/2026)'],box()[6],box()[7],box()[8]);
+ assert.equal(parse(missing,'box_score').snapshot.status,'unavailable','Property Pulse totals cannot substitute for missing Availability controls');
+ const invalid=box();invalid.at(-1)[4]=99;invalid.push(['Lead Conversions'],['Selected report filters returned no data']);assert.equal(parse(invalid,'box_score').snapshot.status,'unavailable','Ignoring unrelated empty sections does not relax inventory reconciliation');
+});
+test('structured import accepts a daily report-title sheet with empty conversions and preserves source identity',async()=>{
+ const fixture=genericSource();fixture.rows[4]=['09/28/2026'];fixture.rows.push(['Lead Conversions (09/28/2026 - 09/28/2026)'],['Unit Type','Completed'],['Selected report filters returned no data']);
+ const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(fixture.rows),fixture.name);const buffer=XLSX.write(book,{type:'buffer',bookType:'xlsx'});
+ const plan={...fixture.plan,selectedCommunities:['Other Community']};const [sheet]=await structuredReader()({name:'Synthetic daily.xlsx',arrayBuffer:async()=>buffer},plan);
+ assert.equal(sheet.rows[0].values.community_name,'Test Community');assert.equal(sheet.rows[0].values.occupied_units,40);assert.equal(plan.occupancyEvidenceBySheet[fixture.name].snapshot.status,'valid');assert.equal(plan.occupancyEvidenceBySheet[fixture.name].period,'2026-09');
+});
 test('older aging only and signed values preserved; cash collections never inferred',()=>{
  const a=parse(aging(),'delinquency');assert.equal(a.aging.above30,125);assert.equal(a.aging.controls.days0to30Excluded.value,999);
  const source=state(),before=JSON.stringify(source),result=readOccupancySourceEvidence({...scope,importState:source});

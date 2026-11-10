@@ -726,8 +726,8 @@
     ]
   },
   "features/occupancy-source-evidence.mjs": {
-    "sha256": "36f147710db65c57",
-    "bytes": 24010,
+    "sha256": "3240e5e6d65f1685",
+    "bytes": 24809,
     "references": [
       [
         "workspace-core.js",
@@ -740,7 +740,7 @@
     ]
   },
   "features/community-goal-planning.mjs": {
-    "sha256": "e58e6bfdee0a1dee",
+    "sha256": "05c1805f2f7acdae",
     "bytes": 19378,
     "references": [
       [
@@ -758,7 +758,7 @@
     ]
   },
   "features/occupancy-budget-store.mjs": {
-    "sha256": "e32b767ebd6ae4ec",
+    "sha256": "27bd2b0684e5dfeb",
     "bytes": 4692,
     "references": [
       [
@@ -986,7 +986,7 @@
     ]
   },
   "features/community-finance.mjs": {
-    "sha256": "b4957bd7a8bcc9a4",
+    "sha256": "67e80904095705e9",
     "bytes": 8932,
     "references": [
       [
@@ -1368,7 +1368,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "5e2c924b02eeb0b7",
+    "sha256": "bd44955307b3df48",
     "bytes": 3214323,
     "references": [
       [
@@ -2510,7 +2510,7 @@
     ]
   },
   "community-goal-editor.js": {
-    "sha256": "d28e60369b34686d",
+    "sha256": "9478c11d0901f5f6",
     "bytes": 16749,
     "references": [
       [

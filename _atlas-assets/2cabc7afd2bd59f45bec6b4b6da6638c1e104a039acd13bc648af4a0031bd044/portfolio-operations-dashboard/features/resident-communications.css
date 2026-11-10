@@ -1,0 +1,94 @@
+#rc-workspace {
+  padding: 16px;
+}
+#rc-workspace label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#rc-workspace input,
+#rc-workspace select,
+#rc-workspace textarea {
+  color: inherit;
+  background: var(--card-bg, transparent);
+  border: 1px solid #92999f;
+  border-radius: 6px;
+  padding: 8px;
+}
+#rc-workspace button:focus-visible,
+#rc-workspace input:focus-visible,
+#rc-workspace select:focus-visible,
+#rc-workspace textarea:focus-visible {
+  outline: 3px solid #4c9ffe;
+  outline-offset: 3px;
+}
+.rc-filters,
+.rc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+.rc-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(300px, 2fr);
+  gap: 20px;
+}
+.rc-conversation {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  width: 100%;
+  padding: 14px;
+  margin-bottom: 8px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid #92999f;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.rc-conversation[aria-pressed="true"] {
+  border: 2px solid #4c9ffe;
+}
+.rc-history {
+  padding: 0;
+  list-style: none;
+  max-height: 50vh;
+  overflow: auto;
+}
+.rc-history li {
+  border-bottom: 1px solid #92999f;
+  padding: 12px 0;
+}
+.rc-history p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#rc-compose textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+.rc-reminders {
+  padding: 12px;
+  margin-bottom: 16px;
+}
+[data-rc-count] {
+  margin-left: 8px;
+  font-weight: 700;
+}
+@media (max-width: 700px) {
+  .rc-layout {
+    grid-template-columns: 1fr;
+  }
+  .rc-filters label {
+    width: 100%;
+  }
+  .rc-actions {
+    align-items: stretch;
+  }
+  #rc-workspace {
+    padding: 8px;
+  }
+}

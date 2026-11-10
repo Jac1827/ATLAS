@@ -106,6 +106,7 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: write
+      actions: read
       pages: write
       id-token: write
     environment:
@@ -113,6 +114,7 @@ jobs:
       url: ${{ steps.pages.outputs.page_url }}
     env:
       ATLAS_ASSET_RELEASE_MODE: publish
+      PAGES_ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
       ATLAS_CLIENT_ROLLBACK_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.client_rollback_ref || '' }}
       ATLAS_CLIENT_ROLLBACK_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.client_rollback_release || '' }}
       ATLAS_FINANCE_RELEASE_HASH: ${{ github.event_name == 'workflow_dispatch' && inputs.finance_release_hash || '' }}
@@ -219,10 +221,51 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload the same artifact to GitHub Pages
+        id: upload_pages
         uses: actions/upload-pages-artifact@v3
         with:
+          name: ${{ env.PAGES_ARTIFACT_NAME }}
           path: output/atlas-site
+
+      - name: Verify the unique Pages artifact for this attempt
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PAGES_ARTIFACT_ID: ${{ steps.upload_pages.outputs.artifact_id }}
+        with:
+          script: |
+            const name = process.env.PAGES_ARTIFACT_NAME;
+            const id = Number(process.env.PAGES_ARTIFACT_ID);
+            if (name !== `github-pages-${context.runId}-${process.env.GITHUB_RUN_ATTEMPT}` ||
+                !Number.isSafeInteger(id) || id <= 0) {
+              throw new Error('Pages upload identity outputs are missing or invalid.');
+            }
+            for (let attempt = 0; attempt < 6; attempt++) {
+              const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+                ...context.repo, run_id: context.runId, name, per_page: 100
+              });
+              const matches = artifacts.filter(artifact => artifact.name === name);
+              if (matches.length === 0 && attempt < 5) {
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                continue;
+              }
+              if (matches.length !== 1) throw new Error(`Expected exactly one Pages artifact for this attempt; found ${matches.length}.`);
+              // The official Pages uploader exposes the immutable ID but not its digest.
+              const {data: uploaded} = await github.rest.actions.getArtifact({...context.repo, artifact_id: id});
+              const digest = uploaded.digest;
+              if (uploaded.id !== id || !/^sha256:[a-f0-9]{64}$/.test(digest || '')) {
+                throw new Error('The uploaded Pages artifact has no valid immutable identity and digest.');
+              }
+              const artifact = matches[0];
+              if (artifact.id !== id || artifact.digest !== digest || artifact.expired ||
+                  artifact.workflow_run?.id !== context.runId || artifact.workflow_run.head_sha !== context.sha) {
+                throw new Error('Pages artifact metadata does not match this attempt\'s immutable upload.');
+              }
+              core.info(`Verified unique Pages artifact ${name}, ID ${id}, digest ${digest}.`);
+              break;
+            }
 
       - name: Deploy GitHub Pages
         id: pages
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: ${{ env.PAGES_ARTIFACT_NAME }}

@@ -21,6 +21,8 @@ jobs:
     environment:
       name: github-pages
       url: https://jac1827.github.io/ATLAS/
+    env:
+      PAGES_ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Verify the tested source artifact
         id: verify_source
@@ -60,14 +62,20 @@ jobs:
                 comparison.total_commits > 0 && comparison.total_commits <= 5 &&
                 comparison.commits.length === comparison.total_commits,
                 'Recovery must descend directly from the tested commit with a short, fully inspectable history.');
-              requireGuard(comparison.files?.length === 1 && comparison.files[0].filename === expected.recoveryWorkflow &&
-                comparison.files[0].status === 'added', 'Only the recovery workflow may differ from the tested commit.');
+              const allowedWorkflowChange = file => !file.previous_filename && (
+                (file.filename === expected.recoveryWorkflow && ['added', 'modified'].includes(file.status)) ||
+                (file.filename === expected.sourceWorkflow && file.status === 'modified')
+              );
+              requireGuard(comparison.files?.length >= 1 && comparison.files.length <= 2 &&
+                comparison.files.every(allowedWorkflowChange) &&
+                comparison.files.some(file => file.filename === expected.recoveryWorkflow && file.status === 'added'),
+                'Only the added recovery workflow and modified production workflow may differ from the tested commit.');
               // Inspect every intervening commit, including changes later reverted.
               for (const item of comparison.commits) {
                 const {data: commit} = await github.rest.repos.getCommit({...repo, ref: item.sha});
-                requireGuard(commit.files?.length === 1 && commit.files[0].filename === expected.recoveryWorkflow &&
-                  ['added', 'modified'].includes(commit.files[0].status) && !commit.files[0].previous_filename,
-                  'An intervening commit changed files outside this recovery workflow.');
+                requireGuard(commit.files?.length >= 1 && commit.files.length <= 2 &&
+                  commit.files.every(allowedWorkflowChange),
+                  'An intervening commit changed files outside the two reviewed release workflows.');
               }
               const {data: run} = await github.rest.actions.getWorkflowRun({...repo, run_id: expected.sourceRunId});
               requireGuard(run.id === expected.sourceRunId && run.repository.id === expected.repositoryId &&
@@ -159,17 +167,53 @@ jobs:
           PYCODE
 
       - name: Attach the unchanged Pages tar to this recovery run
+        id: upload_pages
         uses: actions/upload-artifact@v4
         with:
-          name: github-pages
+          name: ${{ env.PAGES_ARTIFACT_NAME }}
           path: pages-artifact/artifact.tar
           if-no-files-found: error
           compression-level: 6
           retention-days: 1
 
+      - name: Verify the unique Pages artifact for this attempt
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PAGES_ARTIFACT_ID: ${{ steps.upload_pages.outputs.artifact-id }}
+          PAGES_ARTIFACT_DIGEST: ${{ steps.upload_pages.outputs.artifact-digest }}
+        with:
+          script: |
+            const name = process.env.PAGES_ARTIFACT_NAME;
+            const id = Number(process.env.PAGES_ARTIFACT_ID);
+            const digest = process.env.PAGES_ARTIFACT_DIGEST;
+            if (name !== `github-pages-${context.runId}-${process.env.GITHUB_RUN_ATTEMPT}` ||
+                !Number.isSafeInteger(id) || id <= 0 || !/^[a-f0-9]{64}$/.test(digest || '')) {
+              throw new Error('Pages upload identity outputs are missing or invalid.');
+            }
+            for (let attempt = 0; attempt < 6; attempt++) {
+              const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+                ...context.repo, run_id: context.runId, name, per_page: 100
+              });
+              const matches = artifacts.filter(artifact => artifact.name === name);
+              if (matches.length === 0 && attempt < 5) {
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                continue;
+              }
+              if (matches.length !== 1) throw new Error(`Expected exactly one Pages artifact for this attempt; found ${matches.length}.`);
+              const artifact = matches[0];
+              if (artifact.id !== id || artifact.digest !== `sha256:${digest}` || artifact.expired ||
+                  artifact.workflow_run?.id !== context.runId || artifact.workflow_run.head_sha !== context.sha) {
+                throw new Error('Pages artifact metadata does not match this attempt\'s immutable upload.');
+              }
+              core.info(`Verified unique Pages artifact ${name}, ID ${id}, SHA256 ${digest}.`);
+              break;
+            }
+
       - name: Publish through the standard Pages action with this recovery commit
         id: pages
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: ${{ env.PAGES_ARTIFACT_NAME }}
 
       - name: Verify the exact live release and retained history
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8

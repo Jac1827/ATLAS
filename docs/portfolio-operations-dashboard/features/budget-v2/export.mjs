@@ -2,8 +2,8 @@
  * A neutral report (title, status, summary, GL × month sections, extra tables) is
  * built from a property or company budget, then written as a workbook (SheetJS) or
  * a landscape PDF (pdf-lib). Drafts are marked as drafts on every sheet and page. */
-import * as E from './engine.mjs?v=0d68529412480755';
-import * as C from './company.mjs?v=bf1de5a859344220';
+import * as E from './engine.mjs?v=4b36c2fcc5efc21f';
+import * as C from './company.mjs?v=750a7a1f5eb55fc8';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const sum = a => a.reduce((t, v) => t + (Number(v) || 0), 0);
@@ -50,6 +50,7 @@ function propertyExtras(model, result) {
   if (c?.occRaw) out.push({name: 'Leasing schedule', head: ['Month', 'Move-ins', 'Move-outs', 'Occupied (end)', 'Occupancy'], rows: per.map((p, i) => [label(p), model.schedule.moveIns[i], model.schedule.moveOuts[i], Math.round(c.occRaw[i] * 10) / 10, c.units ? `${(c.occRaw[i] / c.units * 100).toFixed(1)}%` : ''])});
   if (model.positions?.length) out.push({name: 'Payroll positions', head: ['Position', 'GL', 'Headcount', 'Annual salary', 'Raise %', 'Budget'], rows: model.positions.filter(p => Number(p.count)).map(p => [p.title, p.gl, Number(p.count), Number(p.salary), Number(p.raisePct || 0), r2(sum(E.positionMonthly(p)))])});
   const a = model.assumptions || {};
+  if (c?.mix) out.push({name: 'Rate mix', head: ['Type', 'Sites', 'Monthly rent', 'GPR / year'], rows: c.mix.map(r => [r.label, r.units, r2(r.rent), r2(r.gprM * 12)]).concat([['Total', sum(c.mix.map(r => r.units)), r2(c.rent), r2(c.gprM * 12)]])});
   out.push({name: 'Assumptions', head: ['Driver', 'Value'], rows: [['Market rent ($/mo)', a.marketRent], ['Rent growth %', a.rentGrowth], ['Loss to lease % GPR', a.ltlPct], ['Concessions % GPR', a.concessionPct], ['Bad debt % GPR', a.badDebtPct], ['Management fee % income', a.mgmtPct], ['Inflation %', a.inflation],
     ['Electric rate change %', a.electric], ['Water rate change %', a.water], ['Sewer rate change %', a.sewer], ['Reserves $/unit/yr', a.reservePerUnit]].filter(r => r[1] !== undefined && r[1] !== null)});
   if (result.str) {

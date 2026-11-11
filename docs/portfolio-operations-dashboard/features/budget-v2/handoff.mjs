@@ -10,7 +10,7 @@
  *
  * All I/O is injected (`api`) so the identical sequence runs in the browser and in
  * the PGlite database test. */
-import {publicationRows, INCOME_SECTIONS, BELOW_NOI_SECTIONS} from './engine.mjs?v=0d68529412480755';
+import {publicationRows, INCOME_SECTIONS, BELOW_NOI_SECTIONS} from './engine.mjs?v=4b36c2fcc5efc21f';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const periodLabel = p => `${MON[Number(p.slice(5)) - 1]} ${p.slice(0, 4)}`;

@@ -9,8 +9,8 @@
  * state), not RISE results. When portfolio benchmarks exist (medians across at least
  * three RISE communities) they replace the generic category totals.
  */
-import {buildContext, freezeBase, sectionForGl, num, SUMMARY_GROUPS} from './engine.mjs?v=0d68529412480755';
-import {seedPositions} from './learning.mjs?v=a78b1755d23a3181';
+import {buildContext, freezeBase, sectionForGl, num, SUMMARY_GROUPS} from './engine.mjs?v=4b36c2fcc5efc21f';
+import {seedPositions} from './learning.mjs?v=e541d61d5652b40b';
 
 const zeros = () => Array(12).fill(0);
 const sum = a => a.reduce((t, v) => t + (Number(v) || 0), 0);
@@ -116,7 +116,13 @@ export function suggestStaff(assetClass, units, factor = 1) {
  */
 export function suggestStart(input, {benchmarks = {}} = {}) {
   const assetClass = CLASS_PROFILE[input.assetClass] ? input.assetClass : 'conventional';
-  const p = CLASS_PROFILE[assetClass], units = Math.max(0, Math.round(num(input.units))), rent = num(input.marketRent);
+  const mixIn = assetClass === 'manufactured' && Array.isArray(input.rateMix) && sum(input.rateMix.map(r => num(r.units))) > 0 ? input.rateMix.map(r => ({key: r.key, label: r.label, units: Math.max(0, Math.round(num(r.units))), rent: num(r.rent)})) : null;
+  const base = CLASS_PROFILE[assetClass];
+  const units = mixIn ? sum(mixIn.map(r => r.units)) : Math.max(0, Math.round(num(input.units)));
+  const rent = mixIn ? Math.round(sum(mixIn.map(r => r.units * r.rent)) / units * 100) / 100 : num(input.marketRent);
+  // Park-owned rental homes carry interior upkeep and turn like a rental home; pad-only sites barely do.
+  const homeShare = mixIn ? sum(mixIn.filter(r => r.key === 'home').map(r => r.units)) / units : 0;
+  const p = mixIn ? {...base, interior: base.interior + (1.1 - base.interior) * homeShare, turnover: base.turnover + (35 - base.turnover) * homeShare} : base;
   if (!units) throw Error('Enter the number of ' + p.label + 's.');
   const f = stateFactors(input.address?.state);
   const periods = input.periods;
@@ -142,7 +148,7 @@ export function suggestStart(input, {benchmarks = {}} = {}) {
     for (let m = 0; m < 3 && gap > 0; m++) { const n = Math.ceil(gap / (3 - m)); schedule.moveIns[m] += n; gap -= n; }
     schedule.source = `${p.turnover}% annual turnover with a summer peak; ${p.occ}% occupancy target`;
   }
-  const model = {version: 1, property: {name: input.name, units, assetClass, address: input.address || {}}, fiscalYear: input.fiscalYear, startMonth: input.startMonth || 1, periods,
+  const model = {version: 1, property: {name: input.name, units, assetClass, address: input.address || {}}, rateMix: mixIn, fiscalYear: input.fiscalYear, startMonth: input.startMonth || 1, periods,
     start: 'proposal', schedule, lines: [], positions: suggestStaff(assetClass, units, f.payroll), basis: {}, overrides: {}, notes: {}, investorNotes: {}, closedMonths: 0, actuals: null, floorPlans: [],
     assumptions: {marketRent: rent, rentGrowth: 0, ltlPct: 1.5, concessionPct: input.status === 'leaseup' ? 4 : 1, badDebtPct: 0.75, mgmtPct: 3, inflation: 3, taxChange: 0, insChange: 0, electric: 0, water: 0, sewer: 0, sewerShare: 55, reservePerUnit: 250, modelLtlPct: null, modelConcessionPct: null, modelBadDebtPct: null},
     learned: {}, sources: {proposal: {scratch: true, entity: 'Suggested starting point'}, t12: null, box: null, trending: null, conservice: null}};
@@ -151,7 +157,8 @@ export function suggestStart(input, {benchmarks = {}} = {}) {
   // Rent lines.
   const gpr = c.gprM;
   if (assetClass !== 'military') {
-  add('5120', 'Gross Potential Rent', zeros().map(() => gpr), `${units} ${p.label}s × ${rent ? '$' + rent.toLocaleString() : 'market rent (enter it)'} a month`);
+  add('5120', 'Gross Potential Rent', zeros().map(() => gpr), mixIn ? mixIn.filter(r => r.units).map(r => `${r.units} ${r.label.toLowerCase()} × $${r.rent.toLocaleString()}`).join(' + ') + ' a month'
+    : `${units} ${p.label}s × ${rent ? '$' + rent.toLocaleString() : 'market rent (enter it)'} a month`);
   add('5125', 'Gain/Loss to Lease', zeros().map(() => -gpr * 0.015), '1.5% of GPR');
   add('5220', 'Rent Loss-Vacancy', zeros().map((_, m) => -c.vac[m] * c.rent), 'Vacant unit-months × rent from the leasing schedule');
   add('5250', 'Concessions', zeros().map(() => -gpr * num(model.assumptions.concessionPct) / 100), `${model.assumptions.concessionPct}% of GPR`);

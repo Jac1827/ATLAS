@@ -152,10 +152,22 @@ export function positionMonthly(p) {
 }
 
 /* Context: every quantity a driver can reference, per month. */
+/* Manufactured housing rate mix: pad-only sites (lot rent) and home + pad rentals.
+ * Returns null unless the property is manufactured housing with a mix entered. */
+export const MH_RATE_TYPES = [['pad', 'Pad only (lot rent)'], ['home', 'Home + pad rental']];
+export function rateMixOf(model) {
+  if (model?.property?.assetClass !== 'manufactured' || !Array.isArray(model.rateMix)) return null;
+  const rows = model.rateMix.map(r => ({key: r.key, label: r.label, units: Math.max(0, num(r.units)), rent: num(r.rent)}));
+  return sum(rows.map(r => r.units)) > 0 ? rows : null;
+}
 export function buildContext(model) {
   const a = {...defaultAssumptions(), ...(model.assumptions || {})};
-  const units = num(model.property?.units);
-  const rent = num(a.marketRent) * (1 + num(a.rentGrowth) / 100);
+  const g = 1 + num(a.rentGrowth) / 100;
+  const mixRows = rateMixOf(model);
+  const units = mixRows ? sum(mixRows.map(r => r.units)) : num(model.property?.units);
+  // With a rate mix, GPR is each type's sites × its rent; the average rent drives vacancy.
+  const rent = mixRows ? sum(mixRows.map(r => r.units * r.rent)) / units * g : num(a.marketRent) * g;
+  const mix = mixRows ? mixRows.map(r => ({...r, rent: r.rent * g, gprM: r.units * r.rent * g})) : null;
   const s = model.schedule || {};
   const mi = (s.moveIns || zeros()).map(num), mo = (s.moveOuts || zeros()).map(num);
   const occRaw = [];
@@ -173,7 +185,7 @@ export function buildContext(model) {
   for (const p of model.positions || []) positionMonthly(p).forEach((v, m) => { salaries[m] += v; });
   const sewerShare = num(a.sewerShare) / 100;
   const ws = num(a.sewer) * sewerShare + num(a.water) * (1 - sewerShare);
-  return {units, rent, gprM: units * rent, occ, occRaw, vac, mi: miLt, mo: moLt, miRaw: mi, moRaw: mo, strUnits, ltUnits, salaries, a,
+  return {units, rent, gprM: units * rent, mix, occ, occRaw, vac, mi: miLt, mo: moLt, miRaw: mi, moRaw: mo, strUnits, ltUnits, salaries, a,
     E: num(a.electric), WS: ws, ltl: num(a.ltlPct), conc: num(a.concessionPct), bd: num(a.badDebtPct), mgmt: num(a.mgmtPct),
     infl: num(a.inflation), tax: num(a.taxChange), ins: num(a.insChange), reserve: num(a.reservePerUnit),
     occUM: sum(occRaw), occLtUM: sum(occ), vacUM: sum(vac), miTotal: sum(mi), moTotal: sum(mo), salTotal: sum(salaries)};
@@ -259,7 +271,7 @@ function shape(values, annual) {
 /* Main calculation. */
 export function calculate(model) {
   const c = buildContext(model);
-  const base = model.base ? buildContext({...model, ...model.base, property: model.property, strUnitsFixed: model.base.strUnits || zeros()}) : c;
+  const base = model.base ? buildContext({...model, ...model.base, property: {...model.property, units: model.base.units ?? model.property?.units}, rateMix: model.base.rateMix ?? null, strUnitsFixed: model.base.strUnits || zeros()}) : c;
   const basis = {rent: num(model.basis?.rent), occUM: num(model.basis?.occUM), vacUM: num(model.basis?.vacUM), mi: num(model.basis?.moveIns), mo: num(model.basis?.moveOuts), salaries: num(model.basis?.salaries)};
   const asset = ASSET_CLASSES[model.property?.assetClass] || ASSET_CLASSES.conventional;
   const closed = effectiveClosedMonths(model);
@@ -413,7 +425,7 @@ export function freezeBase(model) {
   const lines = model.lines || [];
   const incomeMonthly = zeros();
   lines.filter(l => INCOME_SECTIONS.includes(l.section)).forEach(l => (l.proposal?.monthly || []).forEach((v, m) => { incomeMonthly[m] += num(v); }));
-  return {schedule: structuredClone(model.schedule || {}), assumptions: structuredClone(model.assumptions || {}), positions: structuredClone(model.positions || []), incomeMonthly, strUnits: strUnitsByMonth(model)};
+  return {schedule: structuredClone(model.schedule || {}), assumptions: structuredClone(model.assumptions || {}), positions: structuredClone(model.positions || []), incomeMonthly, strUnits: strUnitsByMonth(model), rateMix: model.rateMix ? structuredClone(model.rateMix) : null, units: num(model.property?.units)};
 }
 
 /* GL × month rows for the governed workbook hand-off. Capex/reserves are included (below NOI). */

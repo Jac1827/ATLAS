@@ -2338,8 +2338,8 @@
     ]
   },
   "features/budget-v2/engine.mjs": {
-    "sha256": "0d68529412480755",
-    "bytes": 28067,
+    "sha256": "4b36c2fcc5efc21f",
+    "bytes": 29195,
     "references": [
       [
         "features/budget-v2/handoff.mjs",
@@ -2380,7 +2380,7 @@
     ]
   },
   "features/budget-v2/company-store.mjs": {
-    "sha256": "41fd30701372e5a6",
+    "sha256": "7d826e6b1282716c",
     "bytes": 4741,
     "references": [
       [
@@ -2390,7 +2390,7 @@
     ]
   },
   "features/budget-v2/company.mjs": {
-    "sha256": "bf1de5a859344220",
+    "sha256": "750a7a1f5eb55fc8",
     "bytes": 25927,
     "references": [
       [
@@ -2404,8 +2404,8 @@
     ]
   },
   "features/budget-v2/export.mjs": {
-    "sha256": "cfe36659a597c0d5",
-    "bytes": 18522,
+    "sha256": "1bf7daaf0c95816b",
+    "bytes": 18771,
     "references": [
       [
         "features/budget-v2/company-ui.mjs",
@@ -2418,7 +2418,7 @@
     ]
   },
   "features/budget-v2/company-ui.mjs": {
-    "sha256": "eec38e32d88d2cb7",
+    "sha256": "f9ee0a175f9fc1f7",
     "bytes": 50314,
     "references": [
       [
@@ -2428,7 +2428,7 @@
     ]
   },
   "features/budget-v2/handoff.mjs": {
-    "sha256": "4c18ede9556f1c95",
+    "sha256": "dc5e4e825b1cc526",
     "bytes": 11024,
     "references": [
       [
@@ -2438,7 +2438,7 @@
     ]
   },
   "features/budget-v2/importers.mjs": {
-    "sha256": "0beddea59a92ebb1",
+    "sha256": "c2f729474a0d2c62",
     "bytes": 25555,
     "references": [
       [
@@ -2462,7 +2462,7 @@
     ]
   },
   "features/budget-v2/learning.mjs": {
-    "sha256": "a78b1755d23a3181",
+    "sha256": "e541d61d5652b40b",
     "bytes": 12186,
     "references": [
       [
@@ -2476,8 +2476,8 @@
     ]
   },
   "features/budget-v2/scratch.mjs": {
-    "sha256": "7fc382dca312789e",
-    "bytes": 15215,
+    "sha256": "d959524367da2e92",
+    "bytes": 16136,
     "references": [
       [
         "features/budget-v2/ui.mjs",
@@ -2506,8 +2506,8 @@
     ]
   },
   "features/budget-v2/ui.mjs": {
-    "sha256": "9037df63ddfed896",
-    "bytes": 74840,
+    "sha256": "4833bf8ae245979d",
+    "bytes": 78417,
     "references": [
       [
         "RISE-Budget-Builder-v2.html",
@@ -2516,7 +2516,7 @@
     ]
   },
   "RISE-Budget-Builder-v2.html": {
-    "sha256": "8f6cc36fec100bf2",
+    "sha256": "0d0fb5d76fcd8d0d",
     "bytes": 8699,
     "references": [
       [
@@ -2526,7 +2526,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "a4873cda71a2f46e",
+    "sha256": "747e6c9aeb703859",
     "bytes": 26921,
     "references": [
       [

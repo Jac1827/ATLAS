@@ -1,13 +1,13 @@
 /* Budget Builder v2 — user interface. Mounted in the ATLAS Budget tab (iframe). */
-import * as E from './engine.mjs?v=0d68529412480755';
-import * as I from './importers.mjs?v=0beddea59a92ebb1';
-import * as Lr from './learning.mjs?v=a78b1755d23a3181';
-import * as H from './handoff.mjs?v=4c18ede9556f1c95';
+import * as E from './engine.mjs?v=4b36c2fcc5efc21f';
+import * as I from './importers.mjs?v=c2f729474a0d2c62';
+import * as Lr from './learning.mjs?v=e541d61d5652b40b';
+import * as H from './handoff.mjs?v=dc5e4e825b1cc526';
 import * as S from './store.mjs?v=6041624b88fae692';
 import * as SU from './str-ui.mjs?v=6bae4cda970dcaba';
-import * as CU from './company-ui.mjs?v=eec38e32d88d2cb7';
-import * as SC from './scratch.mjs?v=7fc382dca312789e';
-import * as X from './export.mjs?v=cfe36659a597c0d5';
+import * as CU from './company-ui.mjs?v=f9ee0a175f9fc1f7';
+import * as SC from './scratch.mjs?v=d959524367da2e92';
+import * as X from './export.mjs?v=1bf7daaf0c95816b';
 import {investorSummary, investorHtml, investorPdf, money as moneyFmt} from './investor-package.mjs?v=6fab0b0adb2b9ed3';
 import {parseReforecastWorkbook} from '../reforecast-intake.mjs?v=74bbd52d93a197cc';
 import {planningMappingDispositions} from '../planning-governance.mjs?v=a4de8d3f5a50966c';
@@ -231,6 +231,7 @@ function summaryForInvestors() {
   const notes = Object.values(r.rows).filter(x => m.investorNotes?.[x.line.gl]).map(x => ({gl: x.line.gl, name: x.line.name, note: (m.notes?.[x.line.gl] ?? x.line.note) || ''})).filter(n => n.note);
   const a = m.assumptions;
   const assumptions = [
+    ...(r.context.mix ? [`Rate mix: ${r.context.mix.map(x => `${x.units} ${x.label.toLowerCase()} at ${money(x.rent)}`).join('; ')} a month.`] : []),
     `Average market rent ${money(r.context.rent)} (${num(a.rentGrowth) >= 0 ? '+' : ''}${num(a.rentGrowth)}% growth); average occupancy ${(r.kpis.avgOccupancy * 100).toFixed(1)}%.`,
     `${r.kpis.moveIns} move-ins and ${r.kpis.moveOuts} move-outs; concessions ${num(a.concessionPct).toFixed(2)}% and loss to lease ${num(a.ltlPct).toFixed(2)}% of GPR.`,
     `Utilities: electric +${num(a.electric).toFixed(1)}%, water +${num(a.water).toFixed(1)}%, sewer +${num(a.sewer).toFixed(1)}% (blended water/sewer +${r.context.WS.toFixed(1)}%).`,
@@ -358,7 +359,9 @@ function scratchForm(ac) {
   const f = (k, label, cls = '', ph = '') => `<label class="f">${label}<input class="inp ${cls}" data-scratch="${k}" value="${esc(x[k] ?? '')}" placeholder="${esc(ph)}" ${ro}></label>`;
   const months = (s.model?.periods || E.fiscalPeriods(s.draft.fiscal_year, ac.startsWith('student') ? 8 : 1));
   return `<div class="card"><p class="h2">3 · Property details</p><p class="muted">ATLAS suggests staffing, a leasing schedule and every budget line from these details (and RISE portfolio medians where at least three communities report). You then finish the build on each tab.</p>
-  <div class="row" style="margin-top:10px">${f('name', 'Community name', '', 'RISE Riverside')}${f('units', `Number of ${ul}s`, 'sm')}${f('marketRent', `Average market rent per ${ul} ($/mo)`, 'num')}</div>
+  ${ac === 'manufactured' ? `<div class="row" style="margin-top:10px">${f('name', 'Community name', '', 'RISE Riverside')}</div>
+  <div class="row" style="margin-top:8px">${f('padUnits', 'Pad-only sites', 'sm')}${f('padRent', 'Lot rent ($/mo)', 'num')}${f('homeUnits', 'Home + pad rentals', 'sm')}${f('homeRent', 'Home + pad rent ($/mo)', 'num')}<span class="muted" style="align-self:flex-end">${num(x.padUnits) + num(x.homeUnits)} pads in total</span></div>`
+  : `<div class="row" style="margin-top:10px">${f('name', 'Community name', '', 'RISE Riverside')}${f('units', `Number of ${ul}s`, 'sm')}${f('marketRent', `Average market rent per ${ul} ($/mo)`, 'num')}</div>`}
   <div class="row" style="margin-top:8px">${f('street', 'Street address', '', '123 Main St')}${f('city', 'City')}${f('state', 'State', 'xs', 'FL')}${f('zip', 'ZIP', 'xs')}</div>
   <div class="row" style="margin-top:8px"><label class="f">Status<select class="sel" data-scratch="status" ${ro}><option value="operating" ${x.status !== 'leaseup' ? 'selected' : ''}>Operating</option><option value="leaseup" ${x.status === 'leaseup' ? 'selected' : ''}>New construction / lease-up</option></select></label>
   ${f('currentOccupied', `Occupied ${ul}s at the start (optional)`, 'sm')}
@@ -366,7 +369,9 @@ function scratchForm(ac) {
   <div class="row" style="margin-top:12px"><button class="btn" data-act="scratch" ${ro} ${s.busy ? 'disabled' : ''}>${s.model ? 'Suggest again (replaces lines)' : 'Suggest starting budget'}</button></div></div>`;
 }
 async function buildScratch() {
-  const x = s.scratch || {}, ac = s.draft.asset_class, units = Math.round(num(x.units));
+  const x = s.scratch || {}, ac = s.draft.asset_class;
+  const rateMix = ac === 'manufactured' ? E.MH_RATE_TYPES.map(([key, label]) => ({key, label, units: Math.round(num(x[key + 'Units'])), rent: num(x[key + 'Rent'])})) : null;
+  const units = rateMix ? rateMix.reduce((t, r) => t + r.units, 0) : Math.round(num(x.units));
   if ((x.name || '').trim().length < 2) { status('Enter the community name.', true); return; }
   if (!units) { status('Enter the number of units.', true); return; }
   if (!/^[A-Za-z]{2}$/.test(String(x.state || '').trim())) { status('Enter the two-letter state.', true); return; }
@@ -381,7 +386,7 @@ async function buildScratch() {
     const startMonth = await fiscalStartMonth();
     const periods = E.fiscalPeriods(s.draft.fiscal_year, startMonth);
     const bm = await S.benchmarks(s.central, ac).catch(() => ({}));
-    const model = SC.suggestStart({name: x.name.trim(), assetClass: ac, units, marketRent: num(x.marketRent), address: {street: x.street || '', city: x.city || '', state: String(x.state).toUpperCase(), zip: x.zip || ''},
+    const model = SC.suggestStart({name: x.name.trim(), assetClass: ac, units, marketRent: num(x.marketRent), rateMix, address: {street: x.street || '', city: x.city || '', state: String(x.state).toUpperCase(), zip: x.zip || ''},
       fiscalYear: s.draft.fiscal_year, startMonth, periods, status: x.status, currentOccupied: x.currentOccupied === '' || x.currentOccupied === undefined ? undefined : num(x.currentOccupied), firstMoveInMonth: num(x.firstMoveInMonth), absorption: num(x.absorption)}, {benchmarks: bm || {}});
     if (ac === 'military') model.bah = s.model?.bah || [];
     model.notes = s.model?.notes || {}; model.investorNotes = s.model?.investorNotes || {};
@@ -481,12 +486,29 @@ function payrollTab() {
   <tr class="tot"><td>Total payroll</td><td colspan="7"></td><td class="r">${money(c.salTotal + bonus + burden)}</td><td></td><td></td></tr></tbody></table></div>`;
 }
 
+/* Manufactured housing: pad-only (lot rent) vs home + pad rental rates. */
+function rateMixCard() {
+  const m = s.model, mix = s.result.context.mix;
+  if (!mix) return `<div class="card"><p class="h2">Rate mix</p><p class="muted">Budget pad-only sites (lot rent) and park-owned home + pad rentals at their own rates.</p>${canEdit() ? '<button class="btn ghost" data-act="mixstart">Split pad and home + pad rates</button>' : ''}</div>`;
+  const tot = mix.reduce((t, r) => t + r.units, 0), gpr = mix.reduce((t, r) => t + r.gprM, 0);
+  return `<div class="card"><p class="h2">Rate mix</p><p class="muted">Gross potential rent is each type's sites × its monthly rent (after rent growth). Vacancy, loss to lease and concessions apply at the weighted average. Changing sites changes the community's pad count.</p>
+  <table style="margin-top:8px"><thead><tr><th>Type</th><th class="r">Sites</th><th class="r">Monthly rent</th><th class="r">Share</th><th class="r">GPR / year</th></tr></thead><tbody>
+  ${mix.map((r, i) => `<tr><td>${esc(r.label)}</td><td class="r"><input class="inp xs" data-mix="${i}" data-k="units" value="${esc(m.rateMix[i].units)}" ${dis()}></td><td class="r"><input class="inp num" data-mix="${i}" data-k="rent" value="${esc(m.rateMix[i].rent)}" ${dis()}></td><td class="r">${tot ? (r.units / tot * 100).toFixed(0) : 0}%</td><td class="r">${money(r.gprM * 12)}</td></tr>`).join('')}
+  <tr class="tot"><td>Total</td><td class="r">${tot}</td><td class="r">${money(s.result.context.rent)} avg</td><td></td><td class="r">${money(gpr * 12)}</td></tr></tbody></table></div>`;
+}
+function syncMix() {
+  const rows = (s.model.rateMix || []).map(r => ({units: Math.max(0, num(r.units)), rent: num(r.rent)})), tot = rows.reduce((t, r) => t + r.units, 0);
+  if (!tot) return;
+  s.model.property.units = tot;
+  s.model.assumptions.marketRent = Math.round(rows.reduce((t, r) => t + r.units * r.rent, 0) / tot * 100) / 100;
+}
 function driversTab() {
   const a = s.model.assumptions, src = s.model.sources || {}, cr = src.conservice;
   const f = (k, label, hint) => `<label class="f">${label}<input class="inp num" data-a="${k}" value="${a[k] === null || a[k] === undefined ? '' : Math.round(num(a[k]) * 100) / 100}" ${dis()}><small>${hint || ''}</small></label>`;
   const bm = s.benchmarks || {};
-  return `<div class="cols"><div class="card"><p class="h2">Revenue drivers</p><div class="grid" style="margin-top:10px">
-  ${f('marketRent', 'Avg market rent ($)', src.box ? 'Box score ' + esc(src.box.asOf || '') : '')}${f('rentGrowth', 'Rent growth (%)', '')}
+  const mh = s.model.property.assetClass === 'manufactured', mix = s.result.context.mix;
+  return `${mh ? rateMixCard() : ''}<div class="cols"><div class="card"><p class="h2">Revenue drivers</p><div class="grid" style="margin-top:10px">
+  ${mix ? `<label class="f">Avg market rent ($)<input class="inp num" value="${Math.round(s.result.context.rent / (1 + num(a.rentGrowth) / 100) * 100) / 100}" disabled><small>Weighted from the rate mix</small></label>` : f('marketRent', 'Avg market rent ($)', src.box ? 'Box score ' + esc(src.box.asOf || '') : '')}${f('rentGrowth', 'Rent growth (%)', '')}
   ${f('ltlPct', 'Loss to lease (% GPR)', a.modelLtlPct !== null ? `Model: ${num(a.modelLtlPct).toFixed(2)}% (box score scheduled vs market)` : '')}${f('concessionPct', 'Concessions (% GPR)', a.modelConcessionPct !== null ? `T12: ${num(a.modelConcessionPct).toFixed(2)}%` : '')}
   ${f('badDebtPct', 'Bad debt (% GPR)', a.modelBadDebtPct !== null ? `T12: ${num(a.modelBadDebtPct).toFixed(2)}%` : '')}${f('mgmtPct', 'Management fee (% income)', 'Per management agreement')}</div></div>
   <div class="card"><p class="h2">Expense & utility drivers</p><div class="grid" style="margin-top:10px">
@@ -569,6 +591,11 @@ document.addEventListener('click', async e => {
   switch (d.act) {
     case 'new': s.draft = null; s.model = null; render(); break;
     case 'create': newDraft(); break;
+    case 'mixstart': {
+      const m = s.model, rent = num(m.assumptions.marketRent);
+      m.rateMix = E.MH_RATE_TYPES.map(([key, label]) => ({key, label, units: key === 'pad' ? num(m.property.units) : 0, rent: key === 'pad' ? rent : Math.round(rent * 1.8)}));
+      syncMix(); mark(); break;
+    }
     case 'scratch': await buildScratch(); break;
     case 'save': await save(); break;
     case 'build': await buildFromSources().catch(err => status(err.message, true, 9000)); break;
@@ -635,6 +662,7 @@ document.addEventListener('change', async e => {
   if (!s.model) return;
   if (await SU.strChange(t, strCtx())) return;
   const m = s.model;
+  if (d.mix !== undefined && d.k) { const row = m.rateMix?.[num(d.mix)]; if (!row) return; row[d.k] = Math.max(0, num(t.value)); syncMix(); mark(); return; }
   if (d.a) { m.assumptions[d.a] = num(t.value); mark(); return; }
   // On a line that includes STR, the typed amount is the total; the override is its conventional part.
   if (d.ov) { m.overrides[d.ov] = num(t.value) - (s.result.rows[d.ov]?.strAnnual || 0); mark(); return; }

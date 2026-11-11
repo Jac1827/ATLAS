@@ -39,7 +39,9 @@ jobs:
     concurrency:
       group: atlas-preview-${{ github.ref }}
       cancel-in-progress: false
-    runs-on: ubuntu-latest
+    # Pinned: the ubuntu-latest move to Ubuntu 26.04 left apt mirror lookups failing while
+    # Playwright installs browser dependencies. Revisit when 26.04 images are stable.
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       ATLAS_ASSET_RELEASE_MODE: preview
@@ -65,7 +67,7 @@ jobs:
       - name: Install pinned browser test runtime
         run: |
           npm install --no-save --package-lock=false --ignore-scripts playwright@1.62.1
-          npx playwright install --with-deps chromium
+          for attempt in 1 2 3; do npx playwright install --with-deps chromium && break; [ "$attempt" = 3 ] && exit 1; echo "Browser dependency install failed (attempt $attempt); retrying in 30s"; sleep 30; done
 
       - name: Run complete discovered test suite
         run: node tools/test-all.mjs --output output/test-all/ci
@@ -102,7 +104,9 @@ jobs:
     concurrency:
       group: atlas-production-publisher
       cancel-in-progress: false
-    runs-on: ubuntu-latest
+    # Pinned: the ubuntu-latest move to Ubuntu 26.04 left apt mirror lookups failing while
+    # Playwright installs browser dependencies. Revisit when 26.04 images are stable.
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: write
@@ -142,7 +146,7 @@ jobs:
       - name: Install pinned browser test runtime
         run: |
           npm install --no-save --package-lock=false --ignore-scripts playwright@1.62.1
-          npx playwright install --with-deps chromium
+          for attempt in 1 2 3; do npx playwright install --with-deps chromium && break; [ "$attempt" = 3 ] && exit 1; echo "Browser dependency install failed (attempt $attempt); retrying in 30s"; sleep 30; done
 
       - name: Run complete discovered test suite
         run: node tools/test-all.mjs --output output/test-all/ci

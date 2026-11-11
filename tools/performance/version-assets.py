@@ -130,7 +130,7 @@ for asset in ['features/workbook-rich-images.mjs','features/reforecast-str-overl
  tracked.setdefault(asset,[])
 for asset in ['features/budget-money.mjs','features/budget-leasing-drivers.mjs','features/budget-leasing-ui.mjs','features/budget-driver-warning-ui.mjs','features/budget-export-store.mjs','features/standard-budget-model.mjs','features/standard-budget-render.mjs','features/standard-budget-export-ui.mjs','features/str-budget-application.mjs']:
  tracked.setdefault(asset,[])
-for asset in ['features/budget-v2/str.mjs','features/budget-v2/engine.mjs','features/budget-v2/importers.mjs','features/budget-v2/learning.mjs','features/budget-v2/handoff.mjs','features/budget-v2/store.mjs','features/budget-v2/investor-package.mjs','features/budget-v2/str-ui.mjs','features/budget-v2/company.mjs','features/budget-v2/company-store.mjs','features/budget-v2/company-ui.mjs','features/budget-v2/scratch.mjs']:
+for asset in ['features/budget-v2/str.mjs','features/budget-v2/engine.mjs','features/budget-v2/importers.mjs','features/budget-v2/learning.mjs','features/budget-v2/handoff.mjs','features/budget-v2/store.mjs','features/budget-v2/investor-package.mjs','features/budget-v2/str-ui.mjs','features/budget-v2/company.mjs','features/budget-v2/company-store.mjs','features/budget-v2/company-ui.mjs','features/budget-v2/scratch.mjs','features/budget-v2/export.mjs']:
  tracked.setdefault(asset,[])
 # The former inline shell now lives in a classic external script. Keep static
 # HTML references in index, and migrate only references extracted with the core.

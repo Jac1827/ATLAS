@@ -5,8 +5,9 @@ import * as Lr from './learning.mjs?v=a78b1755d23a3181';
 import * as H from './handoff.mjs?v=4c18ede9556f1c95';
 import * as S from './store.mjs?v=6041624b88fae692';
 import * as SU from './str-ui.mjs?v=6bae4cda970dcaba';
-import * as CU from './company-ui.mjs?v=0ae9972f3dfc4764';
+import * as CU from './company-ui.mjs?v=eec38e32d88d2cb7';
 import * as SC from './scratch.mjs?v=7fc382dca312789e';
+import * as X from './export.mjs?v=cfe36659a597c0d5';
 import {investorSummary, investorHtml, investorPdf, money as moneyFmt} from './investor-package.mjs?v=6fab0b0adb2b9ed3';
 import {parseReforecastWorkbook} from '../reforecast-intake.mjs?v=74bbd52d93a197cc';
 import {planningMappingDispositions} from '../planning-governance.mjs?v=a4de8d3f5a50966c';
@@ -305,7 +306,7 @@ function renderContext() {
   const st = s.draft ? STATUS[draftStatus()] : null;
   $ctx.innerHTML = `<label class="f" style="flex-direction:row;align-items:center;gap:8px">Community<select class="sel" data-ctx="community">${opts}</select></label>
   <label class="f" style="flex-direction:row;align-items:center;gap:8px">Budget<select class="sel" data-ctx="draft"><option value="">${s.drafts.length ? 'Choose…' : 'No budgets yet'}</option>${drafts}</select></label>
-  <button class="btn ghost" data-act="new">+ New</button>${s.coRole ? '<button class="btn ghost" data-act="company" title="RISE Residential, LLC company budget and monthly tracking">RISE company budget</button>' : ''}<a class="btn ghost" href="${classicUrl('?atlasView=actuals')}" title="Actuals & close, reforecasts, STR, reports and exports">Close & reports</a>${st ? `<span class="pill ${st[1]}">${st[0]}${s.vpEditing ? ' · VP editing' : ''}</span>` : ''}`;
+  <button class="btn ghost" data-act="new">+ New</button>${s.draft && s.result ? '<button class="btn ghost" data-act="exportxlsx" title="Download this budget as an Excel workbook (drafts are marked as drafts)">Excel</button><button class="btn ghost" data-act="exportpdf" title="Download this budget as a PDF (drafts are marked as drafts)">PDF</button>' : ''}${s.coRole ? '<button class="btn ghost" data-act="company" title="RISE Residential, LLC company budget and monthly tracking">RISE company budget</button>' : ''}<a class="btn ghost" href="${classicUrl('?atlasView=actuals')}" title="Actuals & close, reforecasts, STR, reports and exports">Close & reports</a>${st ? `<span class="pill ${st[1]}">${st[0]}${s.vpEditing ? ' · VP editing' : ''}</span>` : ''}`;
 }
 function renderStart() {
   const how = s.newDraft.start || 'existing';
@@ -592,6 +593,18 @@ document.addEventListener('click', async e => {
       m.schedule.moveIns = shift(sched.moveIns); m.schedule.moveOuts = shift(sched.moveOuts); mark(); break;
     }
     case 'vpedit': s.vpEditing = !s.vpEditing; render(); break;
+    case 'exportxlsx': case 'exportpdf': {
+      try {
+        const rep = X.propertyReport({model: s.model, result: s.result, draft: s.draft, statusLabel: STATUS[draftStatus()]?.[0], community: s.communities.find(c => c.id === s.draft.community_id)?.name});
+        if (d.act === 'exportxlsx') X.download(X.reportWorkbook(rep, window.XLSX), `${rep.title}${rep.isDraft ? ' (draft)' : ''}.xlsx`, X.XLSX_TYPE);
+        else {
+          const PDFLib = await import('../../vendor/pdf-lib-1.17.1.mjs?v=72c052d97b4d5d9f');
+          const logo = await fetch(new URL('../../rise_logo.png', import.meta.url)).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null);
+          X.download(await X.reportPdf(rep, {PDFLib, logoPng: logo ? new Uint8Array(logo) : null}), `${rep.title}${rep.isDraft ? ' (draft)' : ''}.pdf`, 'application/pdf');
+        }
+      } catch (err) { status('Export failed: ' + err.message, true, 9000); }
+      break;
+    }
     case 'pdf': {
       const locked = ['approved_locked', 'sent_to_investors'].includes(draftStatus()) && s.draft.locked_summary && !s.draft.revised_after_approval;
       await downloadPdf(locked ? s.draft.locked_summary : summaryForInvestors()).catch(err => status(err.message, true)); break;

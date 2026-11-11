@@ -4,6 +4,7 @@
 import * as C from './company.mjs?v=bf1de5a859344220';
 import * as CS from './company-store.mjs?v=41fd30701372e5a6';
 import {positionMonthly} from './engine.mjs?v=0d68529412480755';
+import * as X from './export.mjs?v=cfe36659a597c0d5';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const TABS = [['setup', 'Setup & sources'], ['fees', 'Fee income'], ['payroll', 'Payroll'], ['lines', 'Expenses & other income'], ['summary', 'Summary & approval'], ['tracking', 'Monthly tracking']];
@@ -175,7 +176,7 @@ export function render() {
   if (!cs.active) return;
   const s = cs.budget ? STATUS[st()] : null;
   H.$ctx.innerHTML = `<span class="pill">RISE company budget</span><label class="f" style="flex-direction:row;align-items:center;gap:8px">Budget<select class="sel" data-co-ctx="budget"><option value="">${cs.list.length ? 'Choose…' : 'No company budgets yet'}</option>${cs.list.map(b => `<option value="${b.budget_id}" ${cs.budget?.budget_id === b.budget_id ? 'selected' : ''}>${esc(b.name)} · ${STATUS[b.status]?.[0] || b.status}</option>`).join('')}</select></label>
-  ${builder() ? '<button class="btn ghost" data-co-act="new">+ New</button>' : ''}<button class="btn ghost" data-co-act="trackonly">Monthly tracking</button><button class="btn ghost" data-co-act="back">Property budgets</button>${s ? `<span class="pill ${s[1]}">${s[0]}${cs.vpEditing ? ' · VP editing' : ''}</span>` : ''}`;
+  ${builder() ? '<button class="btn ghost" data-co-act="new">+ New</button>' : ''}${cs.budget && cs.result ? '<button class="btn ghost" data-co-act="exportxlsx" title="Download as Excel (drafts are marked as drafts)">Excel</button><button class="btn ghost" data-co-act="exportpdf" title="Download as PDF (drafts are marked as drafts)">PDF</button>' : ''}<button class="btn ghost" data-co-act="trackonly">Monthly tracking</button><button class="btn ghost" data-co-act="back">Property budgets</button>${s ? `<span class="pill ${s[1]}">${s[0]}${cs.vpEditing ? ' · VP editing' : ''}</span>` : ''}`;
   if (cs.tab === 'tracking' && (!cs.budget || cs.trackOnly)) { H.$app.innerHTML = trackingTab(); return; }
   if (!cs.budget) { H.$app.innerHTML = startView(); return; }
   const banners = [st() === 'approved_locked' ? `<div class="banner lock">Approved and locked${cs.budget.approved_at ? ' ' + new Date(cs.budget.approved_at).toLocaleDateString() : ''}. ${cs.vpEditing ? 'VP edit mode is ON — save requires a reason; the executive re-approves the revision.' : ''}${cs.budget.revised_after_approval ? ' <b>Revised since approval — awaiting executive re-approval.</b>' : ''}</div>` : '',
@@ -363,6 +364,18 @@ document.addEventListener('click', async e => {
     }
     case 'monthsave': await saveMonth('save'); break;
     case 'monthreview': await saveMonth('review'); break;
+    case 'exportxlsx': case 'exportpdf': {
+      try {
+        const rep = X.companyReport({model: cs.model, result: cs.result, budget: cs.budget, statusLabel: STATUS[st()]?.[0]});
+        if (d.coAct === 'exportxlsx') X.download(X.reportWorkbook(rep, window.XLSX), `${rep.title}${rep.isDraft ? ' (draft)' : ''}.xlsx`, X.XLSX_TYPE);
+        else {
+          const PDFLib = await import('../../vendor/pdf-lib-1.17.1.mjs?v=72c052d97b4d5d9f');
+          const logo = await fetch(new URL('../../rise_logo.png', import.meta.url)).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null);
+          X.download(await X.reportPdf(rep, {PDFLib, logoPng: logo ? new Uint8Array(logo) : null}), `${rep.title}${rep.isDraft ? ' (draft)' : ''}.pdf`, 'application/pdf');
+        }
+      } catch (err) { H.status('Export failed: ' + err.message, true, 9000); }
+      break;
+    }
     case 'trackxlsx': {
       if (!cs.lastTracking) return;
       const bytes = trackingWorkbook(cs.lastTracking.t, cs.lastTracking.label);

@@ -1,0 +1,36 @@
+// Budget Builder v2 export: Excel and PDF for property and company budgets, drafts marked. Synthetic data only.
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+const require = createRequire(import.meta.url);
+const F = '../docs/portfolio-operations-dashboard/features/budget-v2/';
+const E = await import(F + 'engine.mjs'), SC = await import(F + 'scratch.mjs'), C = await import(F + 'company.mjs'), X = await import(F + 'export.mjs');
+const XLSX = require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js'), PDFLib = require('pdf-lib');
+const model = SC.suggestStart({name: 'Test Commons', assetClass: 'conventional', units: 120, marketRent: 1400, address: {state: 'FL'}, fiscalYear: 2027, periods: E.fiscalPeriods(2027, 1), status: 'operating'});
+model.notes = {'6537': 'New landscaping vendor'};
+const result = E.calculate(model);
+const draft = {name: 'Test Commons FY2027 Budget', status: 'gm_draft', plan_type: 'budget'};
+const rep = X.propertyReport({model, result, draft, statusLabel: 'Draft · GM'});
+assert.equal(rep.isDraft, true);
+const wb = XLSX.read(X.reportWorkbook(rep, XLSX), {type: 'array'});
+assert.deepEqual(wb.SheetNames.slice(0, 2), ['Summary', 'Budget by month']);
+const rows = XLSX.utils.sheet_to_json(wb.Sheets['Budget by month'], {header: 1});
+assert(rows[2][0].startsWith('Status: Draft'), 'drafts are marked');
+const gpr = rows.find(r => r[0] === '5120'); assert.equal(gpr[14], result.rows['5120'].annual, 'GL total in the workbook');
+assert.equal(rows.find(r => r[0] === '6537').at(-1), 'New landscaping vendor', 'notes carried');
+const noi = rows.find(r => r[1] === 'Net operating income'); assert(Math.abs(noi[14] - result.totals.annual.noi) < 1, 'NOI reconciles');
+assert(wb.SheetNames.includes('Leasing schedule') && wb.SheetNames.includes('Payroll positions'));
+const pdf = await X.reportPdf(rep, {PDFLib});
+assert(String.fromCharCode(...pdf.slice(0, 4)) === '%PDF' && pdf.length > 4000);
+assert((await PDFLib.PDFDocument.load(pdf)).getPageCount() >= 3, 'summary, GL pages and notes');
+const approved = X.propertyReport({model, result, draft: {...draft, status: 'approved_locked'}});
+assert.equal(approved.isDraft, false);
+// Company budget
+const cm = {kind: 'company', entity: 'RISE Residential, LLC', fiscalYear: 2027, periods: E.fiscalPeriods(2027, 1), lines: [{gl: '4120', name: 'Mgmt Fee - A', section: C.FEE_SECTION, driver: 'fee', prior: {annual: 120000}}, {gl: '6237', name: 'Software', section: 'General & Administrative', driver: 'fixed', annual: 24000, growthPct: 0, prior: {annual: 20000}}, {gl: '6718', name: 'General Liability Insurance', section: 'Taxes & Insurance', driver: 'fixed', annual: 6000, prior: {annual: 6000}}],
+  fees: [{gl: '4120', name: 'A', mode: 'flat', flatMonthly: 10000, startMonth: 0}], positions: [], overrides: {}, notes: {}};
+const cr = C.calculateCompany(cm), crep = X.companyReport({model: cm, result: cr, budget: {name: 'RISE FY2027', status: 'draft'}});
+const cwb = XLSX.read(X.reportWorkbook(crep, XLSX), {type: 'array'});
+const crows = XLSX.utils.sheet_to_json(cwb.Sheets['Budget by month'], {header: 1});
+assert.equal(crows.find(r => r[1] === 'Net operating income')[14], 120000 - 24000 - 6000);
+assert(cwb.SheetNames.includes('Fee income'));
+assert((await X.reportPdf(crep, {PDFLib})).length > 3000);
+console.log('PASS Budget Builder v2 export: Excel and PDF for property and company budgets, drafts marked, totals and notes carried');

@@ -158,7 +158,19 @@ export const MH_RATE_TYPES = [['pad', 'Pad only (lot rent)'], ['home', 'Home + p
 export function rateMixOf(model) {
   if (model?.property?.assetClass !== 'manufactured' || !Array.isArray(model.rateMix)) return null;
   const rows = model.rateMix.map(r => ({key: r.key, label: r.label, units: Math.max(0, num(r.units)), rent: num(r.rent)}));
-  return sum(rows.map(r => r.units)) > 0 ? rows : null;
+  return rows;
+}
+// Preserve the original linked-driver denominator before the first legacy edit.
+export function preserveBaseUnits(model) {
+  if (model.base && model.base.units == null) model.base.units = num(model.property?.units);
+}
+export function syncRateMix(model) {
+  preserveBaseUnits(model);
+  const rows = rateMixOf(model);
+  if (!rows) return;
+  const units = sum(rows.map(r => r.units));
+  model.property.units = units;
+  model.assumptions.marketRent = units ? Math.round(sum(rows.map(r => r.units * r.rent)) / units * 100) / 100 : 0;
 }
 export function buildContext(model) {
   const a = {...defaultAssumptions(), ...(model.assumptions || {})};
@@ -166,7 +178,7 @@ export function buildContext(model) {
   const mixRows = rateMixOf(model);
   const units = mixRows ? sum(mixRows.map(r => r.units)) : num(model.property?.units);
   // With a rate mix, GPR is each type's sites × its rent; the average rent drives vacancy.
-  const rent = mixRows ? sum(mixRows.map(r => r.units * r.rent)) / units * g : num(a.marketRent) * g;
+  const rent = mixRows ? (units ? sum(mixRows.map(r => r.units * r.rent)) / units * g : 0) : num(a.marketRent) * g;
   const mix = mixRows ? mixRows.map(r => ({...r, rent: r.rent * g, gprM: r.units * r.rent * g})) : null;
   const s = model.schedule || {};
   const mi = (s.moveIns || zeros()).map(num), mo = (s.moveOuts || zeros()).map(num);

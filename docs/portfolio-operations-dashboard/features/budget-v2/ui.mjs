@@ -497,10 +497,7 @@ function rateMixCard() {
   <tr class="tot"><td>Total</td><td class="r">${tot}</td><td class="r">${money(s.result.context.rent)} avg</td><td></td><td class="r">${money(gpr * 12)}</td></tr></tbody></table></div>`;
 }
 function syncMix() {
-  const rows = (s.model.rateMix || []).map(r => ({units: Math.max(0, num(r.units)), rent: num(r.rent)})), tot = rows.reduce((t, r) => t + r.units, 0);
-  if (!tot) return;
-  s.model.property.units = tot;
-  s.model.assumptions.marketRent = Math.round(rows.reduce((t, r) => t + r.units * r.rent, 0) / tot * 100) / 100;
+  E.syncRateMix(s.model);
 }
 function driversTab() {
   const a = s.model.assumptions, src = s.model.sources || {}, cr = src.conservice;
@@ -593,6 +590,7 @@ document.addEventListener('click', async e => {
     case 'create': newDraft(); break;
     case 'mixstart': {
       const m = s.model, rent = num(m.assumptions.marketRent);
+      E.preserveBaseUnits(m);
       m.rateMix = E.MH_RATE_TYPES.map(([key, label]) => ({key, label, units: key === 'pad' ? num(m.property.units) : 0, rent: key === 'pad' ? rent : Math.round(rent * 1.8)}));
       syncMix(); mark(); break;
     }
@@ -662,7 +660,7 @@ document.addEventListener('change', async e => {
   if (!s.model) return;
   if (await SU.strChange(t, strCtx())) return;
   const m = s.model;
-  if (d.mix !== undefined && d.k) { const row = m.rateMix?.[num(d.mix)]; if (!row) return; row[d.k] = Math.max(0, num(t.value)); syncMix(); mark(); return; }
+  if (d.mix !== undefined && d.k) { const row = m.rateMix?.[num(d.mix)]; if (!row) return; E.preserveBaseUnits(m); row[d.k] = Math.max(0, num(t.value)); syncMix(); mark(); return; }
   if (d.a) { m.assumptions[d.a] = num(t.value); mark(); return; }
   // On a line that includes STR, the typed amount is the total; the override is its conventional part.
   if (d.ov) { m.overrides[d.ov] = num(t.value) - (s.result.rows[d.ov]?.strAnnual || 0); mark(); return; }

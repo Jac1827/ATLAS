@@ -36,3 +36,19 @@ assert(E.calculate(old).rows['5120'].annual > E.calculate({...old, rateMix: null
 const wb = XLSX.read(X.reportWorkbook(X.propertyReport({model: m, result: r, draft: {name: 'Test Pines FY2027', status: 'gm_draft'}}), XLSX), {type: 'array'});
 assert(wb.SheetNames.includes('Rate mix'));
 console.log('PASS Budget Builder v2 manufactured housing rate mix: pad-only and home + pad rates, drivers, starting point and export');
+// Legacy base remains 100 after editing to 80 and reloading saved JSON.
+const legacy = structuredClone(m); legacy.property.units = 100;
+legacy.rateMix = [{key: 'pad', label: 'Pad', units: 100, rent: 600}];
+legacy.base = E.freezeBase(legacy); delete legacy.base.units; delete legacy.base.rateMix;
+E.preserveBaseUnits(legacy); legacy.rateMix[0].units = 80; E.syncRateMix(legacy);
+assert.equal(legacy.property.units, 80); assert.equal(legacy.base.units, 100);
+const reloaded = JSON.parse(JSON.stringify(legacy)); E.syncRateMix(reloaded);
+assert.equal(reloaded.base.units, 100);
+reloaded.rateMix[0].units = 0; E.syncRateMix(reloaded);
+const empty = E.calculate(reloaded);
+assert.equal(reloaded.property.units, 0); assert.equal(reloaded.assumptions.marketRent, 0);
+assert.equal(empty.context.units, 0); assert.equal(empty.context.rent, 0);
+assert.equal(empty.rows['5120'].annual, 0); assert.equal(reloaded.base.units, 100);
+const stale = structuredClone(reloaded); stale.property.units = 100; stale.assumptions.marketRent = 600;
+assert.equal(E.buildContext(stale).units, 0, 'empty mix overrides stale persisted units');
+assert.equal(E.buildContext(stale).rent, 0);

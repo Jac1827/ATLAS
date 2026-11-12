@@ -6,8 +6,10 @@ import * as E from './engine.mjs?v=4b36c2fcc5efc21f';
 import * as C from './company.mjs?v=750a7a1f5eb55fc8';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const sum = a => a.reduce((t, v) => t + (Number(v) || 0), 0);
-const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+const sum = a => a.some(v => v == null || !Number.isFinite(Number(v))) ? null : a.reduce((t, v) => t + Number(v), 0);
+const sub = (a, b) => a == null || b == null ? null : a - b;
+const perUnit = (value, units) => value == null || !units ? null : value / units;
+const r2 = n => n == null || !Number.isFinite(Number(n)) ? null : Math.round(Number(n) * 100) / 100;
 const zeros = () => Array(12).fill(0);
 const label = p => `${MON[Number(p.slice(5)) - 1]} ${p.slice(2, 4)}`;
 const DRAFT_TEXT = 'DRAFT — not approved. Figures may change.';
@@ -18,11 +20,11 @@ function sectionsOf(rows, order, noteOf) {
   const names = [...order.filter(s => by[s]), ...Object.keys(by).filter(s => !order.includes(s))];
   return names.map(name => {
     const lines = by[name].sort((a, b) => String(a.line.gl).localeCompare(String(b.line.gl))).map(r => ({gl: String(r.line.gl), name: r.line.name, monthly: r.monthly.map(r2), total: r2(r.annual), compare: r.t12 ?? r.prior ?? null, note: noteOf(r) || ''}));
-    const monthly = zeros(); lines.forEach(l => l.monthly.forEach((v, m) => { monthly[m] += v; }));
+    const monthly = zeros(); lines.forEach(l => l.monthly.forEach((v, m) => { monthly[m] = sum([monthly[m], v]); }));
     return {name, lines, monthly: monthly.map(r2), total: r2(sum(monthly))};
   });
 }
-const totalRow = (label, monthly, cls = 'tot') => ({label, monthly: monthly.map(r2), total: r2(sum(monthly)), cls});
+const totalRow = (label, monthly, cls = 'tot', annual = sum(monthly)) => ({label, monthly: monthly.map(r2), total: r2(annual), cls});
 
 /* Property budget → report. */
 export function propertyReport({model, result, draft, statusLabel, community}) {
@@ -30,18 +32,18 @@ export function propertyReport({model, result, draft, statusLabel, community}) {
   const isDraft = !['approved_locked', 'sent_to_investors'].includes(draft?.status) || !!draft?.revised_after_approval;
   const sections = sectionsOf(result.rows, [...E.INCOME_SECTIONS, ...E.OPEX_SECTIONS, ...E.BELOW_NOI_SECTIONS], r => model.notes?.[r.line.gl] ?? r.line.note);
   const inc = sections.filter(s => E.INCOME_SECTIONS.includes(s.name)), opx = sections.filter(s => !E.INCOME_SECTIONS.includes(s.name) && !E.BELOW_NOI_SECTIONS.includes(s.name)), below = sections.filter(s => E.BELOW_NOI_SECTIONS.includes(s.name));
-  const add = list => { const o = zeros(); list.forEach(s => s.monthly.forEach((v, m) => { o[m] += v; })); return o; };
-  const incM = add(inc), opxM = add(opx), belowM = add(below), noiM = incM.map((v, m) => v - opxM[m]);
+  const add = list => { const o = zeros(); list.forEach(s => s.monthly.forEach((v, m) => { o[m] = sum([o[m], v]); })); return o; };
+  const incM = result.monthly.income, opxM = result.monthly.opex, belowM = add(below), noiM = result.monthly.noi;
   const K = result.kpis || {};
   return {kind: 'property', title: draft?.name || `${community || model.property.name} FY${model.fiscalYear} Budget`, entity: community || model.property.name,
     subtitle: `${E.ASSET_CLASSES[model.property.assetClass]?.label || ''} · ${units} ${ul}s · ${label(model.periods[0])} – ${label(model.periods[11])}${draft?.plan_type === 'reforecast' ? ' · Reforecast' : ''}`,
     status: statusLabel || (isDraft ? 'Draft' : 'Approved'), isDraft, periods: model.periods, compareLabel: model.sources?.t12 ? 'T12 actual' : null,
-    summary: [['Total income', T.income], ['Operating expenses', T.opex], ['Net operating income', T.noi], [`NOI per ${ul}`, units ? T.noi / units : 0], ['Replacement reserves', T.reserves], ['Capital expenditures', T.capex], ['Cash flow after reserves & capex', T.cashFlow],
+    summary: [['Total income', T.income], ['Operating expenses', T.opex], ['Net operating income', T.noi], [`NOI per ${ul}`, perUnit(T.noi, units)], ['Replacement reserves', T.reserves], ['Capital expenditures', T.capex], ['Cash flow after reserves & capex', T.cashFlow],
       ...(result.memo ? [[result.memo.label, result.memo.annual]] : [])],
     kpis: [['Average occupancy', K.avgOccupancy != null ? `${(K.avgOccupancy * 100).toFixed(1)}%` : ''], ['Move-ins / move-outs', `${K.moveIns ?? ''} / ${K.moveOuts ?? ''}`], ['Market rent', model.assumptions?.marketRent ? `$${Math.round(model.assumptions.marketRent).toLocaleString()}` : '']],
-    groups: result.groups.map(g => [g.name, g.final, units ? g.final / units : 0]),
-    blocks: [{title: 'Income', sections: inc, total: totalRow('Total income', incM, 'sub')}, {title: 'Operating expenses', sections: opx, total: totalRow('Total operating expenses', opxM, 'sub')},
-      {title: null, sections: [], total: totalRow('Net operating income', noiM)}, {title: 'Below NOI', sections: below, total: totalRow('Cash flow after reserves & capex', noiM.map((v, m) => v - belowM[m]))}],
+    groups: result.groups.map(g => [g.name, g.final, perUnit(g.final, units)]),
+    blocks: [{title: 'Income', sections: inc, total: totalRow('Total income', incM, 'sub', T.income)}, {title: 'Operating expenses', sections: opx, total: totalRow('Total operating expenses', opxM, 'sub', T.opex)},
+      {title: null, sections: [], total: totalRow('Net operating income', noiM, 'tot', T.noi)}, {title: 'Below NOI', sections: below, total: totalRow('Cash flow after reserves & capex', noiM.map((v, m) => sub(v, belowM[m])), 'tot', T.cashFlow)}],
     extra: propertyExtras(model, result)};
 }
 function propertyExtras(model, result) {
@@ -67,14 +69,14 @@ export function companyReport({model, result, budget, statusLabel}) {
   const isDraft = budget?.status !== 'approved_locked' || !!budget?.revised_after_approval;
   const sections = sectionsOf(result.rows, C.ALL_SECTIONS, r => model.notes?.[r.line.gl] ?? r.line.note);
   const inc = sections.filter(s => C.INCOME_SECTIONS.includes(s.name)), ctl = sections.filter(s => !C.INCOME_SECTIONS.includes(s.name) && !C.NONCONTROLLABLE_SECTIONS.includes(s.name)), non = sections.filter(s => C.NONCONTROLLABLE_SECTIONS.includes(s.name));
-  const add = list => { const o = zeros(); list.forEach(s => s.monthly.forEach((v, m) => { o[m] += v; })); return o; };
-  const incM = add(inc), ctlM = add(ctl), nonM = add(non), ccf = incM.map((v, m) => v - ctlM[m]);
+  const add = list => { const o = zeros(); list.forEach(s => s.monthly.forEach((v, m) => { o[m] = sum([o[m], v]); })); return o; };
+  const incM = add(inc), ctlM = add(ctl), nonM = add(non), ccf = incM.map((v, m) => sub(v, ctlM[m]));
   return {kind: 'company', title: budget?.name || `${model.entity} FY${model.fiscalYear} Budget`, entity: model.entity, subtitle: `${model.entity} · ${label(model.periods[0])} – ${label(model.periods[11])}${budget?.plan_type === 'reforecast' ? ' · Reforecast' : ''}`,
     status: statusLabel || (isDraft ? 'Draft' : 'Approved'), isDraft, periods: model.periods, compareLabel: 'Prior budget',
     summary: [['Total income', T.income, P.income], ['Controllable expenses', T.controllable, P.controllable], ['Controllable cash flow', T.controllableCashFlow, P.controllableCashFlow], ['Taxes & insurance', T.taxesInsurance, P.taxesInsurance], ['Net operating income', T.noi, P.noi]],
     kpis: [], groups: result.groups.map(g => [g.name, g.final, g.prior]),
-    blocks: [{title: 'Income', sections: inc, total: totalRow('Total income', incM, 'sub')}, {title: 'Controllable expenses', sections: ctl, total: totalRow('Total controllable expenses', ctlM, 'sub')},
-      {title: null, sections: [], total: totalRow('Controllable cash flow', ccf)}, {title: 'Non-controllable', sections: non, total: totalRow('Net operating income', ccf.map((v, m) => v - nonM[m]))}],
+    blocks: [{title: 'Income', sections: inc, total: totalRow('Total income', incM, 'sub', T.income)}, {title: 'Controllable expenses', sections: ctl, total: totalRow('Total controllable expenses', ctlM, 'sub')},
+      {title: null, sections: [], total: totalRow('Controllable cash flow', ccf)}, {title: 'Non-controllable', sections: non, total: totalRow('Net operating income', ccf.map((v, m) => sub(v, nonM[m])))}],
     extra: [{name: 'Fee income', head: ['GL', 'Property', 'Method', 'Source', 'Annual'], rows: result.fees.map(f => [f.gl, f.name, f.mode, f.mode === 'linked' ? (f.source?.kind || 'not available') : '', f.annual])},
       {name: 'Payroll positions', head: ['Position', 'Department', 'Headcount', 'Annual salary', 'Raise %', 'Budget'], rows: (model.positions || []).filter(p => Number(p.count)).map(p => [p.title, p.department || '', Number(p.count), Number(p.salary), Number(p.raisePct || 0), r2(sum(E.positionMonthly(p)))])}]};
 }
@@ -118,8 +120,8 @@ export function reportWorkbook(rep, XLSX, {generatedAt = new Date()} = {}) {
 
 /* ---------------- PDF ---------------- */
 const ascii = s => String(s ?? '').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/·/g, '-').replace(/→/g, '>').replace(/[^\x20-\x7E]/g, '');
-const fmtMoney = n => { const v = Math.round(Number(n) || 0); if (!v) return '-'; const s = Math.abs(v).toLocaleString('en-US'); return v < 0 ? `(${s})` : s; };
-const fmtDollar = n => { const v = Math.round(Number(n) || 0); const s = '$' + Math.abs(v).toLocaleString('en-US'); return v < 0 ? `(${s})` : s; };
+const fmtMoney = n => { if (n == null || !Number.isFinite(Number(n))) return 'Unavailable'; const v = Math.round(Number(n) || 0); if (!v) return '-'; const s = Math.abs(v).toLocaleString('en-US'); return v < 0 ? `(${s})` : s; };
+const fmtDollar = n => { if (n == null || !Number.isFinite(Number(n))) return 'Unavailable'; const v = Math.round(Number(n) || 0); const s = '$' + Math.abs(v).toLocaleString('en-US'); return v < 0 ? `(${s})` : s; };
 
 export async function reportPdf(rep, {PDFLib, logoPng = null, generatedAt = new Date()}) {
   const {PDFDocument, StandardFonts, rgb} = PDFLib;

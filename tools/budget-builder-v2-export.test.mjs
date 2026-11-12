@@ -34,3 +34,23 @@ assert.equal(crows.find(r => r[1] === 'Net operating income')[14], 120000 - 2400
 assert(cwb.SheetNames.includes('Fee income'));
 assert((await X.reportPdf(crep, {PDFLib})).length > 3000);
 console.log('PASS Budget Builder v2 export: Excel and PDF for property and company budgets, drafts marked, totals and notes carried');
+// Missing evidence stays missing in detail, subtotals, summaries and XLSX cells.
+const missing = structuredClone(result);
+const line = missing.rows['5120']; line.monthly[0] = null; line.annual = null;
+missing.monthly.income[0] = null; missing.monthly.noi[0] = null;
+missing.totals.annual.income = missing.totals.annual.noi = missing.totals.annual.cashFlow = null;
+const mr = X.propertyReport({model, result: missing, draft});
+assert.equal(mr.blocks[0].sections.find(s => s.lines.some(l => l.gl === '5120')).monthly[0], null);
+assert.equal(mr.blocks[0].total.total, null);
+assert.equal(mr.blocks[2].total.monthly[0], null);
+assert.equal(mr.summary[3][1], null);
+const mw = XLSX.read(X.reportWorkbook(mr, XLSX), {type: 'array'});
+const mrows = XLSX.utils.sheet_to_json(mw.Sheets['Budget by month'], {header: 1, defval: null});
+assert.equal(mrows.find(r => r[0] === '5120')[2], null);
+assert.equal(mrows.find(r => r[1] === 'Net operating income')[14], null);
+assert((await X.reportPdf(mr, {PDFLib})).length > 3000);
+const military = structuredClone(model); military.property.assetClass = 'military';
+const milResult = E.calculate(military), milReport = X.propertyReport({model: military, result: milResult, draft});
+assert.deepEqual(milReport.blocks[0].total.monthly, milResult.monthly.income);
+assert.deepEqual(milReport.blocks[2].total.monthly, milResult.monthly.noi.map(v => Math.round(v * 100) / 100));
+assert.equal(milReport.blocks[2].total.total, Math.round(milResult.totals.annual.noi * 100) / 100);

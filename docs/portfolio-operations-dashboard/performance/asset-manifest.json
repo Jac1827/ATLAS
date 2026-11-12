@@ -2506,8 +2506,8 @@
     ]
   },
   "features/budget-v2/ui.mjs": {
-    "sha256": "245790b69b9aa45d",
-    "bytes": 78181,
+    "sha256": "ae7494798ab09a72",
+    "bytes": 82788,
     "references": [
       [
         "RISE-Budget-Builder-v2.html",
@@ -2516,7 +2516,7 @@
     ]
   },
   "RISE-Budget-Builder-v2.html": {
-    "sha256": "a0dd4d0ae40e84ee",
+    "sha256": "83b73c2b9f1143ca",
     "bytes": 8699,
     "references": [
       [
@@ -2526,7 +2526,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "2eae7ff6e55ada37",
+    "sha256": "7143738442b9c352",
     "bytes": 26921,
     "references": [
       [

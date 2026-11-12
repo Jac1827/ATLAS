@@ -9,8 +9,8 @@
  * state), not RISE results. When portfolio benchmarks exist (medians across at least
  * three RISE communities) they replace the generic category totals.
  */
-import {buildContext, freezeBase, sectionForGl, num, SUMMARY_GROUPS} from './engine.mjs?v=4b36c2fcc5efc21f';
-import {seedPositions} from './learning.mjs?v=e541d61d5652b40b';
+import {buildContext, freezeBase, sectionForGl, num, SUMMARY_GROUPS} from './engine.mjs?v=48f7adf2d87d56a9';
+import {seedPositions} from './learning.mjs?v=f15d761726929765';
 
 const zeros = () => Array(12).fill(0);
 const sum = a => a.reduce((t, v) => t + (Number(v) || 0), 0);

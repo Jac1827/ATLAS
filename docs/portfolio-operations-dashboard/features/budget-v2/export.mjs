@@ -2,8 +2,8 @@
  * A neutral report (title, status, summary, GL × month sections, extra tables) is
  * built from a property or company budget, then written as a workbook (SheetJS) or
  * a landscape PDF (pdf-lib). Drafts are marked as drafts on every sheet and page. */
-import * as E from './engine.mjs?v=4b36c2fcc5efc21f';
-import * as C from './company.mjs?v=750a7a1f5eb55fc8';
+import * as E from './engine.mjs?v=48f7adf2d87d56a9';
+import * as C from './company.mjs?v=ef63c2f8dd60b1d0';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const sum = a => a.some(v => v == null || !Number.isFinite(Number(v))) ? null : a.reduce((t, v) => t + Number(v), 0);

@@ -8,7 +8,7 @@
  * Sign convention: income positive, expenses positive, allocations negative.
  * No company data lives in this file.
  */
-import {positionMonthly, num} from './engine.mjs?v=4b36c2fcc5efc21f';
+import {positionMonthly, num} from './engine.mjs?v=48f7adf2d87d56a9';
 
 const zeros = () => Array(12).fill(0);
 // Missing evidence stays unknown. Explicit numeric zero is a known amount.

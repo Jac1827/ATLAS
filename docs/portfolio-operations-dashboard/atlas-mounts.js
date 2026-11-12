@@ -114,7 +114,7 @@
       note: "Property budget, monthly view, GL detail, actuals, financial review and exception reporting all run in Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Budget Builder v2 — GM → Regional → VP approval; publishes through the governed ATLAS budget",
-      src: "RISE-Budget-Builder-v2.html?v=a0dd4d0ae40e84ee",
+      src: "RISE-Budget-Builder-v2.html?v=83b73c2b9f1143ca",
       background: "#F1F4F6",
       icon: "ph-calculator"
     },

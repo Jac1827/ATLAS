@@ -131,8 +131,32 @@ async function fiscalStartMonth() {
   const response = await s.central.fetchJson('/rpc/atlas_read_budget_calendar', {method: 'POST', body: JSON.stringify({p_community_id: s.draft.community_id})});
   const calendar = Array.isArray(response) ? response[0] : response;
   const month = Number(calendar?.startMonth);
-  if (calendar?.verified !== true || !Number.isInteger(month) || month < 1 || month > 12) throw Error('The community budget calendar is unavailable. Check Community Settings before importing.');
+  if (calendar?.verified !== true || !Number.isInteger(month) || month < 1 || month > 12) {
+    s.calendarNeeded = {reason: calendar?.reason || null};
+    s.tab = 'setup';
+    throw Error('This community\u2019s fiscal calendar isn\u2019t confirmed yet. Confirm it at the top of the Setup tab, then try again.');
+  }
+  s.calendarNeeded = null;
   return month;
+}
+/* Confirm a community's fiscal calendar (ATLAS admins; same rule as Community Settings).
+ * Manufactured housing, townhomes and military use the Multifamily calendar. */
+async function confirmCalendar({classification, startMonth, reason}) {
+  const rows = await s.central.fetchJson(`/atlas_communities?community_id=eq.${s.draft.community_id}&select=version&limit=1`);
+  const version = Array.isArray(rows) ? rows[0]?.version : rows?.version;
+  if (version === undefined || version === null) throw Error('The community record could not be read.');
+  await s.central.fetchJson('/rpc/atlas_set_budget_fiscal_calendar', {method: 'POST', body: JSON.stringify({p_community_id: s.draft.community_id, p_expected_version: version, p_classification: classification, p_start_month: startMonth, p_reason: reason})});
+  s.calendarNeeded = null;
+}
+function calendarCard(ac) {
+  const c = s.calendarForm ||= {classification: ac.startsWith('student') ? 'Student Housing' : 'Multifamily', startMonth: ac.startsWith('student') ? 8 : 1, reason: 'Confirmed in Budget Builder'};
+  const name = s.communities.find(x => x.id === s.draft.community_id)?.name || 'this community';
+  return `<div class="card" style="border-color:var(--warn)"><p class="h2">Confirm the fiscal calendar for ${esc(name)}</p>
+  <p class="muted">Budgets need each community's fiscal year confirmed before they are built.${s.calendarNeeded?.reason ? ' ' + esc(s.calendarNeeded.reason) : ''} Manufactured housing, townhomes and military use the Multifamily calendar. This is the same setting as Community Settings and needs an ATLAS admin.</p>
+  <div class="row" style="margin-top:10px"><label class="f">Calendar type<select class="sel" data-cal="classification"><option ${c.classification === 'Multifamily' ? 'selected' : ''}>Multifamily</option><option ${c.classification === 'Student Housing' ? 'selected' : ''}>Student Housing</option></select></label>
+  <label class="f">Fiscal year starts<select class="sel" data-cal="startMonth">${MON.map((m, i) => `<option value="${i + 1}" ${num(c.startMonth) === i + 1 ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+  <label class="f" style="flex:1 1 260px">Reason<input class="inp" data-cal="reason" value="${esc(c.reason)}"></label>
+  <button class="btn" data-act="confirmcal" style="align-self:flex-end" ${s.busy ? 'disabled' : ''}>Confirm calendar</button></div></div>`;
 }
 function sheetFor(wb, communityName) {
   const norm = t => String(t).toLowerCase().replace(/^rise\s+/, '').replace(/[^a-z0-9]/g, '');
@@ -342,7 +366,7 @@ function setupTab() {
   const srcRows = (s.sources.length ? s.sources.map(x => ({file: x.file, kind: x.kind, sheet: x.sheet, ok: x.parsed.ok, warnings: x.parsed.warnings || []})) : (s.sourcesSummary || []));
   const label = {t12: 'T12 income statement', boxscore: 'Box score', trending: 'Trending occupancy', conservice: 'Conservice utility projection', vena_budget: 'Existing budget (Vena)', import_sheet: 'Existing budget (Import Sheet)', error: 'Could not read', unknown: 'Not recognized'};
   const how = s.startChoice || 'existing';
-  return `<div class="card"><p class="h2">1 · Asset class</p><div class="grid" style="margin-top:10px">${Object.entries(E.ASSET_CLASSES).map(([k, v]) => `<button class="choice ${ac === k ? 'on' : ''}" data-asset="${k}" ${dis() && s.model ? 'disabled' : ''}><b>${v.label}</b><span>Per ${v.unitLabel}${v.incomeInNoi ? '' : ' · expense-only, BAH memo'}${v.manualSeason ? ' · leasing season set manually' : ''}</span></button>`).join('')}</div>
+  return `${s.calendarNeeded ? calendarCard(ac) : ''}<div class="card"><p class="h2">1 · Asset class</p><div class="grid" style="margin-top:10px">${Object.entries(E.ASSET_CLASSES).map(([k, v]) => `<button class="choice ${ac === k ? 'on' : ''}" data-asset="${k}" ${dis() && s.model ? 'disabled' : ''}><b>${v.label}</b><span>Per ${v.unitLabel}${v.incomeInNoi ? '' : ' · expense-only, BAH memo'}${v.manualSeason ? ' · leasing season set manually' : ''}</span></button>`).join('')}</div>
   ${ac === 'military' ? bahEditor() : ''}</div>
   <div class="card"><p class="h2">2 · How to start</p><div class="grid" style="margin-top:10px">${START_MODES.map(([k, l, d]) => `<button class="choice ${how === k ? 'on' : ''}" data-startmode="${k}" ${canEdit() || !s.model ? '' : 'disabled'}><b>${l}</b><span>${d}</span></button>`).join('')}</div></div>
   ${how === 'scratch' ? scratchForm(ac) : `<div class="card"><p class="h2">3 · Sources</p><p class="muted">Upload any of: an existing budget (Vena Budget Report or a budget model with an Import Sheet), T12 (Entrata xlsx or the monthly financial package PDF), box score, trending occupancy, Conservice projection, and vendor contracts (PDF or Word).</p>
@@ -357,11 +381,16 @@ function setupTab() {
 function scratchForm(ac) {
   const x = s.scratch ||= {status: 'operating', state: 'FL'}, ul = E.ASSET_CLASSES[ac]?.unitLabel || 'unit', ro = s.model && !canEdit() ? 'disabled' : '';
   const f = (k, label, cls = '', ph = '') => `<label class="f">${label}<input class="inp ${cls}" data-scratch="${k}" value="${esc(x[k] ?? '')}" placeholder="${esc(ph)}" ${ro}></label>`;
+  const current = s.communities.find(c => c.id === s.draft.community_id);
+  if (!x.newCommunity) x.name = current?.name || x.name;
+  const target = s.model ? '' : `<div class="row" style="margin-top:10px"><label class="f">Budget for<select class="sel" data-scratch="target" ${ro}><option value="existing" ${!x.newCommunity ? 'selected' : ''}>${esc(current?.name || 'Selected community')} (already in ATLAS)</option><option value="new" ${x.newCommunity ? 'selected' : ''}>A new community — add it to ATLAS</option></select></label>
+  <span class="muted" style="align-self:flex-end">${x.newCommunity ? 'Enter the new community\u2019s name below; it is added to ATLAS when you suggest the budget.' : 'To budget a different existing community, change Community at the top.'}</span></div>`;
+  const nameField = x.newCommunity && !s.model ? f('name', 'Community name', '', 'RISE Riverside') : `<label class="f">Community name<input class="inp" value="${esc(x.name || '')}" disabled></label>`;
   const months = (s.model?.periods || E.fiscalPeriods(s.draft.fiscal_year, ac.startsWith('student') ? 8 : 1));
   return `<div class="card"><p class="h2">3 · Property details</p><p class="muted">ATLAS suggests staffing, a leasing schedule and every budget line from these details (and RISE portfolio medians where at least three communities report). You then finish the build on each tab.</p>
-  ${ac === 'manufactured' ? `<div class="row" style="margin-top:10px">${f('name', 'Community name', '', 'RISE Riverside')}</div>
+  ${target}${ac === 'manufactured' ? `<div class="row" style="margin-top:10px">${nameField}</div>
   <div class="row" style="margin-top:8px">${f('padUnits', 'Pad-only sites', 'sm')}${f('padRent', 'Lot rent ($/mo)', 'num')}${f('homeUnits', 'Home + pad rentals', 'sm')}${f('homeRent', 'Home + pad rent ($/mo)', 'num')}<span class="muted" style="align-self:flex-end">${num(x.padUnits) + num(x.homeUnits)} pads in total</span></div>`
-  : `<div class="row" style="margin-top:10px">${f('name', 'Community name', '', 'RISE Riverside')}${f('units', `Number of ${ul}s`, 'sm')}${f('marketRent', `Average market rent per ${ul} ($/mo)`, 'num')}</div>`}
+  : `<div class="row" style="margin-top:10px">${nameField}${f('units', `Number of ${ul}s`, 'sm')}${f('marketRent', `Average market rent per ${ul} ($/mo)`, 'num')}</div>`}
   <div class="row" style="margin-top:8px">${f('street', 'Street address', '', '123 Main St')}${f('city', 'City')}${f('state', 'State', 'xs', 'FL')}${f('zip', 'ZIP', 'xs')}</div>
   <div class="row" style="margin-top:8px"><label class="f">Status<select class="sel" data-scratch="status" ${ro}><option value="operating" ${x.status !== 'leaseup' ? 'selected' : ''}>Operating</option><option value="leaseup" ${x.status === 'leaseup' ? 'selected' : ''}>New construction / lease-up</option></select></label>
   ${f('currentOccupied', `Occupied ${ul}s at the start (optional)`, 'sm')}
@@ -382,6 +411,8 @@ async function buildScratch() {
       const id = await S.createCommunity(s.central, {name: x.name.trim(), units, propertyType: E.ASSET_CLASSES[ac]?.label, market: [x.city, String(x.state).toUpperCase()].filter(Boolean).join(', '), development: x.status === 'leaseup'});
       s.communities = await S.communities(s.central).catch(() => s.communities);
       s.cid = id; s.draft.community_id = id; s.draft.name = `${x.name.trim()} FY${s.draft.fiscal_year} ${s.draft.plan_type === 'reforecast' ? 'Reforecast' : 'Budget'}`; x.newCommunity = false;
+      const student = ac.startsWith('student');
+      await confirmCalendar({classification: student ? 'Student Housing' : 'Multifamily', startMonth: student ? 8 : 1, reason: 'New community added in Budget Builder'}).catch(() => {});
     }
     const startMonth = await fiscalStartMonth();
     const periods = E.fiscalPeriods(s.draft.fiscal_year, startMonth);
@@ -595,6 +626,15 @@ document.addEventListener('click', async e => {
       syncMix(); mark(); break;
     }
     case 'scratch': await buildScratch(); break;
+    case 'confirmcal': {
+      const c = s.calendarForm || {};
+      if (String(c.reason || '').trim().length < 3) { status('Enter a reason for the calendar.', true); return; }
+      s.busy = true; render();
+      try { await confirmCalendar({classification: c.classification, startMonth: num(c.startMonth), reason: c.reason.trim()}); status('Fiscal calendar confirmed. Build the budget again.'); }
+      catch (err) { status(/administrator/i.test(err.message) ? 'Only an ATLAS admin can confirm the fiscal calendar. Ask an admin to confirm it in Community Settings.' : err.message, true, 10000); }
+      finally { s.busy = false; render(); }
+      break;
+    }
     case 'save': await save(); break;
     case 'build': await buildFromSources().catch(err => status(err.message, true, 9000)); break;
     case 'expand': Object.keys(s.result.sections).forEach(k => { s.open[k] = true; }); render(); break;
@@ -654,6 +694,8 @@ document.addEventListener('change', async e => {
   if (d.new) { s.newDraft[d.new] = t.value; return; }
   if (t.matches('[data-files]')) { await onFiles([...t.files]); return; }
   if (t.matches('[data-new-community]')) { s.newDraft.newCommunity = t.checked; render(); return; }
+  if (d.cal) { (s.calendarForm ||= {})[d.cal] = t.value; return; }
+  if (d.scratch === 'target') { const x = s.scratch ||= {}; x.newCommunity = t.value === 'new'; if (x.newCommunity) x.name = ''; render(); return; }
   if (d.scratch) { (s.scratch ||= {})[d.scratch] = t.value; if (d.scratch === 'status') render(); return; }
   if (t.matches('[data-recipients]')) { s.recipients = t.value; return; }
   if (t.matches('[data-vpreason]')) { s.vpReason = t.value; return; }

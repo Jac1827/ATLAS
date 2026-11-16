@@ -119,6 +119,12 @@ assert.equal(c.resolveDlrActualNetEffectiveRent({}, {avgNetEffectiveRent:1350.25
 assert.equal(c.resolveDlrActualNetEffectiveRent({rentRollTotal:156000},{},78),2000);
 assert.equal(c.resolveDlrActualNetEffectiveRent({rentRollTotal:156000},{},0),null);
 console.log('PASS actual NER precedence, no budget substitution, unknown/default zero, verified zero, pricing rendering and Move-Ins counts/deltas.');
+c.window.atlasPropertyMetrics=()=>Object.fromEntries(['new_leads','tours','applications','approvals','denied_applications','leases_completed'].map(k=>[k,{value:null,status:'Not available'}]));
+const unavailableActivity=c.buildDashboardDlrInvestorOverview('Doro',8,2026);
+for(const key of ['guestCards','tours','applications','approvals','denials','leases'])assert.equal(unavailableActivity.trafficMetrics[key],null,'Missing canonical source must replace defaults: '+key);
+c.window.atlasPropertyMetrics=()=>({applications:{value:0,status:'Reported period'}});
+assert.equal(c.buildDashboardDlrInvestorOverview('Doro',8,2026).trafficMetrics.applications,0,'Reported zero survives');
+delete c.window.atlasPropertyMetrics;
 c.getCorporateLeaseUnitsForRecord=()=>40;
 const corporateReport=c.buildDashboardDlrInvestorOverview('Doro',8,2026);
 assert.equal(corporateReport.occupiedUnits,78);

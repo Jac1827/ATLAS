@@ -43372,10 +43372,15 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
   if (typeof window.atlasPropertyMetrics === "function") {
     const range = { start: `${periodKey}-01`, end: `${periodKey}-${String(new Date(year, reportMetricMonthIdx + 1, 0).getDate()).padStart(2, "0")}` };
     const cells = window.atlasPropertyMetrics({ name: communityName, record }, range);
-    for (const [field, sourceField] of Object.entries({ applications: "applications", approvals: "approvals", denials: "denied_applications", leases: "leases_completed" })) {
-      if (cells[sourceField]?.value !== null && cells[sourceField]?.value !== undefined) report.trafficMetrics[field] = cells[sourceField].value;
+    for (const [field, sourceField] of Object.entries({ guestCards: "new_leads", tours: "tours", applications: "applications", approvals: "approvals", denials: "denied_applications", leases: "leases_completed" })) {
+      // Missing canonical coverage must replace legacy/default zeros. A matching
+      // uploaded summary remains a separate dated source when no canonical cell exists.
+      if (cells[sourceField] && (!hasMatchingDlrSummary || cells[sourceField].value != null)) {
+        report.trafficMetrics[field] = normalizeOptionalNumber(cells[sourceField].value);
+      }
     }
   }
+  report.trafficMetrics.rolledGuestCards = report.trafficMetrics.guestCards;
   report.applicationValidation = validateDlrApplicationCohort(report.trafficMetrics, monthEntry.applicationProvenance || {});
   if (!report.applicationValidation.valid) return null;
   if (!report.applicationValidation.sameCohort) {

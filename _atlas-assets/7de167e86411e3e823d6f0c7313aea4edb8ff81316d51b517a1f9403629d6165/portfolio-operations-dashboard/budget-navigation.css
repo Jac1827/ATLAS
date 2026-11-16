@@ -1,0 +1,22 @@
+/* Keep the existing financial workspace; replace only its crowded directory. */
+#app .body{display:block;overflow:auto}#app .main{overflow:visible}
+#app .nav{display:block;position:sticky;top:0;z-index:18;padding:0;overflow:visible;border:0;border-bottom:1px solid var(--line);background:var(--panel);max-height:none}
+.budget-workflow-nav{padding:9px 14px}.budget-nav-tools,.budget-primary,.budget-secondary,.budget-context{display:flex;align-items:center;gap:8px}
+.budget-nav-tools{justify-content:flex-end;margin-bottom:8px}.budget-nav-tools>a{margin-right:auto}.budget-nav-tools kbd{font-size:10px;color:var(--ink3);margin-left:12px}
+#app .budget-primary,#app .budget-secondary{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}
+#app .budget-primary a,#app .budget-secondary a{flex:none;border:0;border-radius:4px;margin:0;padding:9px 12px;white-space:nowrap}
+#app .budget-primary a{font-size:12px;font-weight:650}#app .budget-primary a.on{background:var(--rise);color:white}
+#app .budget-secondary a{font-size:11px;padding:7px 10px}#app .budget-secondary a.on{background:var(--sky-pale);color:var(--rise)}
+.budget-context{gap:8px 16px;flex-wrap:wrap;border-block:1px solid var(--line2);padding:9px 0;margin:7px 0;font-size:11px;color:var(--ink2)}
+.budget-breadcrumb{font-size:11px;color:var(--ink3);margin-top:8px}.budget-breadcrumb span{float:right}
+#budget-command-menu{width:min(560px,94vw);max-height:75vh;border:1px solid var(--line);border-radius:8px;padding:20px;color:var(--ink);background:var(--panel)}
+#budget-command-menu form{text-align:right}#budget-command-menu label,#budget-command-menu input{display:block;width:100%;margin-block:10px}.budget-command-result{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line2);background:transparent;padding:12px;cursor:pointer;color:var(--ink)}
+.budget-command-result:hover{background:var(--sky-pale)}.budget-workflow-nav a:focus-visible,.budget-workflow-nav button:focus-visible,.budget-command-result:focus-visible{outline:2px solid var(--rise);outline-offset:2px}
+@media(max-width:650px){.budget-nav-tools kbd{display:none}.budget-nav-tools{flex-wrap:wrap}.budget-context{font-size:10px}.budget-breadcrumb span{float:none;display:block}}
+ .financial-package-review{width:min(1100px,94vw);max-height:90vh;overflow:auto;border:1px solid #bfcbd5;border-radius:8px;padding:24px;color:#192e40;background:white}
+ .financial-package-review button{margin:8px 8px 8px 0;padding:8px 12px;cursor:pointer}
+ .financial-package-review code{overflow-wrap:anywhere}
+ .financial-review-scroll{overflow:auto;max-height:440px}
+ .financial-review-scroll table{border-collapse:collapse;width:100%;font-size:13px}
+ .financial-review-scroll th,.financial-review-scroll td{padding:7px 10px;border-bottom:1px solid #dde3e8;text-align:right;white-space:nowrap}
+ .financial-review-scroll th:first-child{position:sticky;left:0;background:#f7f9fa;text-align:left}

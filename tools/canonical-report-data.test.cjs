@@ -119,6 +119,15 @@ assert.equal(c.resolveDlrActualNetEffectiveRent({}, {avgNetEffectiveRent:1350.25
 assert.equal(c.resolveDlrActualNetEffectiveRent({rentRollTotal:156000},{},78),2000);
 assert.equal(c.resolveDlrActualNetEffectiveRent({rentRollTotal:156000},{},0),null);
 console.log('PASS actual NER precedence, no budget substitution, unknown/default zero, verified zero, pricing rendering and Move-Ins counts/deltas.');
+c.getCorporateLeaseUnitsForRecord=()=>40;
+const corporateReport=c.buildDashboardDlrInvestorOverview('Doro',8,2026);
+assert.equal(corporateReport.occupiedUnits,78);
+assert.equal(corporateReport.comparableOccupiedUnits,38);
+assert.equal(corporateReport.occupancyBaseUnits,207);
+assert.equal(corporateReport.occupancyPct,38/207*100);
+assert(c.renderDlrPricingRenewalSnapshot(corporateReport).includes('38 occupied / 207 comparable units'));
+assert(c.renderDlrPricingRenewalSnapshot(corporateReport).includes('40 corporate lease units excluded'));
+c.getCorporateLeaseUnitsForRecord=()=>0;
 c.getDlrWorkbookOverlayForCommunity=()=>({totalUnits:297,occupiedUnits:284,leasedUnits:272,communityId:'other'});c.dlrWorkbookReportState={};
 assert.equal(c.buildDashboardDlrInvestorOverview('Doro',8,2026),null);
 console.log('PASS actual DLR builder: selected community, counts/card/chart parity, missing denominator and projection, safe application narrative, mismatched overlay blocked.');

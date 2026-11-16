@@ -43356,6 +43356,9 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
     return null;
   }
   report.occupancyBaseUnits = getOccupancyBaseUnits(dlrOccupancyBaseUnits, corporateUnits);
+  report.corporateLeaseUnits = corporateUnits;
+  report.comparableOccupiedUnits = getComparableOccupancyUnits(report.occupiedUnits, corporateUnits);
+  report.comparableLeasedUnits = getComparableOccupancyUnits(report.leasedUnits, corporateUnits);
   report.occupancyPct = getOccupancyPctFromUnits(report.occupiedUnits, dlrOccupancyBaseUnits, corporateUnits);
   report.leasedPct = getOccupancyPctFromUnits(report.leasedUnits, dlrOccupancyBaseUnits, corporateUnits);
   report.pricing = { ...report.pricing, totalUnits, occupiedUnits: report.occupiedUnits, leasedUnits: report.leasedUnits };
@@ -43485,6 +43488,7 @@ function renderDlrPricingRenewalSnapshot(report, sourceLine = "") {
       <div>Total Units: <strong>${formatDlrMetricValue(report.pricing?.totalUnits)}</strong></div>
       <div>Leased Units: <strong>${formatDlrMetricValue(report.pricing?.leasedUnits)}</strong></div>
       <div>Occupied Units: <strong>${formatDlrMetricValue(report.pricing?.occupiedUnits)}</strong></div>
+      ${report.corporateLeaseUnits > 0 ? `<div>Occupancy rate basis: <strong>${formatDlrMetricValue(report.comparableOccupiedUnits)} occupied / ${formatDlrMetricValue(report.occupancyBaseUnits)} comparable units</strong></div><div>Leased rate basis: <strong>${formatDlrMetricValue(report.comparableLeasedUnits)} leased / ${formatDlrMetricValue(report.occupancyBaseUnits)} comparable units</strong></div><div>${formatDlrMetricValue(report.corporateLeaseUnits)} corporate lease units excluded from both counts and denominator; total, occupied and leased units above are before exclusion.</div>` : ""}
       <div>Avg Budget Rent: <strong>${formatDlrCurrency(report.pricing?.avgBudgetRent)}</strong></div>
       <div>Avg In-Place Rent: <strong>${formatDlrCurrency(report.pricing?.avgInPlaceRent)}</strong></div>
       <div>Avg Net Effective Rent: <strong>${formatDlrCurrency(report.pricing?.avgNetEffectiveRent)}</strong></div>

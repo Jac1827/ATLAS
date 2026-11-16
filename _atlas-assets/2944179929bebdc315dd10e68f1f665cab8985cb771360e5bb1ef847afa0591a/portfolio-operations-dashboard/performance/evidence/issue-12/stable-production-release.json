@@ -1,0 +1,510 @@
+{
+  "observedAt": "2026-09-25T00:12:20.039Z",
+  "expectedSourceCommit": "2fab61de2627b7c8753f2ca8ebe7b0b879a67d25",
+  "expectedReleaseId": "d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d",
+  "main": {
+    "name": "main",
+    "sha": "c4cc985938b454dac82db2eef61e9e9cda7a095d"
+  },
+  "workflow": {
+    "runId": 36075816912,
+    "event": "workflow_dispatch",
+    "workflowCommit": "8e1b30fc4e4434b09462aaaccc15c409248386e3",
+    "conclusion": "success",
+    "updatedAt": "2026-09-25T00:08:32Z",
+    "productionJobId": 107886653030,
+    "tests": {
+      "discovered": 195,
+      "passed": 193,
+      "failed": 0,
+      "skipped": 2,
+      "sourceChangedDuringRun": false,
+      "results": "output/test-all/ci/results.json"
+    },
+    "privateFixtureSkips": [
+      "tools/budget-workbook-import.test.cjs",
+      "tools/collections-import.test.cjs"
+    ]
+  },
+  "deploymentLog": {
+    "clientRef": "2fab61de2627b7c8753f2ca8ebe7b0b879a67d25",
+    "releaseId": "d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d",
+    "workerVersion": "d160e697-510a-4746-8b07-e54b569b9b5d",
+    "retentionCommit": "5528ef8c869147b1f62ed3db3fb39b846ec9ad8f",
+    "pagesDeploymentId": "8e1b30fc4e4434b09462aaaccc15c409248386e3",
+    "pagesCompletedAt": "2026-09-25T00:08:29Z"
+  },
+  "scope": {
+    "readOnly": true,
+    "databaseRequests": 0,
+    "deploymentsTriggered": 0,
+    "authenticatedUiAcceptance": "Owned separately by Doro; not asserted by this verification",
+    "originalBudgetTabUntouched": true
+  },
+  "activeWorker": {
+    "id": "249886ef-f0fd-4a19-9be7-ee18affc9661",
+    "source": "wrangler",
+    "strategy": "percentage",
+    "versions": [
+      {
+        "version_id": "d160e697-510a-4746-8b07-e54b569b9b5d",
+        "percentage": 100
+      }
+    ],
+    "created_on": "2026-09-25T00:08:15.589217Z",
+    "observedAt": "2026-09-25T00:11:31.534973+00:00"
+  },
+  "publicHosts": {
+    "observedAt": "2026-09-25T00:12:02.949305+00:00",
+    "expectedSourceCommit": "2fab61de2627b7c8753f2ca8ebe7b0b879a67d25",
+    "expectedReleaseId": "d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d",
+    "hosts": [
+      {
+        "host": "worker",
+        "manifest": {
+          "status": 200,
+          "bytes": 95545,
+          "sha256": "5f96f2fcd1b255dc342504822153340ef0d12f8f631fb56b28f8a700f0f07707",
+          "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/atlas-asset-manifest.json"
+        },
+        "releaseManifest": {
+          "status": 200,
+          "bytes": 47720,
+          "sha256": "418363fe2ca7818438ccaf672dac0e742f2113e5996b632bb8e1d0aad1015f9a",
+          "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/.atlas-release.json"
+        },
+        "releaseId": "d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d",
+        "retainedReleaseIds": [
+          "75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370",
+          "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540",
+          "d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d"
+        ],
+        "index": {
+          "status": 200,
+          "bytes": 3387501,
+          "sha256": "c765cc20e16855a5c7f085ef51c7e27a8cfdef0d4524a8e3c56475214554ccbc",
+          "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/portfolio-operations-dashboard/",
+          "matchesManifest": true,
+          "selectsExpectedRelease": true
+        },
+        "criticalAssets": [
+          {
+            "path": "portfolio-operations-dashboard/centralization/atlas-central-client.js",
+            "status": 200,
+            "bytes": 76233,
+            "sha256": "e828ace0c363f124a4dec405837e3aae97bf56a64b47f5d83838c1b2b4ddf1bd",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/centralization/atlas-central-client.js",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/canonical-finance.mjs",
+            "status": 200,
+            "bytes": 14210,
+            "sha256": "89a8fb244af2089bc307e23ea8f6f70441b26e297e75f8e6d8cc928f5571fc4c",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/canonical-finance.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/financial-close.mjs",
+            "status": 200,
+            "bytes": 21907,
+            "sha256": "c94f975c1fc88f35cd496f243db5336a36d4365dc770c211652bd2f3ae51ef51",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/financial-close.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-engine.mjs",
+            "status": 200,
+            "bytes": 36348,
+            "sha256": "3d3b7e538bd36581675e0a83500e2fc55851a9999b47704d40e3342c2eab39bb",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-engine.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-store.mjs",
+            "status": 200,
+            "bytes": 15099,
+            "sha256": "4a72d5a04fe4fa2a4df8feabcfcf79c2de89263f7a3a63f223da27d40994b60e",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-store.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-provider.mjs",
+            "status": 200,
+            "bytes": 35307,
+            "sha256": "b7cefe47481b6ebe6328da51edee8487534aa409489fab3feec8ff9358ea91c8",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-provider.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-builder-ui.mjs",
+            "status": 200,
+            "bytes": 63755,
+            "sha256": "c6c5d77ce60131a51433aff0c619469bcd02feef1b11acacc6715614e3491a4b",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-builder-ui.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-ui.mjs",
+            "status": 200,
+            "bytes": 90167,
+            "sha256": "b17973a6208cfe81e21664a3b047af328dce87cc07fb22d33b8f5cc32e7e66b7",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-ui.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-active.mjs",
+            "status": 200,
+            "bytes": 849,
+            "sha256": "03b191a6926d70ca27f6b3cf656183c7d1e6289a6cd2b4784ca616cfa29fe437",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-active.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-bonus.mjs",
+            "status": 200,
+            "bytes": 6143,
+            "sha256": "baad27658032a5bc1b3219b283f4238c5e85ff99786ccc6bb5fcec7c41f0cce2",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-bonus.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-report.mjs",
+            "status": 200,
+            "bytes": 46658,
+            "sha256": "414edcee834659f5e66429d88e7cccf82316b7992fb8941c4ad2e4c30d68c72e",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-report.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-str-overlay.mjs",
+            "status": 200,
+            "bytes": 8660,
+            "sha256": "4ac05e599b82584456efe87b62553a4e69c59b725f25e7b8a7cd70323dfeec4f",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-str-overlay.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/reforecast-consumers.js",
+            "status": 200,
+            "bytes": 2941,
+            "sha256": "84cc6a1aa7c56d0b5456c4837525ce435f27b0348d580a1cca123859778c8b94",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/reforecast-consumers.js",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/reforecast-navigation.js",
+            "status": 200,
+            "bytes": 2057,
+            "sha256": "b22f1029d4d840b8ed051b96c4c572c295da78a5825720fa474854e793883a32",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/reforecast-navigation.js",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/RISE-Budget-Builder.html",
+            "status": 200,
+            "bytes": 1888839,
+            "sha256": "d1a539322baabfc216a40b48a470bae7e1efcb98c507e4b996985736b97c3389",
+            "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/RISE-Budget-Builder",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          }
+        ],
+        "oldRetention": [
+          {
+            "releaseId": "75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370",
+            "manifest": {
+              "status": 200,
+              "bytes": 51853,
+              "sha256": "8d1977443a207dd7ac58ffe2a27eaa198d053a07d434d7a06f60a90fc584c716",
+              "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370/.atlas-release.json"
+            },
+            "manifestReleaseMatches": true,
+            "fileCount": 264,
+            "sampleAsset": {
+              "path": "portfolio-operations-dashboard/centralization/atlas-central-client.js",
+              "status": 200,
+              "bytes": 89710,
+              "sha256": "48fee2db3fbb61162ad6388fdfb881adfeb9e7b40af2dea1e8cc8e7644909d19",
+              "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370/portfolio-operations-dashboard/centralization/atlas-central-client.js",
+              "matchesManifest": true
+            }
+          },
+          {
+            "releaseId": "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540",
+            "manifest": {
+              "status": 200,
+              "bytes": 45897,
+              "sha256": "e782dcd10368c412094adb93bc4ab43b24b0fbc81a0a9cf8b895afa3504c64ee",
+              "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540/.atlas-release.json"
+            },
+            "manifestReleaseMatches": true,
+            "fileCount": 235,
+            "sampleAsset": {
+              "path": "portfolio-operations-dashboard/centralization/atlas-central-client.js",
+              "status": 200,
+              "bytes": 73150,
+              "sha256": "c6613e4b47296475cb36b51d4782847cd2919a129d2df96947191a8c09d5427d",
+              "effectiveUrl": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/_atlas-assets/92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540/portfolio-operations-dashboard/centralization/atlas-central-client.js",
+              "matchesManifest": true
+            }
+          }
+        ]
+      },
+      {
+        "host": "pages",
+        "manifest": {
+          "status": 200,
+          "bytes": 95545,
+          "sha256": "5f96f2fcd1b255dc342504822153340ef0d12f8f631fb56b28f8a700f0f07707",
+          "effectiveUrl": "https://jac1827.github.io/ATLAS/atlas-asset-manifest.json"
+        },
+        "releaseManifest": {
+          "status": 200,
+          "bytes": 47720,
+          "sha256": "418363fe2ca7818438ccaf672dac0e742f2113e5996b632bb8e1d0aad1015f9a",
+          "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/.atlas-release.json"
+        },
+        "releaseId": "d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d",
+        "retainedReleaseIds": [
+          "75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370",
+          "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540",
+          "d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d"
+        ],
+        "index": {
+          "status": 200,
+          "bytes": 3387501,
+          "sha256": "c765cc20e16855a5c7f085ef51c7e27a8cfdef0d4524a8e3c56475214554ccbc",
+          "effectiveUrl": "https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html",
+          "matchesManifest": true,
+          "selectsExpectedRelease": true
+        },
+        "criticalAssets": [
+          {
+            "path": "portfolio-operations-dashboard/centralization/atlas-central-client.js",
+            "status": 200,
+            "bytes": 76233,
+            "sha256": "e828ace0c363f124a4dec405837e3aae97bf56a64b47f5d83838c1b2b4ddf1bd",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/centralization/atlas-central-client.js",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/canonical-finance.mjs",
+            "status": 200,
+            "bytes": 14210,
+            "sha256": "89a8fb244af2089bc307e23ea8f6f70441b26e297e75f8e6d8cc928f5571fc4c",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/canonical-finance.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/financial-close.mjs",
+            "status": 200,
+            "bytes": 21907,
+            "sha256": "c94f975c1fc88f35cd496f243db5336a36d4365dc770c211652bd2f3ae51ef51",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/financial-close.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-engine.mjs",
+            "status": 200,
+            "bytes": 36348,
+            "sha256": "3d3b7e538bd36581675e0a83500e2fc55851a9999b47704d40e3342c2eab39bb",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-engine.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-store.mjs",
+            "status": 200,
+            "bytes": 15099,
+            "sha256": "4a72d5a04fe4fa2a4df8feabcfcf79c2de89263f7a3a63f223da27d40994b60e",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-store.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-provider.mjs",
+            "status": 200,
+            "bytes": 35307,
+            "sha256": "b7cefe47481b6ebe6328da51edee8487534aa409489fab3feec8ff9358ea91c8",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-provider.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-builder-ui.mjs",
+            "status": 200,
+            "bytes": 63755,
+            "sha256": "c6c5d77ce60131a51433aff0c619469bcd02feef1b11acacc6715614e3491a4b",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-builder-ui.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-ui.mjs",
+            "status": 200,
+            "bytes": 90167,
+            "sha256": "b17973a6208cfe81e21664a3b047af328dce87cc07fb22d33b8f5cc32e7e66b7",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-ui.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-active.mjs",
+            "status": 200,
+            "bytes": 849,
+            "sha256": "03b191a6926d70ca27f6b3cf656183c7d1e6289a6cd2b4784ca616cfa29fe437",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-active.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-bonus.mjs",
+            "status": 200,
+            "bytes": 6143,
+            "sha256": "baad27658032a5bc1b3219b283f4238c5e85ff99786ccc6bb5fcec7c41f0cce2",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-bonus.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-report.mjs",
+            "status": 200,
+            "bytes": 46658,
+            "sha256": "414edcee834659f5e66429d88e7cccf82316b7992fb8941c4ad2e4c30d68c72e",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-report.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/features/reforecast-str-overlay.mjs",
+            "status": 200,
+            "bytes": 8660,
+            "sha256": "4ac05e599b82584456efe87b62553a4e69c59b725f25e7b8a7cd70323dfeec4f",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/features/reforecast-str-overlay.mjs",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/reforecast-consumers.js",
+            "status": 200,
+            "bytes": 2941,
+            "sha256": "84cc6a1aa7c56d0b5456c4837525ce435f27b0348d580a1cca123859778c8b94",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/reforecast-consumers.js",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/reforecast-navigation.js",
+            "status": 200,
+            "bytes": 2057,
+            "sha256": "b22f1029d4d840b8ed051b96c4c572c295da78a5825720fa474854e793883a32",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/reforecast-navigation.js",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          },
+          {
+            "path": "portfolio-operations-dashboard/RISE-Budget-Builder.html",
+            "status": 200,
+            "bytes": 1888839,
+            "sha256": "d1a539322baabfc216a40b48a470bae7e1efcb98c507e4b996985736b97c3389",
+            "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d/portfolio-operations-dashboard/RISE-Budget-Builder.html",
+            "matchesReleaseManifest": true,
+            "sourceCommitMatchesSourceManifest": true
+          }
+        ],
+        "oldRetention": [
+          {
+            "releaseId": "75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370",
+            "manifest": {
+              "status": 200,
+              "bytes": 51853,
+              "sha256": "8d1977443a207dd7ac58ffe2a27eaa198d053a07d434d7a06f60a90fc584c716",
+              "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370/.atlas-release.json"
+            },
+            "manifestReleaseMatches": true,
+            "fileCount": 264,
+            "sampleAsset": {
+              "path": "portfolio-operations-dashboard/centralization/atlas-central-client.js",
+              "status": 200,
+              "bytes": 89710,
+              "sha256": "48fee2db3fbb61162ad6388fdfb881adfeb9e7b40af2dea1e8cc8e7644909d19",
+              "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370/portfolio-operations-dashboard/centralization/atlas-central-client.js",
+              "matchesManifest": true
+            }
+          },
+          {
+            "releaseId": "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540",
+            "manifest": {
+              "status": 200,
+              "bytes": 45897,
+              "sha256": "e782dcd10368c412094adb93bc4ab43b24b0fbc81a0a9cf8b895afa3504c64ee",
+              "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540/.atlas-release.json"
+            },
+            "manifestReleaseMatches": true,
+            "fileCount": 235,
+            "sampleAsset": {
+              "path": "portfolio-operations-dashboard/centralization/atlas-central-client.js",
+              "status": 200,
+              "bytes": 73150,
+              "sha256": "c6613e4b47296475cb36b51d4782847cd2919a129d2df96947191a8c09d5427d",
+              "effectiveUrl": "https://jac1827.github.io/ATLAS/_atlas-assets/92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540/portfolio-operations-dashboard/centralization/atlas-central-client.js",
+              "matchesManifest": true
+            }
+          }
+        ]
+      }
+    ],
+    "sameIndex": true,
+    "sameManifest": true,
+    "allChecksPassed": true,
+    "limitations": [
+      "Checks selected critical immutable assets and one asset in each older release; does not re-fetch every retained file.",
+      "No authenticated UI or database requests; active Budget tab untouched."
+    ]
+  },
+  "verified": true,
+  "coordinatedSignedInCheck": {
+    "capturedAt": "2026-09-25T00:11:22Z",
+    "url": "https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html",
+    "releaseHash": "d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d",
+    "signedIn": true,
+    "role": "admin",
+    "authorizedActiveCommunities": 14,
+    "opened": [
+      "Portfolio Home",
+      "Budget Builder",
+      "Governed Reforecast Workspace",
+      "Reports and Presentations",
+      "Data Import",
+      "Community Command",
+      "Bonus and Incentives"
+    ],
+    "governedReforecastReadCompleted": true,
+    "consoleWarningsOrErrors": [],
+    "financialWritesPerformed": false,
+    "sourceWorkbookUploaded": false,
+    "forecastApproved": false,
+    "officialExportsGenerated": false,
+    "userOriginalBudgetTabUntouched": true,
+    "observer": "Doro repair coordinator; root independently verified hosting/assets, not this browser interaction",
+    "limitation": "Functional navigation only; not timing, full value parity, two-session exports or approval acceptance."
+  }
+}

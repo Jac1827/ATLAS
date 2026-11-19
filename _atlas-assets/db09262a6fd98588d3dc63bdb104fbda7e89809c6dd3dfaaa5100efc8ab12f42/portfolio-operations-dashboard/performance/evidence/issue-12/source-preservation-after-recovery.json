@@ -1,0 +1,45 @@
+{
+  "purpose": "Read-only source-preservation verification after recovered-client navigation",
+  "navigation": {
+    "source": "Release coordinator observation",
+    "modules": [
+      "Home",
+      "Reports",
+      "Data Import",
+      "Community Command",
+      "Bonus"
+    ],
+    "explicitSaveImportApprovalPaymentExport": false,
+    "browserTabClosedBeforeCheck": true,
+    "independentlyReplayedByThisCheck": false
+  },
+  "verification": {
+    "parent": {
+      "version": 1,
+      "unchanged": true,
+      "updatedAt": "2026-09-19T02:36:25.886387+00:00",
+      "archiveHash": "44fff7341af4fe69f97dffe49736f7d6b81c1c465a59ac1477cdc745443d261f",
+      "payloadHash": "05c889b5561ad4b74ac0440891e6e5600b0371aa40c1662792106c07ed59ea92"
+    },
+    "observedAt": "2026-09-25T00:02:56.015542+00:00",
+    "migrationCount": 81,
+    "latestMigration": {
+      "name": "reforecast_active_import_close_scope",
+      "version": "20260924235553",
+      "statementsMd5": "cd2ece3cc9891ab9fce0f8f6ec91c2c0",
+      "statementCount": 1
+    },
+    "projectionCurrentRows": 0,
+    "projectionVersionRows": 0,
+    "projectionAuditRowsAll": 0,
+    "expectedDoroMigrationPresent": true
+  },
+  "scope": {
+    "queries": 1,
+    "metadataOnly": true,
+    "applicationPayloadsRead": false,
+    "publicationRetried": false,
+    "databaseOrServiceChanges": false,
+    "limitation": "Verifies the named canonical parent document and derived projection metadata only; does not assert preservation of every operational record."
+  }
+}

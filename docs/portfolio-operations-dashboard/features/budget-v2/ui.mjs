@@ -81,7 +81,10 @@ async function loadDrafts() {
   s.drafts = s.cid ? await S.listDrafts(s.central, s.cid).catch(() => []) : [];
 }
 
+function resetCalendar() { s.calendarNeeded = null; s.calendarForm = null; }
+const calendarScope = () => [s.draft?.draft_id, s.draft?.community_id, s.draft?.asset_class].join(':');
 async function openDraft(id) {
+  resetCalendar();
   const row = await S.readDraft(s.central, id);
   s.draft = row; s.model = row.payload.model; s.documents = row.payload.documents || []; s.sourcesSummary = row.payload.sources || [];
   s.vpEditing = false; s.dirty = false; s.tab = s.model ? 'summary' : 'setup';
@@ -93,6 +96,7 @@ async function openDraft(id) {
 
 const START_MODES = [['existing', 'Existing budget', 'Work from a Vena Budget Report or a budget model (Import Sheet)'], ['model', 'T12 & reports', 'Learn from a T12, box score, trending occupancy, Conservice and contracts'], ['scratch', 'From scratch', 'Enter the property details; ATLAS suggests a full starting budget to finish on each tab']];
 function newDraft() {
+  resetCalendar();
   if (s.newDraft.start === 'scratch' && s.newDraft.newCommunity && (s.newDraft.communityName || '').trim().length < 2) { status('Enter the new community name.', true); return; }
   const c = s.newDraft.start === 'scratch' && s.newDraft.newCommunity ? {name: s.newDraft.communityName.trim()} : s.communities.find(x => x.id === s.cid);
   s.startChoice = s.newDraft.start || 'existing';
@@ -128,11 +132,16 @@ async function save({reason = null} = {}) {
 
 /* ---------------- imports ---------------- */
 async function fiscalStartMonth() {
-  const response = await s.central.fetchJson('/rpc/atlas_read_budget_calendar', {method: 'POST', body: JSON.stringify({p_community_id: s.draft.community_id})});
+  const scope = calendarScope(), cid = s.draft.community_id;
+  const [response, rows] = await Promise.all([
+    s.central.fetchJson('/rpc/atlas_read_budget_calendar', {method: 'POST', body: JSON.stringify({p_community_id: cid})}),
+    s.central.fetchJson(`/atlas_communities?community_id=eq.${cid}&select=version&limit=1`)
+  ]);
+  if (scope !== calendarScope()) throw Error('The budget scope changed. Try again.');
   const calendar = Array.isArray(response) ? response[0] : response;
   const month = Number(calendar?.startMonth);
   if (calendar?.verified !== true || !Number.isInteger(month) || month < 1 || month > 12) {
-    s.calendarNeeded = {reason: calendar?.reason || null};
+    s.calendarNeeded = {scope, version: rows?.[0]?.version, reason: calendar?.reason || null};
     s.tab = 'setup';
     throw Error('This community\u2019s fiscal calendar isn\u2019t confirmed yet. Confirm it at the top of the Setup tab, then try again.');
   }
@@ -142,10 +151,13 @@ async function fiscalStartMonth() {
 /* Confirm a community's fiscal calendar (ATLAS admins; same rule as Community Settings).
  * Manufactured housing, townhomes and military use the Multifamily calendar. */
 async function confirmCalendar({classification, startMonth, reason}) {
-  const rows = await s.central.fetchJson(`/atlas_communities?community_id=eq.${s.draft.community_id}&select=version&limit=1`);
-  const version = Array.isArray(rows) ? rows[0]?.version : rows?.version;
-  if (version === undefined || version === null) throw Error('The community record could not be read.');
-  await s.central.fetchJson('/rpc/atlas_set_budget_fiscal_calendar', {method: 'POST', body: JSON.stringify({p_community_id: s.draft.community_id, p_expected_version: version, p_classification: classification, p_start_month: startMonth, p_reason: reason})});
+  const needed = s.calendarNeeded, scope = calendarScope(), cid = s.draft.community_id;
+  if (!needed || needed.scope !== scope || needed.version == null) throw Error('Read this community fiscal calendar again before confirming.');
+  const response = await s.central.fetchJson('/rpc/atlas_read_budget_calendar', {method: 'POST', body: JSON.stringify({p_community_id: cid})});
+  const calendar = Array.isArray(response) ? response[0] : response;
+  if (scope !== calendarScope()) throw Error('The budget scope changed. Try again.');
+  if (calendar?.verified === true) { resetCalendar(); throw Error('This community already has a fiscal calendar. Build the budget again.'); }
+  await s.central.fetchJson('/rpc/atlas_set_budget_fiscal_calendar', {method: 'POST', body: JSON.stringify({p_community_id: cid, p_expected_version: needed.version, p_classification: classification, p_start_month: startMonth, p_reason: reason})});
   s.calendarNeeded = null;
 }
 function calendarCard(ac) {
@@ -366,7 +378,7 @@ function setupTab() {
   const srcRows = (s.sources.length ? s.sources.map(x => ({file: x.file, kind: x.kind, sheet: x.sheet, ok: x.parsed.ok, warnings: x.parsed.warnings || []})) : (s.sourcesSummary || []));
   const label = {t12: 'T12 income statement', boxscore: 'Box score', trending: 'Trending occupancy', conservice: 'Conservice utility projection', vena_budget: 'Existing budget (Vena)', import_sheet: 'Existing budget (Import Sheet)', error: 'Could not read', unknown: 'Not recognized'};
   const how = s.startChoice || 'existing';
-  return `${s.calendarNeeded ? calendarCard(ac) : ''}<div class="card"><p class="h2">1 · Asset class</p><div class="grid" style="margin-top:10px">${Object.entries(E.ASSET_CLASSES).map(([k, v]) => `<button class="choice ${ac === k ? 'on' : ''}" data-asset="${k}" ${dis() && s.model ? 'disabled' : ''}><b>${v.label}</b><span>Per ${v.unitLabel}${v.incomeInNoi ? '' : ' · expense-only, BAH memo'}${v.manualSeason ? ' · leasing season set manually' : ''}</span></button>`).join('')}</div>
+  return `${s.calendarNeeded?.scope === calendarScope() ? calendarCard(ac) : ''}<div class="card"><p class="h2">1 · Asset class</p><div class="grid" style="margin-top:10px">${Object.entries(E.ASSET_CLASSES).map(([k, v]) => `<button class="choice ${ac === k ? 'on' : ''}" data-asset="${k}" ${dis() && s.model ? 'disabled' : ''}><b>${v.label}</b><span>Per ${v.unitLabel}${v.incomeInNoi ? '' : ' · expense-only, BAH memo'}${v.manualSeason ? ' · leasing season set manually' : ''}</span></button>`).join('')}</div>
   ${ac === 'military' ? bahEditor() : ''}</div>
   <div class="card"><p class="h2">2 · How to start</p><div class="grid" style="margin-top:10px">${START_MODES.map(([k, l, d]) => `<button class="choice ${how === k ? 'on' : ''}" data-startmode="${k}" ${canEdit() || !s.model ? '' : 'disabled'}><b>${l}</b><span>${d}</span></button>`).join('')}</div></div>
   ${how === 'scratch' ? scratchForm(ac) : `<div class="card"><p class="h2">3 · Sources</p><p class="muted">Upload any of: an existing budget (Vena Budget Report or a budget model with an Import Sheet), T12 (Entrata xlsx or the monthly financial package PDF), box score, trending occupancy, Conservice projection, and vendor contracts (PDF or Word).</p>
@@ -411,8 +423,7 @@ async function buildScratch() {
       const id = await S.createCommunity(s.central, {name: x.name.trim(), units, propertyType: E.ASSET_CLASSES[ac]?.label, market: [x.city, String(x.state).toUpperCase()].filter(Boolean).join(', '), development: x.status === 'leaseup'});
       s.communities = await S.communities(s.central).catch(() => s.communities);
       s.cid = id; s.draft.community_id = id; s.draft.name = `${x.name.trim()} FY${s.draft.fiscal_year} ${s.draft.plan_type === 'reforecast' ? 'Reforecast' : 'Budget'}`; x.newCommunity = false;
-      const student = ac.startsWith('student');
-      await confirmCalendar({classification: student ? 'Student Housing' : 'Multifamily', startMonth: student ? 8 : 1, reason: 'New community added in Budget Builder'}).catch(() => {});
+      resetCalendar(); // The creation RPC initializes only genuinely new communities atomically.
     }
     const startMonth = await fiscalStartMonth();
     const periods = E.fiscalPeriods(s.draft.fiscal_year, startMonth);
@@ -595,7 +606,7 @@ document.addEventListener('click', async e => {
   const d = t.dataset;
   if (d.tab) { s.tab = d.tab; render(); return; }
   if (d.open) { await openDraft(d.open).catch(err => status(err.message, true)); return; }
-  if (d.asset && s.draft) { s.draft.asset_class = d.asset; if (s.model) { s.model.property.assetClass = d.asset; if (d.asset === 'military') s.model.bah ||= []; mark(); } else render(); return; }
+  if (d.asset && s.draft) { resetCalendar(); s.draft.asset_class = d.asset; if (s.model) { s.model.property.assetClass = d.asset; if (d.asset === 'military') s.model.bah ||= []; mark(); } else render(); return; }
   if (d.sec) { s.open[d.sec] = s.open[d.sec] === false; render(); return; }
   if (d.glToggle) { s.openGL[d.glToggle] = !s.openGL[d.glToggle]; render(); return; }
   if (d.usemodel) { const r = s.result.rows[d.usemodel]; s.model.overrides[d.usemodel] = r.model.slice(); mark(); return; }
@@ -617,7 +628,7 @@ document.addEventListener('click', async e => {
     s.model.overrides[gl] = Array(12).fill(amt); s.model.notes[gl] = `${s.model.notes[gl] ? s.model.notes[gl] + ' · ' : ''}Per ${doc.file}`; doc.applied = true; mark(); return;
   }
   switch (d.act) {
-    case 'new': s.draft = null; s.model = null; render(); break;
+    case 'new': resetCalendar(); s.draft = null; s.model = null; render(); break;
     case 'create': newDraft(); break;
     case 'mixstart': {
       const m = s.model, rent = num(m.assumptions.marketRent);
@@ -689,7 +700,7 @@ document.addEventListener('click', async e => {
 document.addEventListener('change', async e => {
   if (CU.isActive() || s.busy) return;
   const t = e.target, d = t.dataset;
-  if (d.ctx === 'community') { s.cid = t.value; s.draft = null; s.model = null; await loadDrafts(); render(); return; }
+  if (d.ctx === 'community') { resetCalendar(); s.cid = t.value; s.draft = null; s.model = null; await loadDrafts(); render(); return; }
   if (d.ctx === 'draft') { if (t.value) await openDraft(t.value).catch(err => status(err.message, true)); return; }
   if (d.new) { s.newDraft[d.new] = t.value; return; }
   if (t.matches('[data-files]')) { await onFiles([...t.files]); return; }
